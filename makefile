@@ -23,8 +23,8 @@ all: build debug
 clean:
 	del $(EXE_DIR)\*.exe $(DEBUG_STR).* *.pdb *.obj
 
-$(EXE):
+$(EXE): $(SRC)
 	g++ $(SRC) $(OPTS) -o $(EXE)
 	
-$(DEBUG_EXE):
+$(DEBUG_EXE): $(SRC)
 	cl /Zi $(SRC) /Fe:$(DEBUG_EXE) user32.lib gdi32.lib 
