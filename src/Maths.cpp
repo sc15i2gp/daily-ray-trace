@@ -357,3 +357,30 @@ Vec4 normalise(Vec4 v)
 	return v/length(v);
 }
 
+/*	Geometry	*/
+
+//Returns true if ray intersects sphere, false otherwise
+//t is used to return smallest solution to quadratic equation
+bool ray_intersects_sphere(Ray ray, Vec3 sphere_center, double sphere_radius, double* t)
+{
+	Vec3 s_center_to_r_origin = ray.origin - sphere_center;
+	double a = 1.0;
+	double b = 2.0 * dot(ray.direction, s_center_to_r_origin);
+	double c = dot(s_center_to_r_origin, s_center_to_r_origin) - sphere_radius*sphere_radius;
+
+	double discriminant = b*b - 4.0 * a * c;
+
+	if(discriminant >= 0.0)
+	{//If a solution exists
+		double desired_solution = 0.0;
+		if(discriminant == 0.0) desired_solution = -b/(2.0*a);
+		else
+		{//2 solutions exist
+			desired_solution = -(b + sqrt(discriminant))/2.0*a;
+		}
+
+		*t = desired_solution;
+		return true;
+	}
+	else return false;
+}

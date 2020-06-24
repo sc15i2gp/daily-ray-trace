@@ -16,10 +16,9 @@
 //	- Physically(ish) based
 //	- Output result to window
 
-//TODO: Intersection tests
-//	- If eye ray intersects sphere/plane, colour pixel black
-
 //DOING:
+//	- Ray intersects sphere
+//	- Ray intersects plane
 
 struct RGB8
 {
@@ -53,19 +52,6 @@ struct Render_Buffer
 	int width;
 	int height;
 };
-
-enum Pixel_Channel
-{
-	P_B = 0,
-	P_G,
-	P_R
-};
-
-inline
-void set_pixel_channel(uint32_t* pixel, Pixel_Channel channel, uint8_t value)
-{
-	*(((uint8_t*)pixel) + channel) = value;
-}
 
 inline
 uint32_t* get_pixel(Render_Buffer* r_buffer, int x, int y)
@@ -181,7 +167,17 @@ LRESULT CALLBACK window_event_callback(HWND window, UINT message, WPARAM wparam,
 
 RGB64 cast_ray(Ray ray)
 {
-	return ray.direction;
+	RGB64 red = {1.0, 0.0, 0.0};
+	RGB64 black = {};
+	double t = 0.0;
+	if(ray_intersects_sphere(ray, Vec3{}, 0.5, &t))
+	{
+		return black;
+	}
+	else
+	{
+		return red;
+	}
 }
 
 void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane)
@@ -251,7 +247,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 		RGB8 clear_colour = {105, 192, 255};
 		clear_render_buffer(&__window_back_buffer__, clear_colour);
 
-		raytrace_scene(&__window_back_buffer__, 90.0, 1.0);
+		raytrace_scene(&__window_back_buffer__, 90.0, 0.1);
 
 		update_window_front_buffer(window, &__window_back_buffer__);
 	}

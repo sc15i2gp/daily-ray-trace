@@ -160,3 +160,7 @@ struct Ray
 	Vec3 origin;
 	Vec3 direction;
 };
+
+/*	Geometry	*/
+
+bool ray_intersects_sphere(Ray, Vec3 sphere_center, double sphere_radius, double* t);
