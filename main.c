@@ -1,6 +1,27 @@
 #include <Windows.h>
 #include <stdio.h>
 #include <stdint.h>
+//#include "Maths.h"
+
+//TODO: LONGTERM
+//	- Timing/performance
+//	- Implement printf/sprintf/etc.
+//	- Implement maths functions (trig, pow, ln etc.)
+//	- Remove CRT
+
+//TODO: Solve rendering equation
+//	- Recursive raytrace
+//	- Physically(ish) based
+//	- Output result to window
+
+//TODO: Intersection tests
+//	- If eye ray intersects sphere/plane, colour pixel black
+
+//TODO: Image plane
+
+//DOING: Vector maths
+//	- Test RemedyDBG
+
 
 bool running = true;
 void* back_buffer_mem = NULL;
@@ -16,8 +37,6 @@ void set_pixel_channel(uint32_t* pixel, uint8_t channel, uint8_t value)
 
 void render_that_good_shit_right_there()
 {
-	//For each pixel in back_buffer
-	//	Set to red
 	uint32_t* pixels = (uint32_t*)back_buffer_mem;
 	uint32_t stride = back_buffer_width;
 	for(int y = 0; y < back_buffer_height; ++y)
