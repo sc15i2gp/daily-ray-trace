@@ -8,6 +8,8 @@
 //	- Implement printf/sprintf/etc.
 //	- Implement maths functions (trig, pow, ln etc.)
 //	- Remove CRT
+//	- Direct MVSC build output files (that aren't exe) to build folder
+//	- Gamma correction
 
 //TODO: Solve rendering equation
 //	- Recursive raytrace
@@ -17,24 +19,88 @@
 //TODO: Intersection tests
 //	- If eye ray intersects sphere/plane, colour pixel black
 
-//TODO: Image plane
-
 //DOING:
-//	- Direct build output files (that aren't exe) to build folder
-//	- Put src files into src folder
 
-bool running = true;
-void* back_buffer_mem = NULL;
-int back_buffer_width = 0;
-int back_buffer_height = 0;
-BITMAPINFO back_buffer_info = {};
+struct RGB8
+{
+	uint8_t B;
+	uint8_t G;
+	uint8_t R;
+};
+typedef Vec3 RGB64;
+
+RGB8 rgb64_to_rgb8(RGB64 rgb64)
+{
+	RGB8 rgb8 = {};
+
+	if(rgb64.R < 0.0) rgb64.R = 0.0;
+	if(rgb64.R > 1.0) rgb64.R = 1.0;
+	if(rgb64.G < 0.0) rgb64.G = 0.0;
+	if(rgb64.G > 1.0) rgb64.G = 1.0;
+	if(rgb64.B < 0.0) rgb64.B = 0.0;
+	if(rgb64.B > 1.0) rgb64.B = 1.0;
+
+	rgb8.R = (uint8_t)(rgb64.R * 255.0);
+	rgb8.G = (uint8_t)(rgb64.G * 255.0);
+	rgb8.B = (uint8_t)(rgb64.B * 255.0);
+
+	return rgb8;
+}
+
+struct Render_Buffer
+{
+	uint32_t* pixels;
+	int width;
+	int height;
+};
+
+enum Pixel_Channel
+{
+	P_B = 0,
+	P_G,
+	P_R
+};
 
 inline
-void set_pixel_channel(uint32_t* pixel, uint8_t channel, uint8_t value)
+void set_pixel_channel(uint32_t* pixel, Pixel_Channel channel, uint8_t value)
 {
 	*(((uint8_t*)pixel) + channel) = value;
 }
 
+inline
+uint32_t* get_pixel(Render_Buffer* r_buffer, int x, int y)
+{
+	return r_buffer->pixels + y*r_buffer->width + x;
+}
+
+
+void set_render_buffer_pixel_colour(Render_Buffer* r_buffer, int x, int y, RGB8 colour)
+{
+	uint32_t* pixel = get_pixel(r_buffer, x, y);
+	uint32_t* c = (uint32_t*)(&colour);
+	*pixel = *c;
+}
+
+void clear_render_buffer(Render_Buffer* r_buffer, RGB8 colour)
+{
+	for(int y = 0; y < r_buffer->height; ++y)
+	{
+		for(int x = 0; x < r_buffer->width; ++x) set_render_buffer_pixel_colour(r_buffer, x, y, colour);
+	}
+}
+
+
+
+
+
+
+
+BITMAPINFO __back_buffer_info__ = {};
+Render_Buffer __window_back_buffer__ = {};
+
+bool running = true;
+
+/*
 void render_that_good_shit_right_there()
 {
 	uint32_t* pixels = (uint32_t*)back_buffer_mem;
@@ -50,27 +116,28 @@ void render_that_good_shit_right_there()
 		}
 	}
 }
+*/
 
-void size_window_back_buffer(int new_back_buffer_width, int new_back_buffer_height)
+void size_window_back_buffer(Render_Buffer* back_buffer, int new_back_buffer_width, int new_back_buffer_height)
 {
-	if(back_buffer_mem) VirtualFree(back_buffer_mem, 0, MEM_RELEASE);
+	if(back_buffer->pixels) VirtualFree(back_buffer->pixels, 0, MEM_RELEASE);
 
-	back_buffer_info.bmiHeader.biSize = sizeof(back_buffer_info.bmiHeader);
-	back_buffer_info.bmiHeader.biWidth = new_back_buffer_width;
-	back_buffer_info.bmiHeader.biHeight = -new_back_buffer_height;
-	back_buffer_info.bmiHeader.biPlanes = 1;
-	back_buffer_info.bmiHeader.biBitCount = 32;
-	back_buffer_info.bmiHeader.biCompression = BI_RGB;
+	__back_buffer_info__.bmiHeader.biSize = sizeof(__back_buffer_info__.bmiHeader);
+	__back_buffer_info__.bmiHeader.biWidth = new_back_buffer_width;
+	__back_buffer_info__.bmiHeader.biHeight = -new_back_buffer_height;
+	__back_buffer_info__.bmiHeader.biPlanes = 1;
+	__back_buffer_info__.bmiHeader.biBitCount = 32;
+	__back_buffer_info__.bmiHeader.biCompression = BI_RGB;
 
-	back_buffer_width = new_back_buffer_width;
-	back_buffer_height = new_back_buffer_height;
+	back_buffer->width = new_back_buffer_width;
+	back_buffer->height = new_back_buffer_height;
 
 	int bytes_per_pixel = 4;
-	int back_buffer_size = bytes_per_pixel * back_buffer_width * back_buffer_height;
-	back_buffer_mem = VirtualAlloc(0, back_buffer_size, MEM_COMMIT, PAGE_READWRITE);
+	int back_buffer_size = bytes_per_pixel * back_buffer->width * back_buffer->height;
+	back_buffer->pixels = (uint32_t*)VirtualAlloc(0, back_buffer_size, MEM_COMMIT, PAGE_READWRITE);
 }
 
-void update_window_front_buffer(HWND window)
+void update_window_front_buffer(HWND window, Render_Buffer* back_buffer)
 {
 	HDC window_device_context = GetDC(window);
 	RECT front_buffer_rect;
@@ -81,8 +148,8 @@ void update_window_front_buffer(HWND window)
 	(
 		window_device_context, 
 		0, 0, front_buffer_width, front_buffer_height, 
-		0, 0, back_buffer_width, back_buffer_height, 
-		back_buffer_mem, &back_buffer_info,
+		0, 0, back_buffer->width, back_buffer->height, 
+		back_buffer->pixels, &__back_buffer_info__,
 		DIB_RGB_COLORS, SRCCOPY
 	);
 	ReleaseDC(window, window_device_context);
@@ -99,7 +166,7 @@ LRESULT CALLBACK window_event_callback(HWND window, UINT message, WPARAM wparam,
 			GetClientRect(window, &window_rect);
 			int window_width = window_rect.right - window_rect.left;
 			int window_height = window_rect.bottom - window_rect.top;
-			size_window_back_buffer(window_width, window_height);
+			size_window_back_buffer(&__window_back_buffer__, window_width, window_height);
 			break;
 		}
 		case WM_CLOSE:
@@ -112,10 +179,44 @@ LRESULT CALLBACK window_event_callback(HWND window, UINT message, WPARAM wparam,
 	return result;
 }
 
+RGB64 cast_ray(Ray ray)
+{
+	return ray.direction;
+}
+
+void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane)
+{
+	Vec3 eye = {0.0, 0.0, 1.0};
+	Vec3 forward = {0.0, 0.0, -1.0};
+	Vec3 right = {1.0, 0.0, 0.0};
+	Vec3 up = {0.0, 1.0, 0.0};
+	Vec3 pixel_center = {};
+
+	int image_plane_width_px = render_target->width;
+	int image_plane_height_px = render_target->height;
+	double aspect_ratio = (double)(image_plane_width_px)/(double)(image_plane_height_px);
+	double image_plane_width = 2.0 * near_plane * tan_deg(fov/2.0);
+	double image_plane_height = image_plane_width / aspect_ratio;
+	double pixel_width = image_plane_width/(double)(image_plane_width_px);
+	double pixel_height = image_plane_height/(double)(image_plane_height_px);
+
+	Vec3 image_plane_top_left = eye + near_plane * forward - 0.5 * image_plane_width * right + 0.5 * image_plane_height * up;
+	for(int y = 0; y < image_plane_height_px; ++y)
+	{
+		for(int x = 0; x < image_plane_width_px; ++x)
+		{
+			Vec3 pixel_center = image_plane_top_left + ((double)x + 0.5)*pixel_width*right - ((double)y + 0.5)*pixel_height*up;
+			Ray eye_ray = {};
+			eye_ray.origin = eye;
+			eye_ray.direction = normalise(pixel_center - eye_ray.origin);
+			RGB64 raycast_result = cast_ray(eye_ray);
+			set_render_buffer_pixel_colour(render_target, x, y, rgb64_to_rgb8(raycast_result));
+		}
+	}
+}
+
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd_line)
 {
-	Vec2 v = {1.0, 2.0};
-	printf("%f\n", dot(v, v));
 	WNDCLASS window_class = {};
 	window_class.style = CS_HREDRAW | CS_VREDRAW;
 	window_class.lpfnWndProc = window_event_callback;
@@ -147,10 +248,12 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 			DispatchMessage(&message);
 		}
 
-		//Render stuff
-		render_that_good_shit_right_there();
+		RGB8 clear_colour = {105, 192, 255};
+		clear_render_buffer(&__window_back_buffer__, clear_colour);
 
-		update_window_front_buffer(window);
+		raytrace_scene(&__window_back_buffer__, 90.0, 1.0);
+
+		update_window_front_buffer(window, &__window_back_buffer__);
 	}
 
 	return 0;

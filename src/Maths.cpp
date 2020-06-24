@@ -1,5 +1,20 @@
 #include "Maths.h"
 
+double sin_deg(double t)
+{
+	return sin(t * (PI/180.0));
+}
+
+double cos_deg(double t)
+{
+	return cos(t * (PI/180.0));
+}
+
+double tan_deg(double t)
+{
+	return tan(t * (PI/180.0));
+}
+
 /*	Vectors	*/
 
 double& Vec2::operator[](int index)
@@ -103,7 +118,15 @@ double dot(Vec2 v, Vec2 w)
 	return v.x * w.x + v.y * w.y;
 }
 
-double length(Vec2);
+double length(Vec2 v)
+{
+	return sqrt(dot(v,v));
+}
+
+Vec2 normalise(Vec2 v)
+{
+	return v/length(v);
+}
 
 /*	Vec3	*/
 
@@ -207,7 +230,15 @@ double dot(Vec3 v, Vec3 w)
 	return v.x*w.x + v.y*w.y + v.z*w.z;
 }
 
-double length(Vec3);
+double length(Vec3 v)
+{
+	return sqrt(dot(v, v));
+}
+
+Vec3 normalise(Vec3 v)
+{
+	return v/length(v);
+}
 
 /*	Vec4	*/
 
@@ -316,5 +347,13 @@ double dot(Vec4 v, Vec4 w)
 	return dot(v.xyz, w.xyz) + v.w*w.w;
 }
 
-double length(Vec4);
+double length(Vec4 v)
+{
+	return sqrt(dot(v, v));
+}
+
+Vec4 normalise(Vec4 v)
+{
+	return v/length(v);
+}
 

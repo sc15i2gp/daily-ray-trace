@@ -3,6 +3,12 @@
 #include <stdint.h>
 #include <math.h>
 
+#define PI 3.141592653
+
+double sin_deg(double t);
+double cos_deg(double t);
+double tan_deg(double t);
+
 /*	Vectors	*/
 
 struct Vec2
@@ -29,6 +35,12 @@ struct Vec3
 			double x;
 			double y;
 			double z;
+		};
+		struct
+		{
+			double R;
+			double G;
+			double B;
 		};
 		struct
 		{
@@ -99,6 +111,7 @@ void operator/=(Vec2&, double);
 
 double dot(Vec2, Vec2);
 double length(Vec2);
+Vec2 normalise(Vec2);
 
 /*	Vec3	*/
 
@@ -117,6 +130,7 @@ void operator/=(Vec3&, Vec3);
 void operator/=(Vec3&, double);
 
 Vec3 cross(Vec3, Vec3);
+Vec3 normalise(Vec3);
 double dot(Vec3, Vec3);
 double length(Vec3);
 
@@ -137,6 +151,7 @@ void operator/=(Vec4&, Vec4);
 void operator/=(Vec4&, double);
 
 Vec4 cross(Vec4, Vec4);
+Vec4 normalise(Vec4);
 double dot(Vec4, Vec4);
 double length(Vec4);
 
