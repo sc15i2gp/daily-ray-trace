@@ -1,7 +1,7 @@
 #include <Windows.h>
 #include <stdio.h>
 #include <stdint.h>
-//#include "Maths.h"
+#include "Maths.h"
 
 //TODO: LONGTERM
 //	- Timing/performance
@@ -114,6 +114,8 @@ LRESULT CALLBACK window_event_callback(HWND window, UINT message, WPARAM wparam,
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd_line)
 {
+	Vec2 v = {1.0, 2.0};
+	printf("%f\n", dot(v, v));
 	WNDCLASS window_class = {};
 	window_class.style = CS_HREDRAW | CS_VREDRAW;
 	window_class.lpfnWndProc = window_event_callback;
