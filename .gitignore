@@ -34,3 +34,7 @@
 # Vim files
 .*.swp
 .*.swo
+
+# MVSC Output files
+*.ilk
+*.pdb

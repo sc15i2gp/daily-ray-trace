@@ -1,9 +1,15 @@
 CXX = g++
 OPTS = -lgdi32
-SRC = $(wildcard *.cpp)
-EXE = raytrace.exe
+EXE_DIR = bin
+SRC_DIR = src
+OUT_DIR = output
+SRC = $(wildcard $(SRC_DIR)/*.cpp)
+EXE = $(EXE_DIR)\raytrace.exe
 DEBUG_STR = debug_raytrace
-DEBUG_EXE = $(DEBUG_STR).exe
+DEBUG_EXE = $(EXE_DIR)/$(DEBUG_STR).exe
+
+$(info [${SRC}])
+
 
 .PHONY: clean build debug all
 .DEFAULT: build
@@ -15,10 +21,10 @@ debug: $(DEBUG_EXE)
 all: build debug
 
 clean:
-	del $(EXE) $(DEBUG_STR).* *.pdb *.obj
+	del $(EXE_DIR)\*.exe $(DEBUG_STR).* *.pdb *.obj
 
 $(EXE):
 	g++ $(SRC) $(OPTS) -o $(EXE)
 	
 $(DEBUG_EXE):
-	cl /Zi $(SRC) user32.lib gdi32.lib /Fe:$(DEBUG_EXE)
+	cl /Zi $(SRC) /Fe:$(DEBUG_EXE) user32.lib gdi32.lib 

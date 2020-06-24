@@ -19,9 +19,9 @@
 
 //TODO: Image plane
 
-//DOING: Vector maths
-//	- Test RemedyDBG
-
+//DOING:
+//	- Direct build output files (that aren't exe) to build folder
+//	- Put src files into src folder
 
 bool running = true;
 void* back_buffer_mem = NULL;
