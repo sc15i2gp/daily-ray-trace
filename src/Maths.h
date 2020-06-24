@@ -164,3 +164,4 @@ struct Ray
 /*	Geometry	*/
 
 bool ray_intersects_sphere(Ray, Vec3 sphere_center, double sphere_radius, double* t);
+bool ray_intersects_plane(Ray ray, Vec3 p, Vec3 n, Vec3 u, Vec3 v, double* t);

@@ -363,6 +363,11 @@ Vec4 normalise(Vec4 v)
 //t is used to return smallest solution to quadratic equation
 bool ray_intersects_sphere(Ray ray, Vec3 sphere_center, double sphere_radius, double* t)
 {
+	//Sphere: Radius^2 = dot(P-Center, P-Center), where P is point on surface of sphere
+	//Ray: R = R_origin + t(R_direction)
+	//Derived quadratic equation from two equations above
+	
+	//a, b, c coefficients in quadratic, solved using quadratic formula
 	Vec3 s_center_to_r_origin = ray.origin - sphere_center;
 	double a = 1.0;
 	double b = 2.0 * dot(ray.direction, s_center_to_r_origin);
@@ -380,7 +385,36 @@ bool ray_intersects_sphere(Ray ray, Vec3 sphere_center, double sphere_radius, do
 		}
 
 		*t = desired_solution;
-		return true;
+		return desired_solution >= 0.0;
 	}
 	else return false;
+}
+
+//Returns true if ray intersects plane, false otherwise
+//t is used to return solution to linear equation
+//Plane components consist of: Point on plane p, plane normal n, boundary vectors u and v
+//Plane consists of points q which satisfy: 
+//	- dot((p - q), n) = 0
+//	- 0 <= dot((p - q), u) <= 1
+//	- 0 <= dot((p - q), v) <= 1
+bool ray_intersects_plane(Ray ray, Vec3 p, Vec3 n, Vec3 u, Vec3 v, double* t)
+{
+	if(dot(ray.direction, n) != 0.0)
+	{
+		double desired_solution = dot(p - ray.origin, n)/dot(ray.direction, n);
+		*t = desired_solution;
+
+		Vec3 intersection = ray.origin + desired_solution * ray.direction;
+		Vec3 u_norm = normalise(u);
+		Vec3 v_norm = normalise(v);
+		double i_u = dot(intersection - p, u_norm); //How far along u intersection is
+		double i_v = dot(intersection - p, v_norm); //How far along v intersection is
+		
+		bool within_u = i_u >= 0.0 && i_u <= length(u);
+		bool within_v = i_v >= 0.0 && i_v <= length(v);
+		bool intersection_within_bounds = within_u && within_v;
+		return (desired_solution >= 0.0) && intersection_within_bounds;
+	}
+	else return false;
+
 }

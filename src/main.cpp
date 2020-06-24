@@ -17,8 +17,6 @@
 //	- Output result to window
 
 //DOING:
-//	- Ray intersects sphere
-//	- Ray intersects plane
 
 struct RGB8
 {
@@ -170,7 +168,11 @@ RGB64 cast_ray(Ray ray)
 	RGB64 red = {1.0, 0.0, 0.0};
 	RGB64 black = {};
 	double t = 0.0;
-	if(ray_intersects_sphere(ray, Vec3{}, 0.5, &t))
+	Vec3 p = Vec3{-0.2, 0.5, -0.2};
+	Vec3 u = 0.5*normalise(Vec3{1.0, 0.0, 0.0});
+	Vec3 v = normalise(Vec3{0.0, -0.6, 0.5});
+	Vec3 n = normalise(cross(u, v));
+	if(ray_intersects_plane(ray, p, n, u, v, &t))
 	{
 		return black;
 	}
