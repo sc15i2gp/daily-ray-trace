@@ -38,3 +38,6 @@
 # MVSC Output files
 *.ilk
 *.pdb
+
+# Remedybg
+*.rdbg
