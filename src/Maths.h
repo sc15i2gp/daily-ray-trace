@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <math.h>
 
-#define PI 3.141592653
+#define PI 3.141592653L
 
 double sin_deg(double t);
 double cos_deg(double t);

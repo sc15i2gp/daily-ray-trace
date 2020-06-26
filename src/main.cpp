@@ -4,19 +4,33 @@
 #include "Maths.h"
 
 //TODO: LONGTERM
+//	- Recursive raytrace
 //	- Timing/performance
 //	- Implement printf/sprintf/etc.
 //	- Implement maths functions (trig, pow, ln etc.)
 //	- Remove CRT
 //	- Direct MVSC build output files (that aren't exe) to build folder
 //	- Gamma correction
+//	- Volumetric effects
+//	- Different camera models/lenses (fisheye etc.)
+//	- UI stuff
 
-//TODO: Solve rendering equation
-//	- Recursive raytrace
-//	- Physically(ish) based
-//	- Output result to window
+//TODO: NOW
+//	- Spectral power distribution (SPD) representation of light
+//	- SPD of D65 illuminant
+//	- SPD -> CIE XYZ -> RGB
+//	- RGB -> SPD
 
-//DOING:
+
+void* alloc(int size)
+{
+	return VirtualAlloc(0, size, MEM_COMMIT, PAGE_READWRITE);
+}
+
+void dealloc(void* ptr)
+{
+	VirtualFree(ptr, 0, MEM_RELEASE);
+}
 
 struct RGB8
 {
@@ -84,27 +98,9 @@ Render_Buffer __window_back_buffer__ = {};
 
 bool running = true;
 
-/*
-void render_that_good_shit_right_there()
-{
-	uint32_t* pixels = (uint32_t*)back_buffer_mem;
-	uint32_t stride = back_buffer_width;
-	for(int y = 0; y < back_buffer_height; ++y)
-	{
-		for(int x = 0; x < back_buffer_width; ++x)
-		{
-			uint32_t* pixel = pixels + y*stride + x;
-			set_pixel_channel(pixel, 0, (uint8_t)(x));
-			set_pixel_channel(pixel, 1, (uint8_t)(y));
-			set_pixel_channel(pixel, 2, 0);
-		}
-	}
-}
-*/
-
 void size_window_back_buffer(Render_Buffer* back_buffer, int new_back_buffer_width, int new_back_buffer_height)
 {
-	if(back_buffer->pixels) VirtualFree(back_buffer->pixels, 0, MEM_RELEASE);
+	if(back_buffer->pixels) dealloc(back_buffer->pixels);
 
 	__back_buffer_info__.bmiHeader.biSize = sizeof(__back_buffer_info__.bmiHeader);
 	__back_buffer_info__.bmiHeader.biWidth = new_back_buffer_width;
@@ -118,7 +114,7 @@ void size_window_back_buffer(Render_Buffer* back_buffer, int new_back_buffer_wid
 
 	int bytes_per_pixel = 4;
 	int back_buffer_size = bytes_per_pixel * back_buffer->width * back_buffer->height;
-	back_buffer->pixels = (uint32_t*)VirtualAlloc(0, back_buffer_size, MEM_COMMIT, PAGE_READWRITE);
+	back_buffer->pixels = (uint32_t*)alloc(back_buffer_size);
 }
 
 void update_window_front_buffer(HWND window, Render_Buffer* back_buffer)
@@ -213,12 +209,92 @@ void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane)
 	}
 }
 
+long double c = 2.99792458e8L; //Speed of light
+long double h = 6.626176e-34L; //Planck constant
+long double k = 1.380662e-23L; //Boltzmann constant
+//Uses Planck's formula to compute the power of a black body radiator's emission at a given temperature and wavelength
+//Temperature in kelvin and wavelength in meters
+long double compute_black_body_power(long double temperature, long double wavelength)
+{
+	long double numerator = 2.0L * PI * h * c * c;
+
+	long double lambda_5 = powl(wavelength, 5.0L);
+	long double e_power_numerator = (h * c) / k;
+	long double e_power_denominator = temperature * wavelength;
+	long double e_power = e_power_numerator / e_power_denominator;
+	long double e_term = expl(e_power);
+
+	long double denominator = lambda_5 * (e_term - 1.0L);
+
+	return numerator/denominator;
+}
+
+#define BYTES(n) n
+#define KILOBYTES(n) 1024 * BYTES(n)
+#define MEGABYTES(n) 1024 * KILOBYTES(n)
+#define GIGABYTES(n) 1024 * MEGABYTES(n)
+
+//start_wavelength is the wavelength for the first value in spd
+//wavelength_sample_size is the range of wavelengths that a single sample in spd covers
+//To find the wavelength of spd[i], start_wavelength + i * wavelength_sample_size
+//Prints values to csv file
+void output_black_body_curve_to_csv(long double* spds, long double* temperatures, int number_of_spds, long double start_wavelength, long double wavelength_sample_size, int number_of_samples)
+{
+	//Allocate resources to open file
+	HANDLE csv_file = CreateFile("black_body.csv", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	char* csv_contents = (char*)alloc(MEGABYTES(64));
+
+	//Convert spd to csv_contents
+	//First, write the header row to contents
+	int contents_size = sprintf(csv_contents, "%s, %dK, %dK, %dK, %dK\n", "Wavelength", (int)temperatures[0], (int)temperatures[1], (int)temperatures[2], (int)temperatures[3]);
+	//Next write spectrum entries
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		long double wavelength = start_wavelength + (long double)(i) * wavelength_sample_size;
+		long double spd_samples[4] = {};
+		for(int j = 0; j < 4; ++j) spd_samples[j] = (spds + j*number_of_samples)[i];
+		contents_size += sprintf(csv_contents + contents_size, "%Lg, %Lg, %Lg, %Lg, %Lg\n", wavelength, spd_samples[0], spd_samples[1], spd_samples[2], spd_samples[3]);
+	}
+	
+	//Write contents to csv_file
+	DWORD bytes_written = 0;
+	WriteFile(csv_file, csv_contents, contents_size+1, &bytes_written, NULL);
+	
+	//Deallocate resources
+	CloseHandle(csv_file);
+	dealloc(csv_contents);
+}
+
+#define __USE_MINGW_ANSI_STDIO 1
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd_line)
 {
 	WNDCLASS window_class = {};
 	window_class.style = CS_HREDRAW | CS_VREDRAW;
 	window_class.lpfnWndProc = window_event_callback;
 	window_class.lpszClassName = "RaytraceClass";
+
+
+	//long double temperatures[4] = {4500.0L, 4000.0L, 3500.0L, 3000.0L};
+	long double temperatures[4] = {4000.0L, 4000.0L, 4000.0L, 2856.0L};
+	int number_of_spds = 4;
+	long double start_wavelength = 300.0e-9L;
+	long double end_wavelength = 780.0e-9L;
+	long double wavelength_sample_size = 5.0e-9L;
+	int number_of_spd_samples = (int)((end_wavelength - start_wavelength)/wavelength_sample_size) + 1;
+	int spd_mem_size = number_of_spd_samples * sizeof(long double);
+	//Generate spd for black body at 6500K from 380nm to 700nm at 5nm intervals
+	long double* spds = (long double*)alloc(spd_mem_size * number_of_spds);
+	for(int i = 0; i < number_of_spds; ++i)
+	{
+		long double* spd = spds + i * number_of_spd_samples;
+		for(int j = 0; j < number_of_spd_samples; ++j)
+		{
+			long double wavelength = start_wavelength + (long double)(j) * wavelength_sample_size;
+			spd[j] = compute_black_body_power(temperatures[i], wavelength);
+		}
+	}
+	output_black_body_curve_to_csv(spds, temperatures, number_of_spds, start_wavelength, wavelength_sample_size, number_of_spd_samples);
+	dealloc(spds);
 
 	if(!RegisterClass(&window_class))
 	{
