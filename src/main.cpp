@@ -15,21 +15,21 @@
 //	- Different camera models/lenses (fisheye etc.)
 //	- UI stuff
 //	- Invesitgate use of unity build
+//	- Investigate standardising spectra wavelength ranges in the program
+//	- Kirschoff's law for non-black body sources
 
 //TODO: NOW
-//	- SPD of D65 illuminant
+//	- RGB -> SPD
+//		- Load rgb_to_spd csv files (white, cyan, magenta, yellow, red, blue, green)
+//			- These transform to reflectance spds
+//			- To transform to illuminants, multiply reflectance transforms by reference white
 //	- Single sphere and single point light interaction
-//		- Choose emitted colour of point light
-//			- Generate light spd
-//			- SPD -> RGB
-//			- Show emitted colour of light at eye ray intersection
 //		- Choose material colour
 //			- Generate/find material spd
 //				- Find spd source on internet
 //				- RGB -> SPD
 //			- Show material spectrum at eye ray intersection
 //		- Multiply spds of light and material at eye ray intersection
-//	- Kirschoff's law for non-black body sources
 
 //SPD -> RGB:
 //	- First, SPD -> XYZ
@@ -89,6 +89,20 @@ struct Spectrum
 	int number_of_samples;
 };
 
+Spectrum operator+(Spectrum spd_0, Spectrum spd_1)
+{
+	Spectrum spd = {};
+	spd.start_wavelength = spd_0.start_wavelength;
+	spd.end_wavelength = spd_0.end_wavelength;
+	spd.number_of_samples = spd_0.number_of_samples;
+
+	for(int i = 0; i < spd.number_of_samples; ++i)
+	{
+		spd.samples[i] = spd_0.samples[i] + spd_1.samples[i];
+	}
+	return spd;
+}
+
 //NOTE: Currently assumes both spectra have same wavelength ranges and intervals
 Spectrum operator*(Spectrum spd_0, Spectrum spd_1)
 {
@@ -103,6 +117,27 @@ Spectrum operator*(Spectrum spd_0, Spectrum spd_1)
 	}
 
 	return spd;
+}
+
+Spectrum operator*(double d, Spectrum spd_0)
+{
+	Spectrum spd = {};
+	spd.start_wavelength = spd_0.start_wavelength;
+	spd.end_wavelength = spd_0.end_wavelength;
+	spd.number_of_samples = spd_0.number_of_samples;
+	long double t = (long double)d;
+
+	for(int i = 0; i < spd.number_of_samples; ++i)
+	{
+		spd.samples[i] = d * spd_0.samples[i];
+	}
+
+	return spd;
+}
+
+void operator+=(Spectrum& spd_0, Spectrum spd_1)
+{
+	spd_0 = spd_0 + spd_1;
 }
 
 void normalise(Spectrum& spd)
@@ -294,12 +329,21 @@ char* find_next_number(char* c)
 Spectrum reference_white = {};
 Spectrum colour_matching_functions[3] = {};
 
+Spectrum white_rgb_to_spd = {};
+Spectrum cyan_rgb_to_spd = {};
+Spectrum magenta_rgb_to_spd = {};
+Spectrum yellow_rgb_to_spd = {};
+Spectrum red_rgb_to_spd = {};
+Spectrum green_rgb_to_spd = {};
+Spectrum blue_rgb_to_spd = {};
+
 Spectrum load_spd(const char* spd_path)
 {
 	Spectrum spd = {};
 	HANDLE spd_file = CreateFile(spd_path, GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	DWORD spd_size = GetFileSize(spd_file, NULL);
 	char* spd_contents = (char*)alloc(spd_size);
+	ZeroMemory(spd_contents, spd_size);
 	DWORD bytes_read = 0;
 	ReadFile(spd_file, spd_contents, spd_size, &bytes_read, NULL);
 	
@@ -352,6 +396,26 @@ void load_d65_illuminant()
 	for(int i = 0; i < reference_white.number_of_samples; ++i) reference_white.samples[i] /= 100.0L;
 }
 
+void load_e_illuminant()
+{
+	long double wavelength_interval = 5.0L;
+	reference_white.start_wavelength = 380.0L;
+	reference_white.end_wavelength = 720.0L;
+	reference_white.number_of_samples = ((reference_white.end_wavelength-reference_white.start_wavelength)/ wavelength_interval) + 1;
+	for(int i = 0; i < reference_white.number_of_samples; ++i) reference_white.samples[i] = 1.0L;
+}
+
+void load_rgb_to_spd_functions()
+{
+	white_rgb_to_spd = load_spd("white_rgb_to_spd.csv");
+	cyan_rgb_to_spd = load_spd("cyan_rgb_to_spd.csv");
+	magenta_rgb_to_spd = load_spd("magenta_rgb_to_spd.csv");
+	yellow_rgb_to_spd = load_spd("yellow_rgb_to_spd.csv");
+	red_rgb_to_spd = load_spd("red_rgb_to_spd.csv");
+	green_rgb_to_spd = load_spd("green_rgb_to_spd.csv");
+	blue_rgb_to_spd = load_spd("blue_rgb_to_spd.csv");
+}
+
 Vec3 spectrum_to_xyz(Spectrum spd)
 {
 	//SPD -> XYZ
@@ -384,6 +448,16 @@ RGB64 gamma_linear_rgb(RGB64 linear_rgb)
 	return rgb;
 }
 
+RGB64 inverse_gamma_rgb(RGB64 rgb)
+{
+	RGB64 linear_rgb = {};
+	for(int i = 0; i < 3; ++i)
+	{
+		linear_rgb[i] = (rgb[i] <= 0.04045) ? rgb[i]/12.92 : pow(((rgb[i] + 0.055)/1.055), 2.4);
+	}
+	return linear_rgb;
+}
+
 RGB64 spectrum_to_RGB64(Spectrum spd)
 {
 	Vec3 xyz = spectrum_to_xyz(spd);
@@ -391,7 +465,6 @@ RGB64 spectrum_to_RGB64(Spectrum spd)
 
 	xyz /= white_xyz.y;
 
-	printf("%f %f %f\n", xyz.R, xyz.G, xyz.B);
 	//XYZ -> RGB
 	RGB64 linear_rgb = {};
 	linear_rgb.R = 3.24097 * xyz.x - 1.53738 * xyz.y - 0.49831 * xyz.z;
@@ -400,6 +473,58 @@ RGB64 spectrum_to_RGB64(Spectrum spd)
 
 	RGB64 rgb = gamma_linear_rgb(linear_rgb);
 	return rgb;
+}
+
+Spectrum RGB64_to_spectrum(RGB64 rgb)
+{
+	Spectrum spd = {};
+	spd.start_wavelength = white_rgb_to_spd.start_wavelength;
+	spd.end_wavelength = white_rgb_to_spd.end_wavelength;
+	spd.number_of_samples = white_rgb_to_spd.number_of_samples;
+	if(rgb.R <= rgb.G && rgb.R <= rgb.B)
+	{
+		spd += rgb.R * white_rgb_to_spd;
+		if(rgb.G <= rgb.B)
+		{
+			spd += (rgb.G - rgb.R)*cyan_rgb_to_spd;
+			spd += (rgb.B - rgb.G)*blue_rgb_to_spd;
+		}
+		else
+		{
+			spd += (rgb.B - rgb.R)*cyan_rgb_to_spd;
+			spd += (rgb.G - rgb.B)*green_rgb_to_spd;
+		}
+	}
+	else if(rgb.G <= rgb.R && rgb.G <= rgb.B)
+	{
+		spd += rgb.G * white_rgb_to_spd;
+		if(rgb.R <= rgb.B)
+		{
+			spd += (rgb.R - rgb.G)*magenta_rgb_to_spd;
+			spd += (rgb.B - rgb.R)*blue_rgb_to_spd;
+		}
+		else
+		{
+			spd += (rgb.B - rgb.G)*magenta_rgb_to_spd;
+			spd += (rgb.R - rgb.B)*red_rgb_to_spd;
+		}
+	}
+	else
+	{
+		spd += rgb.B * white_rgb_to_spd;
+		if(rgb.R <= rgb.G)
+		{
+			spd += (rgb.R - rgb.B)*yellow_rgb_to_spd;
+			spd += (rgb.G - rgb.R)*green_rgb_to_spd;
+		}
+		else
+		{
+			spd += (rgb.G - rgb.B)*yellow_rgb_to_spd;
+			spd += (rgb.R - rgb.G)*red_rgb_to_spd;
+		}
+	}
+
+	return spd;
 }
 
 RGB64 cast_ray(Ray ray, Spectrum light_spd)
@@ -534,17 +659,20 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 		return 2;
 	}
 
-	//long double l = 4000.0L;
-	long double l = 10000.0L;
-	Spectrum light_spd = generate_black_body_spd(l, 380.0L, 780.0L);
+	long double l = 4000.0L;
+	//long double l = 10000.0L;
+	Spectrum light_spd = generate_black_body_spd(l, 380.0L, 720.0L);
 	normalise(light_spd);
-	output_spd_to_csv(light_spd);
 	load_colour_matching_functions();
-	load_d65_illuminant();
-	output_spd_to_csv(colour_matching_functions[0], "cmf_x_1.csv");
-	output_spd_to_csv(colour_matching_functions[1], "cmf_y_1.csv");
-	output_spd_to_csv(colour_matching_functions[2], "cmf_z_1.csv");
-	output_spd_to_csv(reference_white, "white.csv");
+	//load_d65_illuminant();
+	load_e_illuminant();
+	load_rgb_to_spd_functions();
+
+	Spectrum red_spd = RGB64_to_spectrum(RGB64{0.25, 0.8, 0.4});
+	RGB8 r = rgb64_to_rgb8(gamma_linear_rgb(RGB64{0.25, 0.8, 0.4}));
+	RGB8 g = rgb64_to_rgb8(spectrum_to_RGB64(red_spd));
+	printf("%d %d %d\n", r.R, r.G, r.B);
+	printf("%d %d %d\n", g.R, g.G, g.B);
 	while(running)
 	{
 		MSG message;
@@ -557,7 +685,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 		RGB8 clear_colour = {};
 		clear_render_buffer(&__window_back_buffer__, clear_colour);
 
-		raytrace_scene(&__window_back_buffer__, 90.0, 0.1, light_spd);
+		raytrace_scene(&__window_back_buffer__, 90.0, 0.1, red_spd);
 
 		update_window_front_buffer(window, &__window_back_buffer__);
 	}
