@@ -6,9 +6,9 @@
 //TODO: LONGTERM
 //	- Recursive raytrace
 //	- Timing/performance
-//	- Implement printf/sprintf/etc.
-//	- Implement maths functions (trig, pow, ln etc.)
 //	- Remove CRT
+//		- Implement printf/sprintf/etc.
+//		- Implement maths functions (trig, pow, ln etc.)
 //	- Direct MVSC build output files (that aren't exe) to build folder
 //	- Gamma correction
 //	- Volumetric effects
@@ -16,20 +16,28 @@
 //	- UI stuff
 //	- Invesitgate use of unity build
 //	- Investigate standardising spectra wavelength ranges in the program
+//	- Investigate different SPD representations
 //	- Kirschoff's law for non-black body sources
+//	- Different RGB -> SPD method: "Physically Meaningful Rendering using Tristimulus Colours"
+//	- Transmission (as well as reflection)
+//	- Microfacet models for BSDFs
+//	- Different sampling techniques
+//	- Supersampling of image plane
+//	- Texturing (images + surface properties)
 
 //TODO: NOW
-//	- RGB -> SPD
-//		- Load rgb_to_spd csv files (white, cyan, magenta, yellow, red, blue, green)
-//			- These transform to reflectance spds
-//			- To transform to illuminants, multiply reflectance transforms by reference white
-//	- Single sphere and single point light interaction
-//		- Choose material colour
-//			- Generate/find material spd
-//				- Find spd source on internet
-//				- RGB -> SPD
-//			- Show material spectrum at eye ray intersection
-//		- Multiply spds of light and material at eye ray intersection
+//	- Reflection
+//		- Point light source
+//		- Blinn-Phong BSDF
+//			- Diffuse reflection
+//			- Specular reflection
+//	- Recursive raytrace
+//		- Define scene (Cornell box with sphere and point light)
+//		- Direct lighting
+//		- Indirect lighting
+//		- Monte carlo integration
+//			- Importance sampling?
+//		- Area lighting
 
 //SPD -> RGB:
 //	- First, SPD -> XYZ
@@ -129,7 +137,23 @@ Spectrum operator*(double d, Spectrum spd_0)
 
 	for(int i = 0; i < spd.number_of_samples; ++i)
 	{
-		spd.samples[i] = d * spd_0.samples[i];
+		spd.samples[i] = t * spd_0.samples[i];
+	}
+
+	return spd;
+}
+
+Spectrum operator/(Spectrum spd_0, double d)
+{
+	Spectrum spd = {};
+	spd.start_wavelength = spd_0.start_wavelength;
+	spd.end_wavelength = spd_0.end_wavelength;
+	spd.number_of_samples = spd_0.number_of_samples;
+	long double t = (long double)d;
+
+	for(int i = 0; i < spd.number_of_samples; ++i)
+	{
+		spd.samples[i] = spd_0.samples[i] / t;
 	}
 
 	return spd;
@@ -527,7 +551,25 @@ Spectrum RGB64_to_spectrum(RGB64 rgb)
 	return spd;
 }
 
-RGB64 cast_ray(Ray ray, Spectrum light_spd)
+struct Surface_Point
+{
+	Spectrum lambertian_spd;
+	Vec3 normal;
+	Vec3 position;
+};
+
+
+Spectrum lambertian_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
+{
+	return p.lambertian_spd / PI;
+}
+
+Spectrum specular_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
+{
+	return Spectrum{};
+}
+
+RGB64 cast_ray(Ray ray, Spectrum light_spd, Spectrum sphere_spd)
 {
 	RGB64 black = {0.0, 0.0, 0.0};
 	double t = 0.0;
@@ -535,9 +577,20 @@ RGB64 cast_ray(Ray ray, Spectrum light_spd)
 	Vec3 u = 0.5*normalise(Vec3{1.0, 0.0, 0.0});
 	Vec3 v = normalise(Vec3{0.0, -0.6, 0.5});
 	Vec3 n = normalise(cross(u, v));
-	if(ray_intersects_sphere(ray, Vec3{}, 0.3f, &t))
+
+	Vec3 light_pos = {0.0, 1.0, 1.0};
+	Vec3 sphere_pos = {};
+	if(ray_intersects_sphere(ray, sphere_pos, 0.3f, &t))
 	{
-		return spectrum_to_RGB64(light_spd);
+		Vec3 intersection = ray.origin + t * ray.direction;
+		Vec3 incoming = light_pos - intersection;
+		Vec3 outgoing = -ray.direction;
+		Surface_Point point = {};
+		point.lambertian_spd = sphere_spd;
+		point.position = intersection;
+		point.normal = normalise(intersection - sphere_pos);
+		Spectrum result = dot(incoming, point.normal) * light_spd * lambertian_bsdf(point, incoming, outgoing);
+		return spectrum_to_RGB64(result);
 	}
 	else
 	{
@@ -545,7 +598,7 @@ RGB64 cast_ray(Ray ray, Spectrum light_spd)
 	}
 }
 
-void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane, Spectrum light_spd)
+void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane, Spectrum light_spd, Spectrum sphere_spd)
 {
 	Vec3 eye = {0.0, 0.0, 1.0};
 	Vec3 forward = {0.0, 0.0, -1.0};
@@ -570,7 +623,7 @@ void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane,
 			Ray eye_ray = {};
 			eye_ray.origin = eye;
 			eye_ray.direction = normalise(pixel_center - eye_ray.origin);
-			RGB64 raycast_result = cast_ray(eye_ray, light_spd);
+			RGB64 raycast_result = cast_ray(eye_ray, light_spd, sphere_spd);
 			set_render_buffer_pixel_colour(render_target, x, y, rgb64_to_rgb8(raycast_result));
 		}
 	}
@@ -685,7 +738,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 		RGB8 clear_colour = {};
 		clear_render_buffer(&__window_back_buffer__, clear_colour);
 
-		raytrace_scene(&__window_back_buffer__, 90.0, 0.1, red_spd);
+		raytrace_scene(&__window_back_buffer__, 90.0, 0.1, light_spd, red_spd);
 
 		update_window_front_buffer(window, &__window_back_buffer__);
 	}
