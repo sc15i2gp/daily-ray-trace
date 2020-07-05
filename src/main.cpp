@@ -554,6 +554,7 @@ Spectrum RGB64_to_spectrum(RGB64 rgb)
 struct Surface_Point
 {
 	Spectrum lambertian_spd;
+	Spectrum specular_spd;
 	Vec3 normal;
 	Vec3 position;
 };
@@ -564,12 +565,19 @@ Spectrum lambertian_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 	return p.lambertian_spd / PI;
 }
 
-Spectrum specular_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
+double max(double a, double b)
 {
-	return Spectrum{};
+	return (a < b) ? b : a;
 }
 
-RGB64 cast_ray(Ray ray, Spectrum light_spd, Spectrum sphere_spd)
+Spectrum specular_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
+{
+	Vec3 bisector = (incoming + outgoing)/2.0;
+	double specular_coefficient = pow(max(0.0, dot(p.normal, bisector)), 80.0);
+	return specular_coefficient * p.specular_spd;
+}
+
+RGB64 cast_ray(Ray ray, Spectrum light_spd, Spectrum sphere_spd, Spectrum specular_spd)
 {
 	RGB64 black = {0.0, 0.0, 0.0};
 	double t = 0.0;
@@ -587,9 +595,10 @@ RGB64 cast_ray(Ray ray, Spectrum light_spd, Spectrum sphere_spd)
 		Vec3 outgoing = -ray.direction;
 		Surface_Point point = {};
 		point.lambertian_spd = sphere_spd;
+		point.specular_spd = specular_spd;
 		point.position = intersection;
 		point.normal = normalise(intersection - sphere_pos);
-		Spectrum result = dot(incoming, point.normal) * light_spd * lambertian_bsdf(point, incoming, outgoing);
+		Spectrum result = dot(incoming, point.normal) * light_spd * (lambertian_bsdf(point, incoming, outgoing) + specular_bsdf(point, incoming, outgoing));
 		return spectrum_to_RGB64(result);
 	}
 	else
@@ -598,7 +607,7 @@ RGB64 cast_ray(Ray ray, Spectrum light_spd, Spectrum sphere_spd)
 	}
 }
 
-void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane, Spectrum light_spd, Spectrum sphere_spd)
+void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane, Spectrum light_spd, Spectrum sphere_spd, Spectrum specular_spd)
 {
 	Vec3 eye = {0.0, 0.0, 1.0};
 	Vec3 forward = {0.0, 0.0, -1.0};
@@ -623,7 +632,7 @@ void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane,
 			Ray eye_ray = {};
 			eye_ray.origin = eye;
 			eye_ray.direction = normalise(pixel_center - eye_ray.origin);
-			RGB64 raycast_result = cast_ray(eye_ray, light_spd, sphere_spd);
+			RGB64 raycast_result = cast_ray(eye_ray, light_spd, sphere_spd, specular_spd);
 			set_render_buffer_pixel_colour(render_target, x, y, rgb64_to_rgb8(raycast_result));
 		}
 	}
@@ -726,6 +735,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	RGB8 g = rgb64_to_rgb8(spectrum_to_RGB64(red_spd));
 	printf("%d %d %d\n", r.R, r.G, r.B);
 	printf("%d %d %d\n", g.R, g.G, g.B);
+	Spectrum specular_spd = load_spd("d65.csv");
 	while(running)
 	{
 		MSG message;
@@ -738,7 +748,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 		RGB8 clear_colour = {};
 		clear_render_buffer(&__window_back_buffer__, clear_colour);
 
-		raytrace_scene(&__window_back_buffer__, 90.0, 0.1, light_spd, red_spd);
+		raytrace_scene(&__window_back_buffer__, 90.0, 0.1, light_spd, red_spd, specular_spd);
 
 		update_window_front_buffer(window, &__window_back_buffer__);
 	}
