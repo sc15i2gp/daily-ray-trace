@@ -1,36 +1,25 @@
-#include <Windows.h>
 #include <stdio.h>
 #include <stdint.h>
+#include "Platform.h"
 #include "Maths.h"
+#include "Colour.h"
 
 //TODO: LONGTERM
-//	- Recursive raytrace
-//	- Timing/performance
-//	- Remove CRT
-//		- Implement printf/sprintf/etc.
-//		- Implement maths functions (trig, pow, ln etc.)
-//	- Direct MVSC build output files (that aren't exe) to build folder
-//	- Gamma correction
-//	- Volumetric effects
-//	- Different camera models/lenses (fisheye etc.)
-//	- UI stuff
-//	- Invesitgate use of unity build
+//	- Output to jpg/png
 //	- Investigate standardising spectra wavelength ranges in the program
 //	- Investigate different SPD representations
 //	- Kirschoff's law for non-black body sources
 //	- Different RGB -> SPD method: "Physically Meaningful Rendering using Tristimulus Colours"
-//	- Transmission (as well as reflection)
-//	- Microfacet models for BSDFs
-//	- Different sampling techniques
-//	- Supersampling of image plane
 //	- Texturing (images + surface properties)
+//	- Different camera models/lenses (fisheye etc.)
+//	- Direct MVSC build output files (that aren't exe) to build folder
+//	- Invesitgate use of unity build
+//	- Remove CRT
+//		- Implement printf/sprintf/etc.
+//		- Implement maths functions (trig, pow, ln etc.)
+//	- Add error handling to platform functions
 
 //TODO: NOW
-//	- Reflection
-//		- Point light source
-//		- Blinn-Phong BSDF
-//			- Diffuse reflection
-//			- Specular reflection
 //	- Recursive raytrace
 //		- Define scene (Cornell box with sphere and point light)
 //		- Direct lighting
@@ -38,6 +27,19 @@
 //		- Monte carlo integration
 //			- Importance sampling?
 //		- Area lighting
+//	- More geometry models
+//	- Output raytraced scene to file
+//		- Output raytraced image as bmp file
+//		- OpenGL for rendering scene preview and UI
+//		- UI for camera control, raytrace beginning
+//		- Maybe screen shows progress of raytrace
+//	- Better Sampling
+//		- Integration importance sampling
+//		- Image plane super sampling
+//	- Profiling
+//	- Other reflectance models
+//		- Fresnel equation specular reflection
+//	- Volumetric transport
 
 //SPD -> RGB:
 //	- First, SPD -> XYZ
@@ -50,180 +52,6 @@
 //	- The data set this project will initially use for the colour functions is CIE 1931 2 degree observer.
 //	- The XYZ colour space has no meaning without a reference white point
 //	- The white point is the whitest point in the colour space. The colour space can be normalised by division by the white point
-
-void* alloc(int size)
-{
-	return VirtualAlloc(0, size, MEM_COMMIT, PAGE_READWRITE);
-}
-
-void dealloc(void* ptr)
-{
-	VirtualFree(ptr, 0, MEM_RELEASE);
-}
-
-struct RGB8
-{
-	uint8_t B;
-	uint8_t G;
-	uint8_t R;
-};
-typedef Vec3 RGB64;
-
-RGB8 rgb64_to_rgb8(RGB64 rgb64)
-{
-	RGB8 rgb8 = {};
-
-	if(rgb64.R < 0.0) rgb64.R = 0.0;
-	if(rgb64.R > 1.0) rgb64.R = 1.0;
-	if(rgb64.G < 0.0) rgb64.G = 0.0;
-	if(rgb64.G > 1.0) rgb64.G = 1.0;
-	if(rgb64.B < 0.0) rgb64.B = 0.0;
-	if(rgb64.B > 1.0) rgb64.B = 1.0;
-
-	rgb8.R = (uint8_t)(rgb64.R * 255.0);
-	rgb8.G = (uint8_t)(rgb64.G * 255.0);
-	rgb8.B = (uint8_t)(rgb64.B * 255.0);
-
-	return rgb8;
-}
-
-#define SPECTRUM_SAMPLE_MAX 1024
-
-struct Spectrum
-{
-	long double samples[SPECTRUM_SAMPLE_MAX];
-	long double start_wavelength; //In nm
-	long double end_wavelength; //In nm
-	int number_of_samples;
-};
-
-Spectrum operator+(Spectrum spd_0, Spectrum spd_1)
-{
-	Spectrum spd = {};
-	spd.start_wavelength = spd_0.start_wavelength;
-	spd.end_wavelength = spd_0.end_wavelength;
-	spd.number_of_samples = spd_0.number_of_samples;
-
-	for(int i = 0; i < spd.number_of_samples; ++i)
-	{
-		spd.samples[i] = spd_0.samples[i] + spd_1.samples[i];
-	}
-	return spd;
-}
-
-//NOTE: Currently assumes both spectra have same wavelength ranges and intervals
-Spectrum operator*(Spectrum spd_0, Spectrum spd_1)
-{
-	Spectrum spd = {};
-	spd.start_wavelength = spd_0.start_wavelength;
-	spd.end_wavelength = spd_0.end_wavelength;
-	spd.number_of_samples = spd_0.number_of_samples;
-
-	for(int i = 0; i < spd.number_of_samples; ++i)
-	{
-		spd.samples[i] = spd_0.samples[i] * spd_1.samples[i];
-	}
-
-	return spd;
-}
-
-Spectrum operator*(double d, Spectrum spd_0)
-{
-	Spectrum spd = {};
-	spd.start_wavelength = spd_0.start_wavelength;
-	spd.end_wavelength = spd_0.end_wavelength;
-	spd.number_of_samples = spd_0.number_of_samples;
-	long double t = (long double)d;
-
-	for(int i = 0; i < spd.number_of_samples; ++i)
-	{
-		spd.samples[i] = t * spd_0.samples[i];
-	}
-
-	return spd;
-}
-
-Spectrum operator/(Spectrum spd_0, double d)
-{
-	Spectrum spd = {};
-	spd.start_wavelength = spd_0.start_wavelength;
-	spd.end_wavelength = spd_0.end_wavelength;
-	spd.number_of_samples = spd_0.number_of_samples;
-	long double t = (long double)d;
-
-	for(int i = 0; i < spd.number_of_samples; ++i)
-	{
-		spd.samples[i] = spd_0.samples[i] / t;
-	}
-
-	return spd;
-}
-
-void operator+=(Spectrum& spd_0, Spectrum spd_1)
-{
-	spd_0 = spd_0 + spd_1;
-}
-
-void normalise(Spectrum& spd)
-{
-	long double highest_value = 0.0L;
-	for(int i = 0; i < spd.number_of_samples; ++i) if(spd.samples[i] > highest_value) highest_value = spd.samples[i];
-
-	for(int i = 0; i < spd.number_of_samples; ++i) spd.samples[i] /= highest_value;
-}
-
-long double c = 2.99792458e8L; //Speed of light
-long double h = 6.626176e-34L; //Planck constant
-long double k = 1.380662e-23L; //Boltzmann constant
-//Uses Planck's formula to compute the power of a black body radiator's emission at a given temperature and wavelength
-//Temperature in kelvin and wavelength in meters
-long double compute_black_body_power(long double temperature, long double wavelength)
-{
-	long double numerator = 2.0L * PI * h * c * c;
-
-	long double lambda_5 = powl(wavelength, 5.0L);
-	long double e_power_numerator = (h * c) / k;
-	long double e_power_denominator = temperature * wavelength;
-	long double e_power = e_power_numerator / e_power_denominator;
-	long double e_term = expl(e_power);
-
-	long double denominator = lambda_5 * (e_term - 1.0L);
-
-	return numerator/denominator;
-}
-
-inline
-long double m_to_nm(long double m)
-{
-	long double nm = m * 1e9;
-	return nm;
-}
-
-inline
-long double nm_to_m(long double nm)
-{
-	long double m = nm * 1e-9;
-	return m;
-}
-
-long double sample_interval(Spectrum spd)
-{
-	return (spd.end_wavelength - spd.start_wavelength)/(long double)(spd.number_of_samples - 1);
-}
-
-Spectrum generate_black_body_spd(long double temperature, long double start_wavelength = 300.0, long double end_wavelength = 780.0, long double sample_interval = 5.0)
-{
-	Spectrum spd = {};
-	spd.number_of_samples = (int)((end_wavelength - start_wavelength)/sample_interval) + 1;
-	for(int i = 0; i < spd.number_of_samples; ++i)
-	{
-		long double wavelength = nm_to_m(start_wavelength + (long double)(i) * sample_interval);
-		spd.samples[i] = compute_black_body_power(temperature, wavelength);
-	}
-	spd.start_wavelength = start_wavelength;
-	spd.end_wavelength = end_wavelength;
-	return spd;
-}
 
 struct Render_Buffer
 {
@@ -253,11 +81,6 @@ void clear_render_buffer(Render_Buffer* r_buffer, RGB8 colour)
 		for(int x = 0; x < r_buffer->width; ++x) set_render_buffer_pixel_colour(r_buffer, x, y, colour);
 	}
 }
-
-
-
-
-
 
 
 BITMAPINFO __back_buffer_info__ = {};
@@ -364,12 +187,7 @@ Spectrum blue_rgb_to_spd = {};
 Spectrum load_spd(const char* spd_path)
 {
 	Spectrum spd = {};
-	HANDLE spd_file = CreateFile(spd_path, GENERIC_READ, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	DWORD spd_size = GetFileSize(spd_file, NULL);
-	char* spd_contents = (char*)alloc(spd_size);
-	ZeroMemory(spd_contents, spd_size);
-	DWORD bytes_read = 0;
-	ReadFile(spd_file, spd_contents, spd_size, &bytes_read, NULL);
+	char* spd_contents = read_file_contents(spd_path);
 	
 	//Count number of samples
 	int number_of_samples = 0;
@@ -401,7 +219,6 @@ Spectrum load_spd(const char* spd_path)
 	}
 
 	dealloc(spd_contents);
-	CloseHandle(spd_file);
 
 	return spd;
 }
@@ -565,7 +382,7 @@ Spectrum lambertian_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 	return p.lambertian_spd / PI;
 }
 
-double max(double a, double b)
+double d_max(double a, double b)
 {
 	return (a < b) ? b : a;
 }
@@ -573,7 +390,7 @@ double max(double a, double b)
 Spectrum specular_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 {
 	Vec3 bisector = (incoming + outgoing)/2.0;
-	double specular_coefficient = pow(max(0.0, dot(p.normal, bisector)), 80.0);
+	double specular_coefficient = pow(d_max(0.0, dot(p.normal, bisector)), 80.0);
 	return specular_coefficient * p.specular_spd;
 }
 
@@ -638,43 +455,6 @@ void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane,
 	}
 }
 
-#define BYTES(n) n
-#define KILOBYTES(n) 1024 * BYTES(n)
-#define MEGABYTES(n) 1024 * KILOBYTES(n)
-#define GIGABYTES(n) 1024 * MEGABYTES(n)
-
-//start_wavelength is the wavelength for the first value in spd
-//wavelength_sample_size is the range of wavelengths that a single sample in spd covers
-//To find the wavelength of spd[i], start_wavelength + i * wavelength_sample_size
-//Prints values to csv file
-void output_black_body_curves_to_csv(Spectrum* spds, long double* temperatures)
-{
-	long double wavelength_sample_size = (spds[0].end_wavelength - spds[0].start_wavelength)/(long double)(spds[0].number_of_samples - 1);
-	//Allocate resources to open file
-	HANDLE csv_file = CreateFile("black_body.csv", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	char* csv_contents = (char*)alloc(MEGABYTES(64));
-
-	//Convert spd to csv_contents
-	//First, write the header row to contents
-	int contents_size = sprintf(csv_contents, "%s, %dK, %dK, %dK, %dK\n", "Wavelength", (int)temperatures[0], (int)temperatures[1], (int)temperatures[2], (int)temperatures[3]);
-	//Next write spectrum entries
-	for(int i = 0; i < spds[0].number_of_samples; ++i)
-	{
-		long double wavelength = spds[0].start_wavelength + (long double)(i) * wavelength_sample_size;
-		long double spd_samples[4] = {};
-		for(int j = 0; j < 4; ++j) spd_samples[j] = spds[j].samples[i];
-		contents_size += sprintf(csv_contents + contents_size, "%Lg, %Lg, %Lg, %Lg, %Lg\n", wavelength, spd_samples[0], spd_samples[1], spd_samples[2], spd_samples[3]);
-	}
-	
-	//Write contents to csv_file
-	DWORD bytes_written = 0;
-	WriteFile(csv_file, csv_contents, contents_size+1, &bytes_written, NULL);
-	
-	//Deallocate resources
-	CloseHandle(csv_file);
-	dealloc(csv_contents);
-}
-
 void output_spd_to_csv(Spectrum spd, const char* path = "black_body.csv")
 {
 	char* csv_contents = (char*)alloc(MEGABYTES(64));
@@ -688,10 +468,7 @@ void output_spd_to_csv(Spectrum spd, const char* path = "black_body.csv")
 	}
 
 	//Write contents to csv_file
-	HANDLE csv_file = CreateFile(path, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	DWORD bytes_written = 0;
-	WriteFile(csv_file, csv_contents, contents_size+1, &bytes_written, NULL);
-	CloseHandle(csv_file);
+	write_file_contents(path, csv_contents, contents_size+1);
 	dealloc(csv_contents);
 }
 
@@ -730,11 +507,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	load_e_illuminant();
 	load_rgb_to_spd_functions();
 
-	Spectrum red_spd = RGB64_to_spectrum(RGB64{0.25, 0.8, 0.4});
-	RGB8 r = rgb64_to_rgb8(gamma_linear_rgb(RGB64{0.25, 0.8, 0.4}));
-	RGB8 g = rgb64_to_rgb8(spectrum_to_RGB64(red_spd));
-	printf("%d %d %d\n", r.R, r.G, r.B);
-	printf("%d %d %d\n", g.R, g.G, g.B);
+	Spectrum mat_spd = RGB64_to_spectrum(RGB64{0.25, 0.8, 0.4});
 	Spectrum specular_spd = load_spd("d65.csv");
 	while(running)
 	{
@@ -748,7 +521,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 		RGB8 clear_colour = {};
 		clear_render_buffer(&__window_back_buffer__, clear_colour);
 
-		raytrace_scene(&__window_back_buffer__, 90.0, 0.1, light_spd, red_spd, specular_spd);
+		raytrace_scene(&__window_back_buffer__, 90.0, 0.1, light_spd, mat_spd, specular_spd);
 
 		update_window_front_buffer(window, &__window_back_buffer__);
 	}
