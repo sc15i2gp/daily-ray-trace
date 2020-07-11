@@ -27,8 +27,8 @@
 
 //TODO: NOW
 //	- Recursive raytrace
-//		- Indirect lighting
 //		- Area lighting
+//		- Indirect lighting
 //	- Profiling
 //	- Output raytraced scene to file
 //		- Output raytraced image as bmp file
@@ -623,26 +623,40 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 		return 2;
 	}
 
+
+	load_colour_data();
+
 	long double l = 4000.0L;
 	//long double l = 10000.0L;
 	Spectrum light_spd = generate_black_body_spd(l, 380.0L, 720.0L);
 	normalise(light_spd);
 	light_spd = 16.0 * light_spd;
-
-	load_colour_data();
-
-	double n[4] = {};
-	for(int i = 0; i < 4; ++i) n[i] = uniform_sample();
-	printf("%f %f %f %f\n", n[0], n[1], n[2], n[3]);
 	Spectrum mat_spd = RGB64_to_spectrum(RGB64{0.25, 0.8, 0.4});
 	Spectrum glossy_spd = RGB64_to_spectrum(RGB64{0.6, 0.9, 0.8});
+	Spectrum white_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.8, 0.8});
+	Spectrum white_glossy_spd = RGB64_to_spectrum(RGB64{0.9, 0.9, 0.9});
+	Spectrum red_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.2, 0.2});
+	Spectrum red_glossy_spd = RGB64_to_spectrum(RGB64{0.9, 0.8, 0.8});
+	Spectrum green_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.8, 0.2});
+	Spectrum green_glossy_spd = RGB64_to_spectrum(RGB64{0.8, 0.9, 0.8});
 
 	Point light_p = {Vec3{0.0, 1.0, 3.0}};
 	Sphere sphere = {};
-	sphere.radius = 2.0;
+	sphere.radius = 0.5;
+	double h = 2.0;
+	Plane back_wall = create_plane_from_points(Vec3{-h, h, -h}, Vec3{h, h, -h}, Vec3{-h, -h, -h});
+	Plane left_wall = create_plane_from_points(Vec3{-h, h, h}, Vec3{-h, h, -h}, Vec3{-h, -h, h});
+	Plane right_wall = create_plane_from_points(Vec3{h, h, -h}, Vec3{h, h, h}, Vec3{h, -h, -h});
+	Plane floor = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h});
+	Plane ceiling = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});
 	Scene scene = {};
 	add_point_light_to_scene(&scene, light_p, light_spd);
 	add_sphere_to_scene(&scene, sphere, mat_spd, glossy_spd);
+	add_plane_to_scene(&scene, back_wall, white_diffuse_spd, white_glossy_spd);
+	add_plane_to_scene(&scene, left_wall, red_diffuse_spd, red_glossy_spd);
+	add_plane_to_scene(&scene, right_wall, green_diffuse_spd, green_glossy_spd);
+	add_plane_to_scene(&scene, floor, white_diffuse_spd, white_glossy_spd);
+	add_plane_to_scene(&scene, ceiling, white_diffuse_spd, white_glossy_spd);
 
 	RGB8 clear_colour = {};
 	clear_render_buffer(&__window_back_buffer__, clear_colour);

@@ -185,6 +185,8 @@ struct Plane
 	Vec3 v; //Second boundary vector
 };
 
+Plane create_plane_from_bounds(Vec3 p, Vec3 u, Vec3 v);
+Plane create_plane_from_points(Vec3 p, Vec3 u, Vec3 v);
 double area(Plane);
 Vec3 uniform_sample_plane(Plane);
 

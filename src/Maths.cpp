@@ -364,6 +364,28 @@ Vec4 normalise(Vec4 v)
 
 /*	Geometry	*/
 
+Plane create_plane_from_bounds(Vec3 p, Vec3 u, Vec3 v)
+{
+	Plane plane = {};
+	plane.p = p;
+	plane.u = u;
+	plane.v = v;
+	plane.n = normalise(cross(plane.u, plane.v));
+
+	return plane;
+}
+
+Plane create_plane_from_points(Vec3 p, Vec3 u, Vec3 v)
+{
+	Plane plane = {};
+	plane.p = p;
+	plane.u = u - p;
+	plane.v = v - p;
+	plane.n = -normalise(cross(plane.u, plane.v));
+
+	return plane;
+}
+
 double area(Sphere s)
 {
 	return 4.0 * PI * s.radius * s.radius;
