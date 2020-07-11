@@ -260,6 +260,21 @@ void add_point_light_to_scene(Scene* scene, Point p, Spectrum emission_spd)
 	add_object_to_scene(scene, point_light);
 }
 
+void add_sphere_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
+{
+	Scene_Object sphere_light = {};
+	Scene_Geometry sphere_geometry = {};
+	sphere_geometry.type = GEO_TYPE_SPHERE;
+	sphere_geometry.sphere = s;
+
+	sphere_light.geometry = sphere_geometry;
+	sphere_light.emission_spd = emission_spd;
+	sphere_light.light_type = LIGHT_TYPE_AREA;
+	sphere_light.is_emissive = true;
+
+	add_object_to_scene(scene, sphere_light);
+}
+
 void add_sphere_to_scene(Scene* scene, Sphere s, Spectrum diffuse_spd, Spectrum glossy_spd)
 {
 	Scene_Object sphere = {};
@@ -458,7 +473,7 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 	return contribution;
 }
 
-int max_depth = 10; //NOTE: Arbitrarily chosen
+int max_depth = 3; //NOTE: Arbitrarily chosen
 Radiance cast_ray(Scene* scene, Ray ray, bool consider_emissive, int depth)
 {
 	Radiance ray_radiance = {};
@@ -475,7 +490,7 @@ Radiance cast_ray(Scene* scene, Ray ray, bool consider_emissive, int depth)
 			{//If eye ray or specular reflection ray
 				ray_radiance += p.emission_spd;
 			}
-			ray_radiance += direct_light_contribution(scene, p, ray);// + indirect_light_contribution(scene, p, ray, depth);
+			ray_radiance += direct_light_contribution(scene, p, ray) + indirect_light_contribution(scene, p, ray, depth);
 		}
 	}
 
@@ -630,7 +645,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	//long double l = 10000.0L;
 	Spectrum light_spd = generate_black_body_spd(l, 380.0L, 720.0L);
 	normalise(light_spd);
-	light_spd = 16.0 * light_spd;
 	Spectrum mat_spd = RGB64_to_spectrum(RGB64{0.25, 0.8, 0.4});
 	Spectrum glossy_spd = RGB64_to_spectrum(RGB64{0.6, 0.9, 0.8});
 	Spectrum white_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.8, 0.8});
@@ -640,7 +654,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	Spectrum green_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.8, 0.2});
 	Spectrum green_glossy_spd = RGB64_to_spectrum(RGB64{0.8, 0.9, 0.8});
 
-	Point light_p = {Vec3{0.0, 1.0, 3.0}};
 	Sphere sphere = {};
 	sphere.radius = 0.5;
 	double h = 2.0;
@@ -650,8 +663,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	Plane floor = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h});
 	Plane ceiling = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});
 	Scene scene = {};
-	add_point_light_to_scene(&scene, light_p, light_spd);
-	add_sphere_to_scene(&scene, sphere, mat_spd, glossy_spd);
+	add_sphere_light_to_scene(&scene, sphere, light_spd);
 	add_plane_to_scene(&scene, back_wall, white_diffuse_spd, white_glossy_spd);
 	add_plane_to_scene(&scene, left_wall, red_diffuse_spd, red_glossy_spd);
 	add_plane_to_scene(&scene, right_wall, green_diffuse_spd, green_glossy_spd);
