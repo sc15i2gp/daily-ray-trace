@@ -2,6 +2,9 @@
 #include <immintrin.h>
 #include <stdint.h>
 #include <math.h>
+#include <stdlib.h>
+
+double uniform_sample();
 
 #define PI 3.141592653L
 
@@ -155,13 +158,35 @@ Vec4 normalise(Vec4);
 double dot(Vec4, Vec4);
 double length(Vec4);
 
+/*	Geometry	*/
+
 struct Ray
 {
 	Vec3 origin;
 	Vec3 direction;
 };
 
-/*	Geometry	*/
+struct Sphere
+{
+	Vec3 center;
+	double radius;
+};
 
-bool ray_intersects_sphere(Ray, Vec3 sphere_center, double sphere_radius, double* t);
-bool ray_intersects_plane(Ray ray, Vec3 p, Vec3 n, Vec3 u, Vec3 v, double* t);
+double area(Sphere);
+Vec3 uniform_sample_sphere(Sphere);
+Vec3 uniform_sample_hemisphere(Vec3 normal);
+
+struct Plane
+{
+	Vec3 p; //Corner point of plane
+	Vec3 n; //Normal
+	//Boundary vectors are not normalised so that their lengths can be used as boundary lengths
+	Vec3 u; //First boundary vector
+	Vec3 v; //Second boundary vector
+};
+
+double area(Plane);
+Vec3 uniform_sample_plane(Plane);
+
+bool ray_intersects_sphere(Ray, Sphere, double* t);
+bool ray_intersects_plane(Ray ray, Plane, double* t);
