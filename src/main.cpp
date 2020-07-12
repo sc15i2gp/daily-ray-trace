@@ -653,15 +653,39 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	printf("Window width %d height %d\n", window_width(window), window_height(window));
 	RGB8 clear_colour = {};
 
+	Spectrum clear_spectrum = {};
+	clear_spectrum.start_wavelength = 380.0;
+	clear_spectrum.end_wavelength = 720.0;
+	clear_spectrum.number_of_samples = 69;
+
 	Spectrum_Render_Buffer spectrum_buffer = {};
 	spectrum_buffer.pixels = (Spectrum*)alloc(RENDER_TARGET_WIDTH * RENDER_TARGET_HEIGHT * sizeof(Spectrum));
 	spectrum_buffer.width = window_width(window);
 	spectrum_buffer.height = window_height(window);
 
+	Spectrum_Render_Buffer final_image_buffer = {};
+	final_image_buffer.pixels = (Spectrum*)alloc(RENDER_TARGET_WIDTH * RENDER_TARGET_HEIGHT * sizeof(Spectrum));
+	final_image_buffer.width = window_width(window);
+	final_image_buffer.height = window_height(window);
 	clear_render_buffer(&__window_back_buffer__, clear_colour);
+	clear_render_buffer(&final_image_buffer, clear_spectrum);
 
-	raytrace_scene(&spectrum_buffer, 90.0, 0.1, &scene);
-	write_spectrum_render_buffer_to_pixel_render_buffer(&spectrum_buffer, &__window_back_buffer__);
+	int number_of_samples = 50;
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		printf("Starting pass %d\n", i);
+		raytrace_scene(&spectrum_buffer, 90.0, 0.1, &scene);
+		printf("Completed pass %d\n", i);
+		for(int j = 0; j < final_image_buffer.width * final_image_buffer.height; ++j)
+		{
+			final_image_buffer.pixels[j] += spectrum_buffer.pixels[j];
+		}
+	}
+	for(int i = 0; i < final_image_buffer.width * final_image_buffer.height; ++i)
+	{
+		final_image_buffer.pixels[i] /= (double)(number_of_samples);
+	}
+	write_spectrum_render_buffer_to_pixel_render_buffer(&final_image_buffer, &__window_back_buffer__);
 
 	while(running)
 	{

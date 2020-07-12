@@ -25,6 +25,7 @@ Spectrum operator*(Spectrum, Spectrum);
 Spectrum operator*(double, Spectrum);
 Spectrum operator/(Spectrum, double);
 void operator+=(Spectrum&, Spectrum);
+void operator/=(Spectrum&, double);
 void normalise(Spectrum& spd);
 
 Spectrum generate_black_body_spd(double temperature, double start_wavelength = 380.0, double end_wavelength = 720.0, double sample_interval = 5.0);

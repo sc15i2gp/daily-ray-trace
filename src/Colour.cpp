@@ -83,6 +83,11 @@ void operator+=(Spectrum& spd_0, Spectrum spd_1)
 	spd_0 = spd_0 + spd_1;
 }
 
+void operator/=(Spectrum& spd, double d)
+{
+	spd = spd/d;
+}
+
 void normalise(Spectrum& spd)
 {
 	double highest_value = 0.0;
