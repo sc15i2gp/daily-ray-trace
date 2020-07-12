@@ -1,5 +1,10 @@
 #include "Colour.h"
 
+double start_wavelength = 380.0; //In nm
+double end_wavelength = 720.0; //In nm
+double sample_interval = 5.0; //In nm
+int number_of_samples = 69;
+
 RGB8 rgb64_to_rgb8(RGB64 rgb64)
 {
 	RGB8 rgb8 = {};
@@ -21,11 +26,7 @@ RGB8 rgb64_to_rgb8(RGB64 rgb64)
 Spectrum operator+(Spectrum spd_0, Spectrum spd_1)
 {
 	Spectrum spd = {};
-	spd.start_wavelength = spd_0.start_wavelength;
-	spd.end_wavelength = spd_0.end_wavelength;
-	spd.number_of_samples = spd_0.number_of_samples;
-
-	for(int i = 0; i < spd.number_of_samples; ++i)
+	for(int i = 0; i < number_of_samples; ++i)
 	{
 		spd.samples[i] = spd_0.samples[i] + spd_1.samples[i];
 	}
@@ -36,51 +37,41 @@ Spectrum operator+(Spectrum spd_0, Spectrum spd_1)
 Spectrum operator*(Spectrum spd_0, Spectrum spd_1)
 {
 	Spectrum spd = {};
-	spd.start_wavelength = spd_0.start_wavelength;
-	spd.end_wavelength = spd_0.end_wavelength;
-	spd.number_of_samples = spd_0.number_of_samples;
-
-	for(int i = 0; i < spd.number_of_samples; ++i)
+	for(int i = 0; i < number_of_samples; ++i)
 	{
 		spd.samples[i] = spd_0.samples[i] * spd_1.samples[i];
 	}
-
 	return spd;
 }
 
 Spectrum operator*(double d, Spectrum spd_0)
 {
 	Spectrum spd = {};
-	spd.start_wavelength = spd_0.start_wavelength;
-	spd.end_wavelength = spd_0.end_wavelength;
-	spd.number_of_samples = spd_0.number_of_samples;
-
-	for(int i = 0; i < spd.number_of_samples; ++i)
+	for(int i = 0; i < number_of_samples; ++i)
 	{
 		spd.samples[i] = d * spd_0.samples[i];
 	}
-
 	return spd;
 }
 
 Spectrum operator/(Spectrum spd_0, double d)
 {
 	Spectrum spd = {};
-	spd.start_wavelength = spd_0.start_wavelength;
-	spd.end_wavelength = spd_0.end_wavelength;
-	spd.number_of_samples = spd_0.number_of_samples;
-
-	for(int i = 0; i < spd.number_of_samples; ++i)
+	for(int i = 0; i < number_of_samples; ++i)
 	{
 		spd.samples[i] = spd_0.samples[i] / d;
 	}
-
 	return spd;
 }
 
 void operator+=(Spectrum& spd_0, Spectrum spd_1)
 {
 	spd_0 = spd_0 + spd_1;
+}
+
+void operator*=(Spectrum& spd_0, Spectrum spd_1)
+{
+	spd_0 = spd_0 * spd_1;
 }
 
 void operator/=(Spectrum& spd, double d)
@@ -91,9 +82,9 @@ void operator/=(Spectrum& spd, double d)
 void normalise(Spectrum& spd)
 {
 	double highest_value = 0.0;
-	for(int i = 0; i < spd.number_of_samples; ++i) if(spd.samples[i] > highest_value) highest_value = spd.samples[i];
+	for(int i = 0; i < number_of_samples; ++i) if(spd.samples[i] > highest_value) highest_value = spd.samples[i];
 
-	for(int i = 0; i < spd.number_of_samples; ++i) spd.samples[i] /= highest_value;
+	for(int i = 0; i < number_of_samples; ++i) spd.samples[i] /= highest_value;
 }
 
 long double c = 2.99792458e8L; //Speed of light
@@ -130,22 +121,22 @@ long double nm_to_m(long double nm)
 	return m;
 }
 
-long double sample_interval(Spectrum spd)
-{
-	return (spd.end_wavelength - spd.start_wavelength)/(long double)(spd.number_of_samples - 1);
-}
-
-Spectrum generate_black_body_spd(double temperature, double start_wavelength, double end_wavelength, double sample_interval)
+//WAVELENGTH DEPENDENT
+Spectrum generate_black_body_spd(double temperature)
 {
 	Spectrum spd = {};
-	spd.number_of_samples = (int)((end_wavelength - start_wavelength)/sample_interval) + 1;
-	for(int i = 0; i < spd.number_of_samples; ++i)
+	for(int i = 0; i < number_of_samples; ++i)
 	{
 		double wavelength = nm_to_m(start_wavelength + i * sample_interval);
 		spd.samples[i] = (double)nm_to_m(compute_black_body_power(temperature, wavelength));
 	}
-	spd.start_wavelength = start_wavelength;
-	spd.end_wavelength = end_wavelength;
+	return spd;
+}
+
+Spectrum generate_constant_spd(double constant)
+{
+	Spectrum spd = {};
+	for(int i = 0; i < number_of_samples; ++i) spd.samples[i] = 1.0L;
 	return spd;
 }
 
@@ -189,29 +180,9 @@ Spectrum load_spd(const char* spd_path)
 	Spectrum spd = {};
 	char* spd_contents = read_file_contents(spd_path);
 	
-	//Count number of samples
-	int number_of_samples = 0;
-	for(char* c = spd_contents; *c != 0; c = find_next_line(c))
-	{
-		//Increment number of samples
-		++number_of_samples;
-	}
-
-	//printf("Number of samples = %d\n", number_of_samples);
-	spd.number_of_samples = number_of_samples;
-
 	char* c = spd_contents;
 	for(int i = 0; i < number_of_samples; ++i)
 	{
-		if(i == 0)
-		{
-			spd.start_wavelength = (long double) atof(c);
-		}
-		else if(i == number_of_samples - 1)
-		{
-			spd.end_wavelength = (long double) atof(c);
-		}
-
 		c = find_next_number(find_next_character(c, ','));
 		spd.samples[i] = (long double) atof(c);
 
@@ -234,16 +205,13 @@ void load_d65_illuminant()
 {
 	reference_white = load_spd("d65.csv");
 	//normalise(reference_white);
-	for(int i = 0; i < reference_white.number_of_samples; ++i) reference_white.samples[i] /= 100.0L;
+	for(int i = 0; i < number_of_samples; ++i) reference_white.samples[i] /= 100.0L;
 }
 
 void load_e_illuminant()
 {
-	long double wavelength_interval = 5.0L;
-	reference_white.start_wavelength = 380.0L;
-	reference_white.end_wavelength = 720.0L;
-	reference_white.number_of_samples = ((reference_white.end_wavelength-reference_white.start_wavelength)/ wavelength_interval) + 1;
-	for(int i = 0; i < reference_white.number_of_samples; ++i) reference_white.samples[i] = 1.0L;
+	reference_white = generate_constant_spd(1.0);
+	for(int i = 0; i < number_of_samples; ++i) reference_white.samples[i] = 1.0L;
 }
 
 void load_rgb_to_spd_functions()
@@ -265,6 +233,7 @@ void load_colour_data()
 	load_colour_matching_functions();
 }
 
+//WAVELENGTH DEPENDENT
 Vec3 spectrum_to_xyz(Spectrum spd)
 {
 	//SPD -> XYZ
@@ -274,12 +243,12 @@ Vec3 spectrum_to_xyz(Spectrum spd)
 	spd_xyz[2] = spd * colour_matching_functions[2];
 
 	Vec3 xyz = {};
-	long double l = (spd.end_wavelength - spd.start_wavelength)/(long double)(spd.number_of_samples);
+	double l = (end_wavelength - start_wavelength)/(double)(number_of_samples);
 	for(int i = 0; i < 3; ++i)
 	{
-		for(int j = 0; j < spd.number_of_samples; ++j)
+		for(int j = 0; j < number_of_samples; ++j)
 		{
-			xyz[i] += (double)spd_xyz[i].samples[j];
+			xyz[i] += spd_xyz[i].samples[j];
 		}
 	}
 	xyz *= l;
@@ -327,9 +296,6 @@ RGB64 spectrum_to_RGB64(Spectrum spd)
 Spectrum RGB64_to_spectrum(RGB64 rgb)
 {
 	Spectrum spd = {};
-	spd.start_wavelength = white_rgb_to_spd.start_wavelength;
-	spd.end_wavelength = white_rgb_to_spd.end_wavelength;
-	spd.number_of_samples = white_rgb_to_spd.number_of_samples;
 	if(rgb.R <= rgb.G && rgb.R <= rgb.B)
 	{
 		spd += rgb.R * white_rgb_to_spd;
