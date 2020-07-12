@@ -41,3 +41,6 @@
 
 # Remedybg
 *.rdbg
+
+# Images
+*.ppm
