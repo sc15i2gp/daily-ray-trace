@@ -11,6 +11,7 @@
 //		- Operator overloading
 
 //TODO: LONGTERM
+//	- Better RNG
 //	- Output to jpg/png
 //	- Investigate different SPD representations
 //	- Kirschoff's law for non-black body sources
@@ -26,15 +27,15 @@
 //	- Add error handling to platform functions
 
 //TODO: NOW
-//	- Recursive raytrace
-//		- Area lighting
-//		- Indirect lighting
+//	- Multiple samples per pixel
+//		- Path trace multiple times through pixel center
+//		- Average computed spectra into render buffer
+//		- Keep screen updated with final image progress
 //	- Profiling
+//		- Number of samples
+//		- Time to render image
 //	- Output raytraced scene to file
 //		- Output raytraced image as bmp file
-//		- OpenGL for rendering scene preview and UI
-//		- UI for camera control, raytrace beginning
-//		- Maybe screen shows progress of raytrace
 //	- Reduce variance
 //		- Integration importance sampling
 //		- Image plane super sampling
@@ -43,13 +44,17 @@
 //		- Metal
 //		- Glass
 //		- Mirror
+//	- Scene editing
+//		- OpenGL for rendering scene preview and UI
+//		- UI for camera control, raytrace beginning
+//		- Maybe screen shows progress of raytrace
 //	- Volumetric transport
 //	- Skybox/infinite light/infinite geometry (such as infinite ground plane)
 //	- Investigate standardising spectra wavelength ranges in the program
 //		- Make sure all spectra computed are consistent (have same wavelength range + number of samples)
 //		- Maybe parameterise these
 
-struct Render_Buffer
+struct Pixel_Render_Buffer
 {
 	uint32_t* pixels;
 	int width;
@@ -57,20 +62,20 @@ struct Render_Buffer
 };
 
 inline
-uint32_t* get_pixel(Render_Buffer* r_buffer, int x, int y)
+uint32_t* get_pixel(Pixel_Render_Buffer* r_buffer, int x, int y)
 {
 	return r_buffer->pixels + y*r_buffer->width + x;
 }
 
 
-void set_render_buffer_pixel_colour(Render_Buffer* r_buffer, int x, int y, RGB8 colour)
+void set_render_buffer_pixel_colour(Pixel_Render_Buffer* r_buffer, int x, int y, RGB8 colour)
 {
 	uint32_t* pixel = get_pixel(r_buffer, x, y);
 	uint32_t* c = (uint32_t*)(&colour);
 	*pixel = *c;
 }
 
-void clear_render_buffer(Render_Buffer* r_buffer, RGB8 colour)
+void clear_render_buffer(Pixel_Render_Buffer* r_buffer, RGB8 colour)
 {
 	for(int y = 0; y < r_buffer->height; ++y)
 	{
@@ -78,13 +83,53 @@ void clear_render_buffer(Render_Buffer* r_buffer, RGB8 colour)
 	}
 }
 
+struct Spectrum_Render_Buffer
+{
+	Spectrum* pixels;
+	int width;
+	int height;
+};
+
+inline
+Spectrum* get_pixel(Spectrum_Render_Buffer* r_buffer, int x, int y)
+{
+	return r_buffer->pixels + y*r_buffer->width + x;
+}
+
+void set_render_buffer_pixel_spectrum(Spectrum_Render_Buffer* r_buffer, int x, int y, Spectrum s)
+{
+	Spectrum* pixel = get_pixel(r_buffer, x, y);
+	*pixel = s;
+}
+
+void clear_render_buffer(Spectrum_Render_Buffer* r_buffer, Spectrum s)
+{
+	for(int y = 0; y < r_buffer->height; ++y)
+	{
+		for(int x = 0; x < r_buffer->width; ++x) set_render_buffer_pixel_spectrum(r_buffer, x, y, s);
+	}
+}
+
+void write_spectrum_render_buffer_to_pixel_render_buffer(Spectrum_Render_Buffer* spectrum_buffer, Pixel_Render_Buffer* pixel_buffer)
+{
+	for(int y = 0; y < spectrum_buffer->height; ++y)
+	{
+		for(int x = 0; x < spectrum_buffer->width; ++x)
+		{
+			Spectrum* pixel_spectrum = get_pixel(spectrum_buffer, x, y);
+			RGB64 pixel_colour_64 = spectrum_to_RGB64(*pixel_spectrum);
+			RGB8 pixel_colour = rgb64_to_rgb8(pixel_colour_64);
+			set_render_buffer_pixel_colour(pixel_buffer, x, y, pixel_colour);
+		}
+	}
+}
 
 BITMAPINFO __back_buffer_info__ = {};
-Render_Buffer __window_back_buffer__ = {};
+Pixel_Render_Buffer __window_back_buffer__ = {};
 
 bool running = true;
 
-void size_window_back_buffer(Render_Buffer* back_buffer, int new_back_buffer_width, int new_back_buffer_height)
+void size_window_back_buffer(Pixel_Render_Buffer* back_buffer, int new_back_buffer_width, int new_back_buffer_height)
 {
 	if(back_buffer->pixels) dealloc(back_buffer->pixels);
 
@@ -103,17 +148,13 @@ void size_window_back_buffer(Render_Buffer* back_buffer, int new_back_buffer_wid
 	back_buffer->pixels = (uint32_t*)alloc(back_buffer_size);
 }
 
-void update_window_front_buffer(HWND window, Render_Buffer* back_buffer)
+void update_window_front_buffer(HWND window, Pixel_Render_Buffer* back_buffer)
 {
 	HDC window_device_context = GetDC(window);
-	RECT front_buffer_rect;
-	GetClientRect(window, &front_buffer_rect);
-	int front_buffer_width = front_buffer_rect.right - front_buffer_rect.left;
-	int front_buffer_height = front_buffer_rect.bottom - front_buffer_rect.top;
 	StretchDIBits
 	(
 		window_device_context, 
-		0, 0, front_buffer_width, front_buffer_height, 
+		0, 0, window_width(window), window_height(window), 
 		0, 0, back_buffer->width, back_buffer->height, 
 		back_buffer->pixels, &__back_buffer_info__,
 		DIB_RGB_COLORS, SRCCOPY
@@ -128,11 +169,7 @@ LRESULT CALLBACK window_event_callback(HWND window, UINT message, WPARAM wparam,
 	{
 		case WM_SIZE:
 		{
-			RECT window_rect;
-			GetClientRect(window, &window_rect);
-			int window_width = window_rect.right - window_rect.left;
-			int window_height = window_rect.bottom - window_rect.top;
-			size_window_back_buffer(&__window_back_buffer__, window_width, window_height);
+			size_window_back_buffer(&__window_back_buffer__, window_width(window), window_height(window));
 			break;
 		}
 		case WM_CLOSE:
@@ -497,13 +534,12 @@ Radiance cast_ray(Scene* scene, Ray ray, bool consider_emissive, int depth)
 	return ray_radiance;
 }
 
-void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane, Scene* scene)
+void raytrace_scene(Spectrum_Render_Buffer* render_target, double fov, double near_plane, Scene* scene)
 {
 	Vec3 eye = {0.0, 0.0, 5.0};
 	Vec3 forward = {0.0, 0.0, -1.0};
 	Vec3 right = {1.0, 0.0, 0.0};
 	Vec3 up = {0.0, 1.0, 0.0};
-	Vec3 pixel_center = {};
 
 	int image_plane_width_px = render_target->width;
 	int image_plane_height_px = render_target->height;
@@ -514,82 +550,18 @@ void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane,
 	double pixel_height = image_plane_height/(double)(image_plane_height_px);
 
 	Vec3 image_plane_top_left = eye + near_plane * forward - 0.5 * image_plane_width * right + 0.5 * image_plane_height * up;
-	for(int y = 0; y < image_plane_height_px; ++y)
-	{
-		for(int x = 0; x < image_plane_width_px; ++x)
-		{
-			Vec3 pixel_center = image_plane_top_left + ((double)x + 0.5)*pixel_width*right - ((double)y + 0.5)*pixel_height*up;
-			Ray eye_ray = {};
-			eye_ray.origin = eye;
-			eye_ray.direction = normalise(pixel_center - eye_ray.origin);
-			RGB64 raycast_result = spectrum_to_RGB64(cast_ray(scene, eye_ray, true, 0));
-			set_render_buffer_pixel_colour(render_target, x, y, rgb64_to_rgb8(raycast_result));
-		}
-	}
-}
-
-
-RGB64 cast_ray(Ray ray, Spectrum light_spd, Spectrum sphere_spd, Spectrum specular_spd)
-{
-	RGB64 black = {0.0, 0.0, 0.0};
-	double t = 0.0;
-	Plane p = {};
-	p.p = Vec3{-0.2, 0.5, -0.2};
-	p.u = 0.5*normalise(Vec3{1.0, 0.0, 0.0});
-	p.v = normalise(Vec3{0.0, -0.6, 0.5});
-	p.n = normalise(cross(p.u, p.v));
-
-	Sphere s = {};
-	s.radius = 0.3;
-
-	Vec3 light_pos = {0.0, 1.0, 1.0};
-	if(ray_intersects_sphere(ray, s, &t))
-	{
-		Vec3 intersection = ray.origin + t * ray.direction;
-		Vec3 incoming = light_pos - intersection;
-		Vec3 outgoing = -ray.direction;
-		Surface_Point point = {};
-		point.diffuse_spd = sphere_spd;
-		point.glossy_spd = sphere_spd;
-		point.position = intersection;
-		point.normal = normalise(intersection - s.center);
-		//point.normal = -p.n;
-		Spectrum result = dot(incoming, point.normal) * light_spd * bsdf(point, incoming, outgoing); 
-		return spectrum_to_RGB64(result);
-	}
-	else
-	{
-		return black;
-	}
-}
-
-void raytrace_scene(Render_Buffer* render_target, double fov, double near_plane, Spectrum light_spd, Spectrum sphere_spd, Spectrum specular_spd)
-{
-	Vec3 eye = {0.0, 0.0, 1.0};
-	Vec3 forward = {0.0, 0.0, -1.0};
-	Vec3 right = {1.0, 0.0, 0.0};
-	Vec3 up = {0.0, 1.0, 0.0};
+	Spectrum pixel_spectrum = {};
 	Vec3 pixel_center = {};
-
-	int image_plane_width_px = render_target->width;
-	int image_plane_height_px = render_target->height;
-	double aspect_ratio = (double)(image_plane_width_px)/(double)(image_plane_height_px);
-	double image_plane_width = 2.0 * near_plane * tan_deg(fov/2.0);
-	double image_plane_height = image_plane_width / aspect_ratio;
-	double pixel_width = image_plane_width/(double)(image_plane_width_px);
-	double pixel_height = image_plane_height/(double)(image_plane_height_px);
-
-	Vec3 image_plane_top_left = eye + near_plane * forward - 0.5 * image_plane_width * right + 0.5 * image_plane_height * up;
+	Ray eye_ray = {};
 	for(int y = 0; y < image_plane_height_px; ++y)
 	{
 		for(int x = 0; x < image_plane_width_px; ++x)
 		{
-			Vec3 pixel_center = image_plane_top_left + ((double)x + 0.5)*pixel_width*right - ((double)y + 0.5)*pixel_height*up;
-			Ray eye_ray = {};
+			pixel_center = image_plane_top_left + ((double)x + 0.5)*pixel_width*right - ((double)y + 0.5)*pixel_height*up;
 			eye_ray.origin = eye;
 			eye_ray.direction = normalise(pixel_center - eye_ray.origin);
-			RGB64 raycast_result = cast_ray(eye_ray, light_spd, sphere_spd, specular_spd);
-			set_render_buffer_pixel_colour(render_target, x, y, rgb64_to_rgb8(raycast_result));
+			pixel_spectrum = cast_ray(scene, eye_ray, true, 0);
+			set_render_buffer_pixel_spectrum(render_target, x, y, pixel_spectrum);
 		}
 	}
 }
@@ -611,38 +583,12 @@ void output_spd_to_csv(Spectrum spd, const char* path = "black_body.csv")
 	dealloc(csv_contents);
 }
 
-#define __USE_MINGW_ANSI_STDIO 1
-int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd_line)
+#define RENDER_TARGET_WIDTH 800
+#define RENDER_TARGET_HEIGHT 600
+
+void load_scene(Scene* scene)
 {
-	srand(NULL);
-	WNDCLASS window_class = {};
-	window_class.style = CS_HREDRAW | CS_VREDRAW;
-	window_class.lpfnWndProc = window_event_callback;
-	window_class.lpszClassName = "RaytraceClass";
-
-
-	if(!RegisterClass(&window_class))
-	{
-		printf("PROGRAM FAILED: Could not register window class\n");
-		return 1;
-	}
-
-	HWND window = 	CreateWindowEx
-			(
-				0, window_class.lpszClassName, "Raytrace", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT,
-				800, 600, 0, 0, prev_instance, NULL
-			);
-	if(!window)
-	{
-		printf("PROGRAM FAILED: Could not create window\n");
-		return 2;
-	}
-
-
-	load_colour_data();
-
 	long double l = 4000.0L;
-	//long double l = 10000.0L;
 	Spectrum light_spd = generate_black_body_spd(l, 380.0L, 720.0L);
 	normalise(light_spd);
 	Spectrum mat_spd = RGB64_to_spectrum(RGB64{0.25, 0.8, 0.4});
@@ -662,18 +608,61 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	Plane right_wall = create_plane_from_points(Vec3{h, h, -h}, Vec3{h, h, h}, Vec3{h, -h, -h});
 	Plane floor = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h});
 	Plane ceiling = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});
-	Scene scene = {};
-	add_sphere_light_to_scene(&scene, sphere, light_spd);
-	add_plane_to_scene(&scene, back_wall, white_diffuse_spd, white_glossy_spd);
-	add_plane_to_scene(&scene, left_wall, red_diffuse_spd, red_glossy_spd);
-	add_plane_to_scene(&scene, right_wall, green_diffuse_spd, green_glossy_spd);
-	add_plane_to_scene(&scene, floor, white_diffuse_spd, white_glossy_spd);
-	add_plane_to_scene(&scene, ceiling, white_diffuse_spd, white_glossy_spd);
+	add_sphere_light_to_scene(scene, sphere, light_spd);
+	add_plane_to_scene(scene, back_wall, white_diffuse_spd, white_glossy_spd);
+	add_plane_to_scene(scene, left_wall, red_diffuse_spd, red_glossy_spd);
+	add_plane_to_scene(scene, right_wall, green_diffuse_spd, green_glossy_spd);
+	add_plane_to_scene(scene, floor, white_diffuse_spd, white_glossy_spd);
+	add_plane_to_scene(scene, ceiling, white_diffuse_spd, white_glossy_spd);
+}
 
+#define __USE_MINGW_ANSI_STDIO 1
+int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd_line)
+{
+	srand(NULL);
+	WNDCLASS window_class = {};
+	window_class.style = CS_HREDRAW | CS_VREDRAW;
+	window_class.lpfnWndProc = window_event_callback;
+	window_class.lpszClassName = "RaytraceClass";
+
+
+	if(!RegisterClass(&window_class))
+	{
+		printf("PROGRAM FAILED: Could not register window class\n");
+		return 1;
+	}
+
+	HWND window = 	CreateWindowEx
+			(
+				0, window_class.lpszClassName, "Raytrace", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT,
+				RENDER_TARGET_WIDTH, RENDER_TARGET_HEIGHT, 0, 0, prev_instance, NULL
+			);
+	if(!window)
+	{
+		printf("PROGRAM FAILED: Could not create window\n");
+		return 2;
+	}
+
+
+	printf("Size of spectrum = %d\n", sizeof(Spectrum));
+	load_colour_data();
+
+	Scene scene = {};
+	load_scene(&scene);
+
+	printf("Window width %d height %d\n", window_width(window), window_height(window));
 	RGB8 clear_colour = {};
+
+	Spectrum_Render_Buffer spectrum_buffer = {};
+	spectrum_buffer.pixels = (Spectrum*)alloc(RENDER_TARGET_WIDTH * RENDER_TARGET_HEIGHT * sizeof(Spectrum));
+	spectrum_buffer.width = window_width(window);
+	spectrum_buffer.height = window_height(window);
+
 	clear_render_buffer(&__window_back_buffer__, clear_colour);
-	//raytrace_scene(&__window_back_buffer__, 90.0, 0.1, light_spd, mat_spd, specular_spd);
-	raytrace_scene(&__window_back_buffer__, 90.0, 0.1, &scene);
+
+	raytrace_scene(&spectrum_buffer, 90.0, 0.1, &scene);
+	write_spectrum_render_buffer_to_pixel_render_buffer(&spectrum_buffer, &__window_back_buffer__);
+
 	while(running)
 	{
 		MSG message;
