@@ -1,3 +1,4 @@
+#pragma once
 #include "Maths.h"
 #include "Platform.h"
 
