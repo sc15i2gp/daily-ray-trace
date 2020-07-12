@@ -1,3 +1,4 @@
+#pragma once
 #include <Windows.h>
 
 #define BYTES(n) n
@@ -13,3 +14,15 @@ void dealloc(void*);
 
 char* read_file_contents(const char* path);
 void write_file_contents(const char* path, char* contents, int contents_size);
+
+struct Timer
+{
+	LARGE_INTEGER start_time;
+	LARGE_INTEGER stop_time;
+};
+
+void query_pc_frequency();
+void start_timer(Timer*);
+void stop_timer(Timer*);
+double elapsed_time_in_s(Timer*);
+double elapsed_time_in_ms(Timer*);

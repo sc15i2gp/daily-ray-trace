@@ -49,3 +49,33 @@ void write_file_contents(const char* path, char* contents, int contents_size)
 	WriteFile(file, contents, contents_size, &bytes_written, NULL);
 	CloseHandle(file);
 }
+
+double pc_frequency = 0.0; //In counts/s
+
+void query_pc_frequency()
+{
+	LARGE_INTEGER pc = {};
+	QueryPerformanceFrequency(&pc); //NOTE: FAILURE POINT if function fails (returns false)
+	pc_frequency = (double)pc.QuadPart;
+}
+
+void start_timer(Timer* t)
+{
+	QueryPerformanceCounter(&t->start_time);
+}
+
+void stop_timer(Timer* t)
+{
+	QueryPerformanceCounter(&t->stop_time);
+}
+
+double elapsed_time_in_s(Timer* t)
+{
+	double elapsed = (double)(t->stop_time.QuadPart - t->start_time.QuadPart);
+	return elapsed/pc_frequency;
+}
+
+double elapsed_time_in_ms(Timer* t)
+{
+	return elapsed_time_in_s(t) * 1000.0;
+}

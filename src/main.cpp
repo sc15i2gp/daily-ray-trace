@@ -10,7 +10,21 @@
 //	- Keep to C features as much as possible, except for:
 //		- Operator overloading
 
+//NOTES on bugs and problems:
+//	- Incorrect colour in indirect lighting tint near cornell box walls
+//		- I'm fairly sure it's a problem with the bsdf function
+//		- It uses blinn-phong glossy, which means an indirect ray's contribution
+//		- will only be significant when the incident and incoming rays are close
+//		- to the surface normal
+//		- (SOLVED) It was due to not reversing the outgoing direction in the indirect
+//		- lighting contribution function. Fixed by reversing the ougoing direction in cast_ray()
+//	- Program currently halts after a while due to windows (not responding)
+//		- Can fix that with separate thread showing image progress
+
 //TODO: LONGTERM
+//	- Note failure points/error cases and handle
+//	- Consider using explicitly sized types
+//	- Try and get rid of reliance on plane normal direction (hard to use else)
 //	- Better RNG
 //	- Output to jpg/png
 //	- Investigate different SPD representations
@@ -27,15 +41,19 @@
 //	- Add error handling to platform functions
 
 //TODO: NOW
-//	- Multiple samples per pixel
-//		- Path trace multiple times through pixel center
-//		- Average computed spectra into render buffer
-//		- Keep screen updated with final image progress
 //	- Profiling
-//		- Number of samples
 //		- Time to render image
+//		- Average sample render time
+//		- Maximum sample render time
+//		- Minimum sample render time
+//	- Ray trace on separate thread
+//		- So that the window can be interacted with while it is building the image
 //	- Output raytraced scene to file
 //		- Output raytraced image as bmp file
+//	- Sort out spectra, they're hard to use
+//		- Currently need to set start and end wavelengths, and sample count, every time one is initialised
+//		- even though they'll be the same for any spectrum during the ray tracing
+//		- They're big and slow, maybe use SSE or something to make them quicker
 //	- Reduce variance
 //		- Integration importance sampling
 //		- Image plane super sampling
@@ -81,6 +99,26 @@ void clear_render_buffer(Pixel_Render_Buffer* r_buffer, RGB8 colour)
 	{
 		for(int x = 0; x < r_buffer->width; ++x) set_render_buffer_pixel_colour(r_buffer, x, y, colour);
 	}
+}
+
+void output_to_ppm(const char* path, Pixel_Render_Buffer* r_buffer)
+{
+	char* contents = (char*)alloc(MEGABYTES(10));
+
+	int contents_size = sprintf(contents, "P%d\n", 3);
+	contents_size += sprintf(contents + contents_size, "%d %d\n", r_buffer->width, r_buffer->height);
+	contents_size += sprintf(contents + contents_size, "255\n");
+	for(int y = 0; y < r_buffer->height; ++y)
+	{
+		for(int x = 0; x < r_buffer->width; ++x)
+		{
+			RGB8 p = *((RGB8*)get_pixel(r_buffer, x, y));
+			contents_size += sprintf(contents + contents_size, "%d %d %d\n", p.R, p.G, p.B);
+		}
+	}
+	
+	write_file_contents(path, contents, contents_size);
+	dealloc(contents);
 }
 
 struct Spectrum_Render_Buffer
@@ -202,6 +240,11 @@ Spectrum diffuse_phong_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 double d_max(double a, double b)
 {
 	return (a < b) ? b : a;
+}
+
+double d_min(double a, double b)
+{
+	return (a < b) ? a : b;
 }
 
 Spectrum glossy_phong_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
@@ -483,7 +526,6 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 	contribution.number_of_samples = 69;
 	if(!p.is_emissive)
 	{
-		outgoing.direction = -outgoing.direction;
 		for(int i = 0; i < scene->number_of_objects; ++i)
 		{
 			if(scene->objects[i].is_emissive)
@@ -510,6 +552,7 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 	return contribution;
 }
 
+Spectrum blue_spd = {};
 int max_depth = 3; //NOTE: Arbitrarily chosen
 Radiance cast_ray(Scene* scene, Ray ray, bool consider_emissive, int depth)
 {
@@ -523,11 +566,16 @@ Radiance cast_ray(Scene* scene, Ray ray, bool consider_emissive, int depth)
 		Surface_Point p = find_ray_scene_intersection(scene, ray);
 		if(p.exists)
 		{
+			ray.direction = -ray.direction; //Reversed so that it points away from intersection point
 			if(consider_emissive)
 			{//If eye ray or specular reflection ray
 				ray_radiance += p.emission_spd;
 			}
 			ray_radiance += direct_light_contribution(scene, p, ray) + indirect_light_contribution(scene, p, ray, depth);
+		}
+		else if(depth == 0)
+		{
+			return blue_spd;
 		}
 	}
 
@@ -591,8 +639,6 @@ void load_scene(Scene* scene)
 	long double l = 4000.0L;
 	Spectrum light_spd = generate_black_body_spd(l, 380.0L, 720.0L);
 	normalise(light_spd);
-	Spectrum mat_spd = RGB64_to_spectrum(RGB64{0.25, 0.8, 0.4});
-	Spectrum glossy_spd = RGB64_to_spectrum(RGB64{0.6, 0.9, 0.8});
 	Spectrum white_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.8, 0.8});
 	Spectrum white_glossy_spd = RGB64_to_spectrum(RGB64{0.9, 0.9, 0.9});
 	Spectrum red_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.2, 0.2});
@@ -600,7 +646,10 @@ void load_scene(Scene* scene)
 	Spectrum green_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.8, 0.2});
 	Spectrum green_glossy_spd = RGB64_to_spectrum(RGB64{0.8, 0.9, 0.8});
 
+	blue_spd = RGB64_to_spectrum(RGB64{0.0, 0.9, 0.0});
+
 	Sphere sphere = {};
+	Point light_p = {};
 	sphere.radius = 0.5;
 	double h = 2.0;
 	Plane back_wall = create_plane_from_points(Vec3{-h, h, -h}, Vec3{h, h, -h}, Vec3{-h, -h, -h});
@@ -608,7 +657,8 @@ void load_scene(Scene* scene)
 	Plane right_wall = create_plane_from_points(Vec3{h, h, -h}, Vec3{h, h, h}, Vec3{h, -h, -h});
 	Plane floor = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h});
 	Plane ceiling = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});
-	add_sphere_light_to_scene(scene, sphere, light_spd);
+	//add_sphere_light_to_scene(scene, sphere, light_spd);
+	add_point_light_to_scene(scene, light_p, 16.0 * light_spd);
 	add_plane_to_scene(scene, back_wall, white_diffuse_spd, white_glossy_spd);
 	add_plane_to_scene(scene, left_wall, red_diffuse_spd, red_glossy_spd);
 	add_plane_to_scene(scene, right_wall, green_diffuse_spd, green_glossy_spd);
@@ -643,8 +693,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 		return 2;
 	}
 
+	query_pc_frequency();
 
-	printf("Size of spectrum = %d\n", sizeof(Spectrum));
 	load_colour_data();
 
 	Scene scene = {};
@@ -670,23 +720,17 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	clear_render_buffer(&__window_back_buffer__, clear_colour);
 	clear_render_buffer(&final_image_buffer, clear_spectrum);
 
-	int number_of_samples = 50;
-	for(int i = 0; i < number_of_samples; ++i)
-	{
-		printf("Starting pass %d\n", i);
-		raytrace_scene(&spectrum_buffer, 90.0, 0.1, &scene);
-		printf("Completed pass %d\n", i);
-		for(int j = 0; j < final_image_buffer.width * final_image_buffer.height; ++j)
-		{
-			final_image_buffer.pixels[j] += spectrum_buffer.pixels[j];
-		}
-	}
-	for(int i = 0; i < final_image_buffer.width * final_image_buffer.height; ++i)
-	{
-		final_image_buffer.pixels[i] /= (double)(number_of_samples);
-	}
-	write_spectrum_render_buffer_to_pixel_render_buffer(&final_image_buffer, &__window_back_buffer__);
+	Spectrum red_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.2, 0.2});
+	Spectrum green_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.8, 0.2});
 
+
+	int number_of_samples = 8;
+	int pass = 0;
+	Timer timer = {};
+	double total_render_time = 0.0;
+	double average_sample_render_time = 0.0;
+	double max_sample_render_time = 0.0;
+	double min_sample_render_time = DBL_MAX;
 	while(running)
 	{
 		MSG message;
@@ -696,7 +740,43 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 			DispatchMessage(&message);
 		}
 
+		if(pass < number_of_samples)
+		{
+			printf("Starting pass %d\n", pass);
+			start_timer(&timer);
+			
+			//Render pass of scene
+			raytrace_scene(&spectrum_buffer, 90.0, 0.1, &scene);
+			
+			
+			//Store frame in final image buffer
+			for(int j = 0; j < final_image_buffer.width * final_image_buffer.height; ++j)
+			{
+				final_image_buffer.pixels[j] = ((double)pass * final_image_buffer.pixels[j] + spectrum_buffer.pixels[j])/(double)(pass+1);
+			}
 
+			stop_timer(&timer);
+			double elapsed = elapsed_time_in_ms(&timer);
+			total_render_time += elapsed;
+			average_sample_render_time = ((double)pass * average_sample_render_time + elapsed)/(double)(pass + 1);
+			max_sample_render_time = d_max(max_sample_render_time, elapsed);
+			min_sample_render_time = d_min(min_sample_render_time, elapsed);
+
+			//Write current final image to screen
+			write_spectrum_render_buffer_to_pixel_render_buffer(&final_image_buffer, &__window_back_buffer__);
+			printf("Completed pass %d\n", pass);
+			++pass;
+		}
+		else if(pass == number_of_samples)
+		{
+			printf("Time to render %d samples: %fms\n", number_of_samples, total_render_time);
+			printf("Average sample render time: %fms\n", average_sample_render_time);
+			printf("Max sample render time: %fms\n", max_sample_render_time);
+			printf("Min sample render time: %fms\n", min_sample_render_time);
+			printf("Writing back buffer to file\n");
+			output_to_ppm("output.ppm", &__window_back_buffer__);
+			++pass;
+		}
 
 		update_window_front_buffer(window, &__window_back_buffer__);
 	}
