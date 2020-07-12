@@ -5,6 +5,9 @@
 #define MEGABYTES(n) 1024 * KILOBYTES(n)
 #define GIGABYTES(n) 1024 * MEGABYTES(n)
 
+int window_width(HWND);
+int window_height(HWND);
+
 void* alloc(int);
 void dealloc(void*);
 

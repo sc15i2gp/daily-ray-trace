@@ -1,5 +1,24 @@
 #include "Platform.h"
 
+RECT window_rect(HWND window)
+{
+	RECT rect = {};
+	GetClientRect(window, &rect);
+	return rect;
+}
+
+int window_width(HWND window)
+{
+	RECT rect = window_rect(window);
+	return rect.right - rect.left;
+}
+
+int window_height(HWND window)
+{
+	RECT rect = window_rect(window);
+	return rect.bottom - rect.top;
+}
+
 void* alloc(int size)
 {
 	return VirtualAlloc(0, size, MEM_COMMIT, PAGE_READWRITE);
