@@ -23,10 +23,17 @@
 
 //TODO: LONGTERM
 //	- Note failure points/error cases and handle
+//	- Change reference white + find more precise spectra (maybe parameterise)
 //	- Consider using explicitly sized types
 //	- Try and get rid of reliance on plane normal direction (hard to use else)
+//	- Scene editing
+//		- OpenGL for rendering scene preview and UI
+//		- UI for camera control, raytrace beginning
+//		- Maybe screen shows progress of raytrace
+//	- Volumetric transport
+//	- Skybox/infinite light/infinite geometry (such as infinite ground plane)
 //	- Better RNG
-//	- Output to jpg/png
+//	- Output to bmp/jpg/png
 //	- Investigate different SPD representations
 //	- Kirschoff's law for non-black body sources
 //	- Different RGB -> SPD method: "Physically Meaningful Rendering using Tristimulus Colours"
@@ -41,36 +48,18 @@
 //	- Add error handling to platform functions
 
 //TODO: NOW
-//	- Profiling
-//		- Time to render image
-//		- Average sample render time
-//		- Maximum sample render time
-//		- Minimum sample render time
 //	- Ray trace on separate thread
 //		- So that the window can be interacted with while it is building the image
-//	- Output raytraced scene to file
-//		- Output raytraced image as bmp file
-//	- Sort out spectra, they're hard to use
-//		- Currently need to set start and end wavelengths, and sample count, every time one is initialised
-//		- even though they'll be the same for any spectrum during the ray tracing
-//		- They're big and slow, maybe use SSE or something to make them quicker
 //	- Reduce variance
+//		- Choose directions based on bsdf (ie sometimes choose a near specular direction)
 //		- Integration importance sampling
 //		- Image plane super sampling
 //		- Russian roulette with/without max depth
-//	- More geometry models + materials
+//	- More materials/effects
 //		- Metal
-//		- Glass
 //		- Mirror
-//	- Scene editing
-//		- OpenGL for rendering scene preview and UI
-//		- UI for camera control, raytrace beginning
-//		- Maybe screen shows progress of raytrace
-//	- Volumetric transport
-//	- Skybox/infinite light/infinite geometry (such as infinite ground plane)
-//	- Investigate standardising spectra wavelength ranges in the program
-//		- Make sure all spectra computed are consistent (have same wavelength range + number of samples)
-//		- Maybe parameterise these
+//		- Glass
+//	- Optimise
 
 struct Pixel_Render_Buffer
 {
@@ -460,33 +449,6 @@ bool points_mutually_visible(Scene* scene, Vec3 p_0, Vec3 p_1)
 	return !(shadow_test_point.exists && length(shadow_test_point.position - p_0) < length(p_1 - p_0));
 }
 
-Radiance cast_ray(Scene*, Ray, bool consider_emissive, int depth);
-
-Radiance indirect_light_contribution(Scene* scene, Surface_Point p, Ray outgoing, int depth)
-{
-	Radiance contribution = {};
-	contribution.start_wavelength = 380.0;
-	contribution.end_wavelength = 720.0;
-	contribution.number_of_samples = 69;
-	if(!p.is_emissive)
-	{
-		//NOTE: Does not account for specular reflection
-		Vec3 new_direction = {};
-		double direction_pdf = 0.0;
-			
-		new_direction = uniform_sample_hemisphere(p.normal);
-		direction_pdf = 1.0/(2.0 * PI);
-		Ray new_ray = {};
-		new_ray.direction = normalise(new_direction);
-		new_ray.origin = p.position + 0.001*new_ray.direction;
-
-		Spectrum indirect_contribution = cast_ray(scene, new_ray, false, depth+1);
-		contribution += dot(new_ray.direction, outgoing.direction) * (bsdf(p, new_ray.direction, outgoing.direction) * indirect_contribution)/direction_pdf;
-	}
-
-	return contribution;
-}
-
 double compute_area(Scene_Geometry geometry)
 {
 	switch(geometry.type)
@@ -521,9 +483,6 @@ Vec3 sample_light_point(Scene_Object l, double* pdf)
 Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 {
 	Radiance contribution = {};
-	contribution.start_wavelength = 380.0;
-	contribution.end_wavelength = 720.0;
-	contribution.number_of_samples = 69;
 	if(!p.is_emissive)
 	{
 		for(int i = 0; i < scene->number_of_objects; ++i)
@@ -552,34 +511,39 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 	return contribution;
 }
 
-Spectrum blue_spd = {};
 int max_depth = 3; //NOTE: Arbitrarily chosen
-Radiance cast_ray(Scene* scene, Ray ray, bool consider_emissive, int depth)
+
+Radiance cast_ray(Scene* scene, Ray eye_ray)
 {
-	Radiance ray_radiance = {};
-	ray_radiance.start_wavelength = 380.0;
-	ray_radiance.end_wavelength = 720.0;
-	ray_radiance.number_of_samples = 69;
-	
-	if(depth < max_depth)
+	Radiance eye_ray_radiance = {};
+	Radiance direct_contribution = {};
+	Ray outgoing = eye_ray;
+	Ray incoming = {};
+	Spectrum f = generate_constant_spd(1.0);
+	double dir_pdf = 0.0;
+	for(int depth = 0; depth < max_depth; ++depth)
 	{
-		Surface_Point p = find_ray_scene_intersection(scene, ray);
-		if(p.exists)
+		Surface_Point p = find_ray_scene_intersection(scene, outgoing);
+		if(p.exists && !p.is_emissive)
 		{
-			ray.direction = -ray.direction; //Reversed so that it points away from intersection point
-			if(consider_emissive)
-			{//If eye ray or specular reflection ray
-				ray_radiance += p.emission_spd;
-			}
-			ray_radiance += direct_light_contribution(scene, p, ray) + indirect_light_contribution(scene, p, ray, depth);
+			outgoing.direction = -outgoing.direction; //Reverse for bsdf computation, needs to start other way round for intersection test
+			eye_ray_radiance += f * direct_light_contribution(scene, p, outgoing);
+			
+			//Choose new incoming direction
+			incoming.direction = uniform_sample_hemisphere(p.normal);
+			incoming.origin = p.position + 0.001*incoming.direction;
+
+			//Compute new direction pdf value
+			dir_pdf = 1.0/(2.0 * PI);
+			f *= (dot(p.normal, incoming.direction)/dir_pdf) * bsdf(p, outgoing.direction, incoming.direction);
+			
+			outgoing = incoming;
+			outgoing.origin += 0.001*outgoing.direction;
 		}
-		else if(depth == 0)
-		{
-			return blue_spd;
-		}
+		else break;
 	}
 
-	return ray_radiance;
+	return eye_ray_radiance;
 }
 
 void raytrace_scene(Spectrum_Render_Buffer* render_target, double fov, double near_plane, Scene* scene)
@@ -608,27 +572,10 @@ void raytrace_scene(Spectrum_Render_Buffer* render_target, double fov, double ne
 			pixel_center = image_plane_top_left + ((double)x + 0.5)*pixel_width*right - ((double)y + 0.5)*pixel_height*up;
 			eye_ray.origin = eye;
 			eye_ray.direction = normalise(pixel_center - eye_ray.origin);
-			pixel_spectrum = cast_ray(scene, eye_ray, true, 0);
+			pixel_spectrum = cast_ray(scene, eye_ray);			
 			set_render_buffer_pixel_spectrum(render_target, x, y, pixel_spectrum);
 		}
 	}
-}
-
-void output_spd_to_csv(Spectrum spd, const char* path = "black_body.csv")
-{
-	char* csv_contents = (char*)alloc(MEGABYTES(64));
-
-	int contents_size = sprintf(csv_contents, "%s, %s\n", "Wavelength", "Value");
-	long double wavelength_sample_size = (spd.end_wavelength - spd.start_wavelength)/(long double)(spd.number_of_samples - 1);
-	for(int i = 0; i < spd.number_of_samples; ++i)
-	{
-		long double wavelength = spd.start_wavelength + (long double)(i) * wavelength_sample_size;
-		contents_size += sprintf(csv_contents + contents_size, "%Lg, %Lg\n", wavelength, spd.samples[i]);
-	}
-
-	//Write contents to csv_file
-	write_file_contents(path, csv_contents, contents_size+1);
-	dealloc(csv_contents);
 }
 
 #define RENDER_TARGET_WIDTH 800
@@ -636,8 +583,7 @@ void output_spd_to_csv(Spectrum spd, const char* path = "black_body.csv")
 
 void load_scene(Scene* scene)
 {
-	long double l = 4000.0L;
-	Spectrum light_spd = generate_black_body_spd(l, 380.0L, 720.0L);
+	Spectrum light_spd = generate_black_body_spd(4000.0);
 	normalise(light_spd);
 	Spectrum white_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.8, 0.8});
 	Spectrum white_glossy_spd = RGB64_to_spectrum(RGB64{0.9, 0.9, 0.9});
@@ -645,8 +591,6 @@ void load_scene(Scene* scene)
 	Spectrum red_glossy_spd = RGB64_to_spectrum(RGB64{0.9, 0.8, 0.8});
 	Spectrum green_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.8, 0.2});
 	Spectrum green_glossy_spd = RGB64_to_spectrum(RGB64{0.8, 0.9, 0.8});
-
-	blue_spd = RGB64_to_spectrum(RGB64{0.0, 0.9, 0.0});
 
 	Sphere sphere = {};
 	Point light_p = {};
@@ -704,9 +648,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	RGB8 clear_colour = {};
 
 	Spectrum clear_spectrum = {};
-	clear_spectrum.start_wavelength = 380.0;
-	clear_spectrum.end_wavelength = 720.0;
-	clear_spectrum.number_of_samples = 69;
 
 	Spectrum_Render_Buffer spectrum_buffer = {};
 	spectrum_buffer.pixels = (Spectrum*)alloc(RENDER_TARGET_WIDTH * RENDER_TARGET_HEIGHT * sizeof(Spectrum));
