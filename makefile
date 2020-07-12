@@ -7,6 +7,7 @@ SRC = $(wildcard $(SRC_DIR)/*.cpp)
 EXE = $(EXE_DIR)\raytrace.exe
 DEBUG_STR = debug_raytrace
 DEBUG_EXE = $(EXE_DIR)/$(DEBUG_STR).exe
+DEBUG_OPTS = /F 268435456
 
 $(info [${SRC}])
 
@@ -27,4 +28,4 @@ $(EXE): $(SRC)
 	g++ $(SRC) $(OPTS) -o $(EXE)
 	
 $(DEBUG_EXE): $(SRC)
-	cl /Zi $(SRC) /Fe:$(DEBUG_EXE) user32.lib gdi32.lib 
+	cl $(DEBUG_OPTS) /Zi $(SRC) /Fe:$(DEBUG_EXE) user32.lib gdi32.lib 
