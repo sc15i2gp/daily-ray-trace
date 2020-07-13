@@ -59,6 +59,7 @@
 //		- Metal
 //		- Mirror
 //		- Glass
+//	- Move platform code to platform file
 //	- Optimise
 
 struct Pixel_Render_Buffer
@@ -610,6 +611,60 @@ void load_scene(Scene* scene)
 	add_plane_to_scene(scene, ceiling, white_diffuse_spd, white_glossy_spd);
 }
 
+bool ready_to_display_spectrum_buffer = false;
+Spectrum_Render_Buffer final_image_buffer = {};
+HWND window = {};
+
+DWORD WINAPI render_image(LPVOID param)
+{
+	printf("Starting render...\n");
+	int number_of_samples = 8;
+	Timer timer = {};
+	double total_render_time = 0.0;
+	double average_sample_render_time = 0.0;
+	double max_sample_render_time = 0.0;
+	double min_sample_render_time = DBL_MAX;
+
+	Spectrum_Render_Buffer spectrum_buffer = {};
+	spectrum_buffer.pixels = (Spectrum*)alloc(RENDER_TARGET_WIDTH * RENDER_TARGET_HEIGHT * sizeof(Spectrum));
+	spectrum_buffer.width = window_width(window);
+	spectrum_buffer.height = window_height(window);
+
+	Scene scene = {};
+	load_scene(&scene);
+
+	for(int pass = 0; pass < number_of_samples; ++pass)
+	{
+		printf("Starting pass %d\n", pass);
+		start_timer(&timer);
+		
+		raytrace_scene(&spectrum_buffer, 90.0, 0.1, &scene);
+
+		for(int j = 0; j < final_image_buffer.width * final_image_buffer.height; ++j)
+		{
+			final_image_buffer.pixels[j] = ((double)pass * final_image_buffer.pixels[j] + spectrum_buffer.pixels[j])/(double)(pass+1);
+		}
+
+		stop_timer(&timer);
+
+		double elapsed = elapsed_time_in_ms(&timer);
+		total_render_time += elapsed;
+		average_sample_render_time = ((double)pass * average_sample_render_time + elapsed)/(double)(pass + 1);
+		max_sample_render_time = d_max(max_sample_render_time, elapsed);
+		min_sample_render_time = d_min(min_sample_render_time, elapsed);
+
+		ready_to_display_spectrum_buffer = true;
+		printf("Completed pass %d\n", pass);
+	}
+
+	printf("Time to render %d samples: %fms\n", number_of_samples, total_render_time);
+	printf("Average sample render time: %fms\n", average_sample_render_time);
+	printf("Max sample render time: %fms\n", max_sample_render_time);
+	printf("Min sample render time: %fms\n", min_sample_render_time);
+	printf("Render completed\n");
+	return 0;
+}
+
 #define __USE_MINGW_ANSI_STDIO 1
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd_line)
 {
@@ -626,7 +681,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 		return 1;
 	}
 
-	HWND window = 	CreateWindowEx
+	window = 	CreateWindowEx
 			(
 				0, window_class.lpszClassName, "Raytrace", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT,
 				RENDER_TARGET_WIDTH, RENDER_TARGET_HEIGHT, 0, 0, prev_instance, NULL
@@ -641,37 +696,17 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 
 	load_colour_data();
 
-	Scene scene = {};
-	load_scene(&scene);
-
-	printf("Window width %d height %d\n", window_width(window), window_height(window));
 	RGB8 clear_colour = {};
-
 	Spectrum clear_spectrum = {};
 
-	Spectrum_Render_Buffer spectrum_buffer = {};
-	spectrum_buffer.pixels = (Spectrum*)alloc(RENDER_TARGET_WIDTH * RENDER_TARGET_HEIGHT * sizeof(Spectrum));
-	spectrum_buffer.width = window_width(window);
-	spectrum_buffer.height = window_height(window);
-
-	Spectrum_Render_Buffer final_image_buffer = {};
 	final_image_buffer.pixels = (Spectrum*)alloc(RENDER_TARGET_WIDTH * RENDER_TARGET_HEIGHT * sizeof(Spectrum));
 	final_image_buffer.width = window_width(window);
 	final_image_buffer.height = window_height(window);
 	clear_render_buffer(&__window_back_buffer__, clear_colour);
 	clear_render_buffer(&final_image_buffer, clear_spectrum);
 
-	Spectrum red_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.2, 0.2});
-	Spectrum green_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.8, 0.2});
+	HANDLE raytrace_thread = CreateThread(NULL, 0, render_image, NULL, 0, NULL);
 
-
-	int number_of_samples = 8;
-	int pass = 0;
-	Timer timer = {};
-	double total_render_time = 0.0;
-	double average_sample_render_time = 0.0;
-	double max_sample_render_time = 0.0;
-	double min_sample_render_time = DBL_MAX;
 	while(running)
 	{
 		MSG message;
@@ -681,46 +716,20 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 			DispatchMessage(&message);
 		}
 
-		if(pass < number_of_samples)
+		if(ready_to_display_spectrum_buffer)
 		{
-			printf("Starting pass %d\n", pass);
-			start_timer(&timer);
-			
-			//Render pass of scene
-			raytrace_scene(&spectrum_buffer, 90.0, 0.1, &scene);
-			
-			
-			//Store frame in final image buffer
-			for(int j = 0; j < final_image_buffer.width * final_image_buffer.height; ++j)
-			{
-				final_image_buffer.pixels[j] = ((double)pass * final_image_buffer.pixels[j] + spectrum_buffer.pixels[j])/(double)(pass+1);
-			}
-
-			stop_timer(&timer);
-			double elapsed = elapsed_time_in_ms(&timer);
-			total_render_time += elapsed;
-			average_sample_render_time = ((double)pass * average_sample_render_time + elapsed)/(double)(pass + 1);
-			max_sample_render_time = d_max(max_sample_render_time, elapsed);
-			min_sample_render_time = d_min(min_sample_render_time, elapsed);
-
-			//Write current final image to screen
 			write_spectrum_render_buffer_to_pixel_render_buffer(&final_image_buffer, &__window_back_buffer__);
-			printf("Completed pass %d\n", pass);
-			++pass;
-		}
-		else if(pass == number_of_samples)
-		{
-			printf("Time to render %d samples: %fms\n", number_of_samples, total_render_time);
-			printf("Average sample render time: %fms\n", average_sample_render_time);
-			printf("Max sample render time: %fms\n", max_sample_render_time);
-			printf("Min sample render time: %fms\n", min_sample_render_time);
-			printf("Writing back buffer to file\n");
-			output_to_ppm("output.ppm", &__window_back_buffer__);
-			++pass;
+			ready_to_display_spectrum_buffer = false;
 		}
 
 		update_window_front_buffer(window, &__window_back_buffer__);
 	}
+	
+	WaitForSingleObject(raytrace_thread, INFINITE);
+	
+	printf("Writing back buffer to file\n");
+	output_to_ppm("output.ppm", &__window_back_buffer__);
 
+	CloseHandle(raytrace_thread);
 	return 0;
 }
