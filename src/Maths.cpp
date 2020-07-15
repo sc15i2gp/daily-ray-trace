@@ -544,16 +544,17 @@ Vec3 uniform_sample_disc()
 
 Vec3 cos_weighted_sample_hemisphere(Vec3 normal)
 {
+	Vec3 p = {};
 	for(;;)
 	{
-		Vec3 p = uniform_sample_disc();
-		p.z = sqrt(1.0 - dot(p, p));
-
-		//Rotate p by R such that R*(0, 0, 1) = normal
-		Mat3x3 r = find_rotation_between_vectors(Vec3{0.0, 0.0, 1.0}, normal);
-		Vec3 v = r * p;
-		if(dot(v, normal) > 0.0) return v;
+		p = uniform_sample_disc();
+		if(dot(p, p) < 1.0) break;
 	}
+	p.z = sqrt(1.0 - dot(p, p));
+	//Rotate p by R such that R*(0, 0, 1) = normal
+	Mat3x3 r = find_rotation_between_vectors(Vec3{0.0, 0.0, 1.0}, normal);
+	Vec3 v = r * p;
+	return v;
 }
 
 //Returns true if ray intersects sphere, false otherwise
