@@ -20,6 +20,17 @@ double tan_deg(double t)
 	return tan(t * (PI/180.0));
 }
 
+double d_max(double a, double b)
+{
+	return (a < b) ? b : a;
+}
+
+double d_min(double a, double b)
+{
+	return (a < b) ? a : b;
+}
+
+
 /*	Vectors	*/
 
 double& Vec2::operator[](int index)
@@ -362,6 +373,86 @@ Vec4 normalise(Vec4 v)
 	return v/length(v);
 }
 
+/*	Matrices	*/
+
+Vec3 Mat3x3::row(int i)
+{
+	Vec3 r = {};
+	for(int j = 0; j < 3; ++j) r[j] = this->columns[j][i];
+	return r;
+}
+
+Vec3 Mat3x3::column(int i)
+{
+	return (*this)[i];
+}
+
+Vec3& Mat3x3::operator[](int i)
+{
+	return this->columns[i];
+}
+
+Mat3x3 operator+(Mat3x3 m, Mat3x3 n)
+{
+	for(int i = 0; i < 3; ++i) m[i] += n[i];
+	return m;
+}
+
+Vec3 operator*(Mat3x3 m, Vec3 v)
+{
+	Vec3 w = {};
+	for(int i = 0; i < 3; ++i) w[i] = dot(m.row(i), v);
+	return w;
+}
+
+Mat3x3 operator*(Mat3x3 m, Mat3x3 n)
+{
+	Mat3x3 p = {};
+	for(int i = 0; i < 3; ++i)
+	{
+		for(int j = 0; j < 3; ++j)
+		{
+			p[i][j] = dot(m.row(i), n.column(j));
+		}
+	}
+	return p;
+}
+
+Mat3x3 operator*(double d, Mat3x3 m)
+{
+	for(int i = 0; i < 3; ++i)
+	{
+		m[i] *= d;
+	}
+	return m;
+}
+
+Mat3x3 identity3x3()
+{
+	Mat3x3 i = {};
+	for(int j = 0; j < 3; ++j)  i[j][j] = 1.0;
+	return i;
+}
+
+Mat3x3 find_rotation_between_vectors(Vec3 v, Vec3 w)
+{
+	Vec3 n = cross(v, w);
+	double s = length(n);
+	double c = dot(v, w);
+	
+	Mat3x3 m = {};
+	m[0][1] = n.z;
+	m[0][2] = -n.y;
+	m[1][0] = -n.z;
+	m[1][2] = n.x;
+	m[2][0] = n.y;
+	m[2][1] = -n.x;
+
+	Mat3x3 r = identity3x3() + m + (1.0/(1.0 + c))*m*m;
+
+	return r;
+}
+
 /*	Geometry	*/
 
 Plane create_plane_from_bounds(Vec3 p, Vec3 u, Vec3 v)
@@ -428,6 +519,41 @@ Vec3 uniform_sample_plane(Plane p)
 	double v = uniform_sample();
 
 	return p.p + u * p.u + v * p.v;
+}
+
+//Returns random point within unit disc with normal (0.0, 0.0, 1.0)
+Vec3 uniform_sample_disc()
+{
+	Vec2 rand_vec = {uniform_sample(), uniform_sample()};
+	Vec2 offset = 2.0 * rand_vec - Vec2{1.0, 1.0};
+	if(offset.x == 0.0 && offset.y == 0.0) return Vec3{};
+	double r = 0.0;
+	double t = 0.0;
+	if(abs(offset.x) > abs(offset.y))
+	{
+		r = offset.x;
+		t = (PI / 4.0) * (offset.y / offset.x);
+	}
+	else
+	{
+		r = offset.y;
+		t = (PI / 2.0) - (PI / 4.0) * (offset.x / offset.y);
+	}
+	return r * Vec3{cos(t), sin(t), 0.0};
+}
+
+Vec3 cos_weighted_sample_hemisphere(Vec3 normal)
+{
+	for(;;)
+	{
+		Vec3 p = uniform_sample_disc();
+		p.z = sqrt(1.0 - dot(p, p));
+
+		//Rotate p by R such that R*(0, 0, 1) = normal
+		Mat3x3 r = find_rotation_between_vectors(Vec3{0.0, 0.0, 1.0}, normal);
+		Vec3 v = r * p;
+		if(dot(v, normal) > 0.0) return v;
+	}
 }
 
 //Returns true if ray intersects sphere, false otherwise

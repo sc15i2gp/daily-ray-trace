@@ -20,12 +20,18 @@
 //		- lighting contribution function. Fixed by reversing the ougoing direction in cast_ray()
 //	- Program currently halts after a while due to windows (not responding)
 //		- Can fix that with separate thread showing image progress
+//		- (PARTIALLY SOLVED) Raytrace happens on separate thread, however it still halts a bit
+//		- when copying raytrace output buffer to window back buffer
+//	- Black pixels after adding cosine weighted hemisphere sampling
+//		- It's due to the cos_weighted_sample_hemisphere returning v such that dot(v, surface_normal) = 0
+//		- which is used to compute the direction pdf value
 
 //TODO: LONGTERM
+//	- Easily compare sampling strategies
+//	- Maybe use vec4 for everything (to make matrix operations slightly easier and 4 numbers easier to optimise than 3)
 //	- Note failure points/error cases and handle
 //	- Change reference white + find more precise spectra (maybe parameterise)
 //	- Consider using explicitly sized types
-//	- Try and get rid of reliance on plane normal direction (hard to use else)
 //	- Scene editing
 //		- OpenGL for rendering scene preview and UI
 //		- UI for camera control, raytrace beginning
@@ -39,6 +45,7 @@
 //	- Different RGB -> SPD method: "Physically Meaningful Rendering using Tristimulus Colours"
 //	- Texturing (images + surface properties)
 //	- Different camera models/lenses (fisheye etc.)
+//	- Try and get rid of reliance on plane normal direction (hard to use else)
 //	- Direct MVSC build output files (that aren't exe) to build folder
 //	- Invesitgate use of unity build
 //	- Remove CSTDLIB
@@ -48,9 +55,8 @@
 //	- Add error handling to platform functions
 
 //TODO: NOW
-//	- Ray trace on separate thread
-//		- So that the window can be interacted with while it is building the image
 //	- Reduce variance
+//		- Glossy lobe sampling
 //		- Choose directions based on bsdf (ie sometimes choose a near specular direction)
 //		- Integration importance sampling
 //		- Image plane super sampling
@@ -225,16 +231,6 @@ struct Surface_Point
 Spectrum diffuse_phong_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 {
 	return p.diffuse_spd / PI;
-}
-
-double d_max(double a, double b)
-{
-	return (a < b) ? b : a;
-}
-
-double d_min(double a, double b)
-{
-	return (a < b) ? a : b;
 }
 
 Spectrum glossy_phong_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
@@ -531,11 +527,13 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 			eye_ray_radiance += f * direct_light_contribution(scene, p, outgoing);
 			
 			//Choose new incoming direction
-			incoming.direction = uniform_sample_hemisphere(p.normal);
+			//incoming.direction = uniform_sample_hemisphere(p.normal);
+			incoming.direction = cos_weighted_sample_hemisphere(p.normal);
 			incoming.origin = p.position + 0.001*incoming.direction;
 
 			//Compute new direction pdf value
-			dir_pdf = 1.0/(2.0 * PI);
+			//dir_pdf = 1.0/(2.0 * PI);
+			dir_pdf = dot(p.normal, incoming.direction) / PI;
 			f *= (dot(p.normal, incoming.direction)/dir_pdf) * bsdf(p, outgoing.direction, incoming.direction);
 			
 			outgoing = incoming;
@@ -609,9 +607,11 @@ void load_scene(Scene* scene)
 	add_plane_to_scene(scene, right_wall, green_diffuse_spd, green_glossy_spd);
 	add_plane_to_scene(scene, floor, white_diffuse_spd, white_glossy_spd);
 	add_plane_to_scene(scene, ceiling, white_diffuse_spd, white_glossy_spd);
+
 }
 
 bool ready_to_display_spectrum_buffer = false;
+bool completed_raytrace = false;
 Spectrum_Render_Buffer final_image_buffer = {};
 HWND window = {};
 
@@ -662,13 +662,14 @@ DWORD WINAPI render_image(LPVOID param)
 	printf("Max sample render time: %fms\n", max_sample_render_time);
 	printf("Min sample render time: %fms\n", min_sample_render_time);
 	printf("Render completed\n");
+	completed_raytrace = true;
 	return 0;
 }
 
 #define __USE_MINGW_ANSI_STDIO 1
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd_line)
 {
-	srand(NULL);
+	srand(100000);
 	WNDCLASS window_class = {};
 	window_class.style = CS_HREDRAW | CS_VREDRAW;
 	window_class.lpfnWndProc = window_event_callback;
@@ -725,10 +726,14 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 		update_window_front_buffer(window, &__window_back_buffer__);
 	}
 	
-	WaitForSingleObject(raytrace_thread, INFINITE);
+	TerminateThread(raytrace_thread, 0);
+	//WaitForSingleObject(raytrace_thread, INFINITE);
 	
-	printf("Writing back buffer to file\n");
-	output_to_ppm("output.ppm", &__window_back_buffer__);
+	if(completed_raytrace)
+	{
+		printf("Writing back buffer to file\n");
+		output_to_ppm("output.ppm", &__window_back_buffer__);
+	}
 
 	CloseHandle(raytrace_thread);
 	return 0;

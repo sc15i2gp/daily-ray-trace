@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 double uniform_sample();
 
@@ -11,6 +12,9 @@ double uniform_sample();
 double sin_deg(double t);
 double cos_deg(double t);
 double tan_deg(double t);
+
+double d_max(double, double);
+double d_min(double, double);
 
 /*	Vectors	*/
 
@@ -158,6 +162,25 @@ Vec4 normalise(Vec4);
 double dot(Vec4, Vec4);
 double length(Vec4);
 
+/*	Matrices	*/
+
+struct Mat3x3
+{
+	Vec3 columns[3];
+
+	Vec3 row(int);
+	Vec3 column(int);
+	Vec3& operator[](int);
+};
+
+Mat3x3 operator+(Mat3x3, Mat3x3);
+Vec3 operator*(Mat3x3, Vec3);
+Mat3x3 operator*(Mat3x3, Mat3x3);
+Mat3x3 operator*(double, Mat3x3);
+Mat3x3 identity3x3();
+
+Mat3x3 find_rotation_between_vectors(Vec3 v, Vec3 w);
+
 /*	Geometry	*/
 
 struct Ray
@@ -175,6 +198,8 @@ struct Sphere
 double area(Sphere);
 Vec3 uniform_sample_sphere(Sphere);
 Vec3 uniform_sample_hemisphere(Vec3 normal);
+Vec3 uniform_sample_disc();
+Vec3 cos_weighted_sample_hemisphere(Vec3 normal);
 
 struct Plane
 {
