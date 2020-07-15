@@ -233,6 +233,11 @@ void load_colour_data()
 	load_colour_matching_functions();
 }
 
+void set_reference_white(Spectrum spd)
+{
+	reference_white = spd;
+}
+
 //WAVELENGTH DEPENDENT
 Vec3 spectrum_to_xyz(Spectrum spd)
 {

@@ -36,3 +36,4 @@ Spectrum RGB64_to_spectrum(RGB64);
 Spectrum load_spd(const char* spd_path);
 void load_colour_data();
 
+void set_reference_white(Spectrum);
