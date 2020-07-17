@@ -2,6 +2,7 @@
 #include <immintrin.h>
 #include <stdint.h>
 #include <math.h>
+#include <cmath>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -181,6 +182,8 @@ Mat3x3 identity3x3();
 
 Mat3x3 find_rotation_between_vectors(Vec3 v, Vec3 w);
 
+Vec3 reflect_vector(Vec3 v, Vec3 n); //Reflects v through n
+
 /*	Geometry	*/
 
 struct Ray
@@ -196,10 +199,11 @@ struct Sphere
 };
 
 double area(Sphere);
-Vec3 uniform_sample_sphere(Sphere);
-Vec3 uniform_sample_hemisphere(Vec3 normal);
+Vec3 uniform_sample_sphere(Sphere, double* pdf_value);
+Vec3 uniform_sample_sphere_subtended(Sphere,Vec3 p, double* pdf_value); //Samples from points on sphere visible from p
+Vec3 uniform_sample_hemisphere(Vec3 normal, double* pdf_value);
 Vec3 uniform_sample_disc();
-Vec3 cos_weighted_sample_hemisphere(Vec3 normal);
+Vec3 cos_weighted_sample_hemisphere(Vec3 normal, double* pdf_value);
 
 struct Plane
 {
@@ -213,7 +217,7 @@ struct Plane
 Plane create_plane_from_bounds(Vec3 p, Vec3 u, Vec3 v);
 Plane create_plane_from_points(Vec3 p, Vec3 u, Vec3 v);
 double area(Plane);
-Vec3 uniform_sample_plane(Plane);
+Vec3 uniform_sample_plane(Plane, double* pdf_value);
 
 bool ray_intersects_sphere(Ray, Sphere, double* t);
 bool ray_intersects_plane(Ray ray, Plane, double* t);

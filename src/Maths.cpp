@@ -453,6 +453,11 @@ Mat3x3 find_rotation_between_vectors(Vec3 v, Vec3 w)
 	return r;
 }
 
+Vec3 reflect_vector(Vec3 v, Vec3 n)
+{
+	return v - 2.0 * dot(v, n) * n;
+}
+
 /*	Geometry	*/
 
 Plane create_plane_from_bounds(Vec3 p, Vec3 u, Vec3 v)
@@ -499,25 +504,56 @@ Vec3 uniform_sample_sphere()
 	return sample;
 }
 
-Vec3 uniform_sample_sphere(Sphere s)
+Vec3 uniform_sample_sphere_subtended(Sphere s, Vec3 p, double* pdf)
 {
+	double q = uniform_sample();
+	double r = uniform_sample();
+
+	double st_max_sq = s.radius*s.radius / dot(s.center - p, s.center - p);
+	double ct_max = sqrt(d_max(0.0, 1.0 - st_max_sq));
+	double phi = 2.0 * q * PI;
+	double ct = 1.0 - r + r*ct_max;
+	double st = sqrt(d_max(0.0, 1.0 - ct * ct));
+
+	double d = length(s.center - p);
+	double dc = sqrt(d_max(0.0, s.radius * s.radius - d * d * st * st));
+	double ds = d * ct - dc;
+
+	double ca = (d * d + s.radius * s.radius - ds * ds)/(2.0 * d * s.radius);
+	double sa = sqrt(d_max(0.0, 1.0 - ca * ca));
+
+	double R = s.radius * sa;
+
+	Vec3 w = {R * cos(phi), R * sin(phi), s.radius * ca};
+	Mat3x3 m = find_rotation_between_vectors(Vec3{0.0, 0.0, 1.0}, normalise(s.center - p));
+	
+	*pdf = 1.0 / (2 * PI * (1.0 - cos(ct_max)));
+
+	return m * (-w) + s.center;
+}
+
+Vec3 uniform_sample_sphere(Sphere s, double* pdf)
+{
+	*pdf = 1.0 / area(s);
 	return s.center + s.radius * uniform_sample_sphere();
 }
 
-Vec3 uniform_sample_hemisphere(Vec3 normal)
+Vec3 uniform_sample_hemisphere(Vec3 normal, double* pdf)
 {
 	for(;;)
 	{
+		*pdf = 1.0 / (2.0 * PI);
 		Vec3 sample = uniform_sample_sphere();
 		if(dot(sample, normal) >= 0.0) return sample;
 	}
 }
 
-Vec3 uniform_sample_plane(Plane p)
+Vec3 uniform_sample_plane(Plane p, double* pdf)
 {
 	double u = uniform_sample();
 	double v = uniform_sample();
 
+	*pdf = 1.0 / area(p);
 	return p.p + u * p.u + v * p.v;
 }
 
@@ -542,7 +578,7 @@ Vec3 uniform_sample_disc()
 	return r * Vec3{cos(t), sin(t), 0.0};
 }
 
-Vec3 cos_weighted_sample_hemisphere(Vec3 normal)
+Vec3 cos_weighted_sample_hemisphere(Vec3 normal, double* pdf)
 {
 	Vec3 p = {};
 	for(;;)
@@ -554,6 +590,7 @@ Vec3 cos_weighted_sample_hemisphere(Vec3 normal)
 	//Rotate p by R such that R*(0, 0, 1) = normal
 	Mat3x3 r = find_rotation_between_vectors(Vec3{0.0, 0.0, 1.0}, normal);
 	Vec3 v = r * p;
+	*pdf = dot(normal, v) / PI;
 	return v;
 }
 
