@@ -494,7 +494,7 @@ double area(Plane p)
 
 Vec3 uniform_sample_sphere()
 {
-	double u = uniform_sample();
+	double u = 1.0 - 2.0 * uniform_sample();
 	double v = uniform_sample();
 
 	double r = sqrt(1.0 - u * u);
