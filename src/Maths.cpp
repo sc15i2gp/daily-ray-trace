@@ -482,6 +482,16 @@ Plane create_plane_from_points(Vec3 p, Vec3 u, Vec3 v)
 	return plane;
 }
 
+Vec3 normal(Sphere s, Vec3 p)
+{
+	return p - s.center;
+}
+
+Vec3 normal(Plane p)
+{
+	return p.n;
+}
+
 double area(Sphere s)
 {
 	return 4.0 * PI * s.radius * s.radius;
@@ -527,14 +537,20 @@ Vec3 uniform_sample_sphere_subtended(Sphere s, Vec3 p, double* pdf)
 	Vec3 w = {R * cos(phi), R * sin(phi), s.radius * ca};
 	Mat3x3 m = find_rotation_between_vectors(Vec3{0.0, 0.0, 1.0}, normalise(s.center - p));
 	
-	*pdf = 1.0 / (2 * PI * (1.0 - cos(ct_max)));
+	*pdf = 1.0 / (2.0 * PI * (1.0 - ct_max));
 
 	return m * (-w) + s.center;
 }
 
-Vec3 uniform_sample_sphere(Sphere s, double* pdf)
+//TODO: Fix this method when I've sorted out handling pdf of 0 in other functions
+//	this function needs to do an intersection test to return 0 pdf
+//NOTE: Returns pdf value as value over solid angle, not surface area
+Vec3 uniform_sample_sphere(Sphere s, Vec3 p, double* pdf)
 {
-	*pdf = 1.0 / area(s);
+	Vec3 s_p = s.center + s.radius * uniform_sample_sphere();
+	Vec3 s_n = normal(s, s_p);
+	Vec3 s_p_to_p = p - s_p;
+	*pdf = (1.0 / area(s)) * (dot(p - s_p, p - s_p)/abs(dot(normal(s, s_p), p - s_p)));
 	return s.center + s.radius * uniform_sample_sphere();
 }
 

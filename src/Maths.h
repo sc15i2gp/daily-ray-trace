@@ -199,7 +199,7 @@ struct Sphere
 };
 
 double area(Sphere);
-Vec3 uniform_sample_sphere(Sphere, double* pdf_value);
+Vec3 uniform_sample_sphere(Sphere, Vec3 p, double* pdf_value);
 Vec3 uniform_sample_sphere_subtended(Sphere,Vec3 p, double* pdf_value); //Samples from points on sphere visible from p
 Vec3 uniform_sample_hemisphere(Vec3 normal, double* pdf_value);
 Vec3 uniform_sample_disc();

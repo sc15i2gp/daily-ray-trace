@@ -645,9 +645,9 @@ void raytrace_scene(Spectrum_Render_Buffer* render_target, double fov, double ne
 
 void load_scene(Scene* scene)
 {
-	Spectrum light_spd = generate_black_body_spd(4000.0);
-	normalise(light_spd);
-	//Spectrum light_spd = generate_constant_spd(1.0);
+	//Spectrum light_spd = generate_black_body_spd(4000.0);
+	//normalise(light_spd);
+	Spectrum light_spd = generate_constant_spd(1.0);
 	Spectrum white_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.8, 0.8});
 	Spectrum white_glossy_spd = RGB64_to_spectrum(RGB64{0.9, 0.9, 0.9});
 	Spectrum red_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.2, 0.2});
@@ -673,7 +673,7 @@ void load_scene(Scene* scene)
 	Plane right_wall = create_plane_from_points(Vec3{h, h, -h}, Vec3{h, h, h}, Vec3{h, -h, -h});
 	Plane floor = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h});
 	Plane ceiling = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});
-	add_sphere_light_to_scene(scene, light_s, light_spd);
+	add_sphere_light_to_scene(scene, light_s, 2.0 * light_spd);
 	//add_point_light_to_scene(scene, light_p, 64.0 * light_spd);
 	add_sphere_to_scene(scene, sphere, sphere_diffuse_spd, sphere_glossy_spd);
 	add_plane_to_scene(scene, back_wall, white_diffuse_spd, white_glossy_spd);
@@ -689,7 +689,7 @@ bool completed_raytrace = false;
 Spectrum_Render_Buffer final_image_buffer = {};
 HWND window = {};
 
-int number_of_render_samples = 4;
+int number_of_render_samples = 16;
 double total_render_time = 0.0;
 double average_sample_render_time = 0.0;
 double max_sample_render_time = 0.0;
