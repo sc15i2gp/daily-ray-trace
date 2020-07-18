@@ -1,5 +1,5 @@
 CXX = g++
-OPTS = -lgdi32 -march=native
+OPTS = -lgdi32 -march=native 
 EXE_DIR = bin
 SRC_DIR = src
 OUT_DIR = output
