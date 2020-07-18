@@ -1,5 +1,5 @@
 CXX = g++
-OPTS = -lgdi32
+OPTS = -lgdi32 -march=native
 EXE_DIR = bin
 SRC_DIR = src
 OUT_DIR = output
@@ -25,7 +25,7 @@ clean:
 	del $(EXE_DIR)\*.exe $(DEBUG_STR).* *.pdb *.obj
 
 $(EXE): $(SRC)
-	g++ $(SRC) $(OPTS) -o $(EXE)
+	g++ -std=c++17 $(SRC) $(OPTS) -o $(EXE)
 	
 $(DEBUG_EXE): $(SRC)
 	cl $(DEBUG_OPTS) /Zi $(SRC) /Fe:$(DEBUG_EXE) user32.lib gdi32.lib 

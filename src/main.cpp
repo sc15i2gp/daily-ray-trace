@@ -23,10 +23,29 @@
 //		- (PARTIALLY SOLVED) Raytrace happens on separate thread, however it still halts a bit
 //		- when copying raytrace output buffer to window back buffer
 //	- Black pixels after adding cosine weighted hemisphere sampling
-//		- It's due to the cos_weighted_sample_hemisphere returning v such that dot(v, surface_normal) = 0
+//		- (SOLVED) It's due to the cos_weighted_sample_hemisphere returning v such that dot(v, surface_normal) = 0
 //		- which is used to compute the direction pdf value
+//	- Using e illuminant on sphere at origin in cornell box, eye rays intersecting with light return black radiance (but other lighting is correct)
+//		- (SOLVED) Algorithm wasn't taken into account emissive contributions
+//	- Artifacts near specular direction of eye ray to light source
+//		- Specifically sphere source
+//		- Not sure yet what's causing it
+//		- The artifacts are symmetrical about the center of the sphere along the plane
+
+//NOTES: Parameters I've wanted to change/view but had to rebuild for:
+//	- Emission/reflectance spectra
+//	- Number of render samples to take
+//	- Different sampling strategies
+//		- Uniform vs cosine weighted hemisphere sampling
+//	- Material parameters
+//		- Gloss shininess
+//	- Scene objects
+//		- Generally: positions, spectra, light types etc.
+//	- Image plane
+//		- Position
 
 //TODO: LONGTERM
+//	- Glossy lobe sampling
 //	- Easily compare sampling strategies
 //	- Maybe use vec4 for everything (to make matrix operations slightly easier and 4 numbers easier to optimise than 3)
 //	- Note failure points/error cases and handle
@@ -55,9 +74,10 @@
 //	- Add error handling to platform functions
 
 //TODO: NOW
+//	- Handle cases where sampled functions return pdf of 0
 //	- Reduce variance
-//		- Glossy lobe sampling
-//		- Choose directions based on bsdf (ie sometimes choose a near specular direction)
+//		- Sample sphere area light by finding cone subtended solid angle of sphere visible to a given point
+//		- then sampling the cone
 //		- Integration importance sampling
 //		- Image plane super sampling
 //		- Russian roulette with/without max depth
@@ -236,7 +256,7 @@ Spectrum diffuse_phong_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 Spectrum glossy_phong_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 {
 	Vec3 bisector = (incoming + outgoing)/2.0;
-	double specular_coefficient = pow(d_max(0.0, dot(p.normal, bisector)), 32.0);
+	double specular_coefficient = pow(d_max(0.0, dot(p.normal, bisector)), 100.0);
 	return specular_coefficient * p.glossy_spd;
 }
 
@@ -341,6 +361,11 @@ void add_sphere_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
 	add_object_to_scene(scene, sphere_light);
 }
 
+void add_plane_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
+{
+
+}
+
 void add_sphere_to_scene(Scene* scene, Sphere s, Spectrum diffuse_spd, Spectrum glossy_spd)
 {
 	Scene_Object sphere = {};
@@ -443,7 +468,10 @@ bool points_mutually_visible(Scene* scene, Vec3 p_0, Vec3 p_1)
 	shadow_ray.origin = p_0 + 0.001*shadow_ray.direction;
 
 	Surface_Point shadow_test_point = find_ray_scene_intersection(scene, shadow_ray);
-	return !(shadow_test_point.exists && length(shadow_test_point.position - p_0) < length(p_1 - p_0));
+	double shadow_ray_length = length(shadow_test_point.position - p_0);
+	double ray_length = length(p_1 - p_0);
+	double difference_between_ray_lengths = shadow_ray_length - ray_length;
+	return !(shadow_test_point.exists && difference_between_ray_lengths < -1e-12);
 }
 
 double compute_area(Scene_Geometry geometry)
@@ -457,23 +485,39 @@ double compute_area(Scene_Geometry geometry)
 	return 0.0;
 }
 
-Vec3 uniform_sample_geometry(Scene_Geometry geometry)
+Vec3 uniform_sample_geometry(Scene_Geometry geometry, Vec3 p, double* pdf)
 {
 	switch(geometry.type)
 	{
-		case GEO_TYPE_POINT: return geometry.point.position;
-		case GEO_TYPE_SPHERE: return uniform_sample_sphere(geometry.sphere);
-		case GEO_TYPE_PLANE: return uniform_sample_plane(geometry.plane);
+		case GEO_TYPE_POINT: 
+		{
+			*pdf = 1.0;
+			return geometry.point.position;
+		}
+		#if 0
+		case GEO_TYPE_SPHERE: 
+		{
+			return uniform_sample_sphere(geometry.sphere, pdf);
+		}
+		#else
+		case GEO_TYPE_SPHERE: 
+		{
+			return uniform_sample_sphere_subtended(geometry.sphere, p, pdf);
+		}
+		#endif
+		case GEO_TYPE_PLANE: 
+		{
+			return uniform_sample_plane(geometry.plane, pdf);
+		}
 	}
 	return Vec3{};
 }
 
-Vec3 sample_light_point(Scene_Object l, double* pdf)
+Vec3 sample_light_point(Scene_Object l, Vec3 p, double* pdf)
 {
 	Scene_Geometry light_geometry = l.geometry;
 	double light_area = compute_area(light_geometry);
-	Vec3 light_point = uniform_sample_geometry(light_geometry);
-	*pdf = (l.light_type == LIGHT_TYPE_POINT) ? 1.0 : (1.0 / light_area);
+	Vec3 light_point = uniform_sample_geometry(light_geometry, p, pdf);
 	return light_point;
 }
 
@@ -488,7 +532,7 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 			{
 				double light_pdf = 1.0;
 				Scene_Object light = scene->objects[i];
-				Vec3 light_point = sample_light_point(light, &light_pdf);
+				Vec3 light_point = sample_light_point(light, p.position, &light_pdf);
 				
 				if(points_mutually_visible(scene, p.position, light_point))
 				{
@@ -497,7 +541,8 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 					incoming = normalise(incoming);
 
 					double attenuation_factor = (light.light_type == LIGHT_TYPE_POINT) ? 1.0/(4.0 * PI * dist * dist) : 1.0;
-					double f = attenuation_factor * dot(incoming, p.normal) / light_pdf;
+					double d = dot(incoming, p.normal);
+					double f = attenuation_factor * d / light_pdf;
 
 					contribution += f * bsdf(p, incoming, outgoing.direction) * light.emission_spd;
 				}
@@ -508,7 +553,24 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 	return contribution;
 }
 
-int max_depth = 3; //NOTE: Arbitrarily chosen
+Vec3 choose_incoming_direction(Surface_Point p, Vec3 outgoing, double* pdf_value)
+{
+	double r = uniform_sample();
+	double t = 1.0/2.0;
+	Vec3 v = {};
+	if(r <= t)
+	{//Diffuse
+		v = cos_weighted_sample_hemisphere(p.normal, pdf_value);
+	}
+	else
+	{//Specular
+		v = reflect_vector(outgoing, p.normal);
+		*pdf_value = 1.0;
+	}
+	return v;
+}
+
+int max_depth = 8; //NOTE: Arbitrarily chosen
 
 Radiance cast_ray(Scene* scene, Ray eye_ray)
 {
@@ -521,19 +583,20 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 	for(int depth = 0; depth < max_depth; ++depth)
 	{
 		Surface_Point p = find_ray_scene_intersection(scene, outgoing);
-		if(p.exists && !p.is_emissive)
+		if(p.exists && p.is_emissive && depth == 0)
+		{
+			eye_ray_radiance += p.emission_spd;
+		}
+		else if(p.exists && !p.is_emissive)
 		{
 			outgoing.direction = -outgoing.direction; //Reverse for bsdf computation, needs to start other way round for intersection test
 			eye_ray_radiance += f * direct_light_contribution(scene, p, outgoing);
 			
 			//Choose new incoming direction
-			//incoming.direction = uniform_sample_hemisphere(p.normal);
-			incoming.direction = cos_weighted_sample_hemisphere(p.normal);
+			incoming.direction = choose_incoming_direction(p, outgoing.direction, &dir_pdf);
 			incoming.origin = p.position + 0.001*incoming.direction;
 
 			//Compute new direction pdf value
-			//dir_pdf = 1.0/(2.0 * PI);
-			dir_pdf = dot(p.normal, incoming.direction) / PI;
 			f *= (dot(p.normal, incoming.direction)/dir_pdf) * bsdf(p, outgoing.direction, incoming.direction);
 			
 			outgoing = incoming;
@@ -547,7 +610,7 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 
 void raytrace_scene(Spectrum_Render_Buffer* render_target, double fov, double near_plane, Scene* scene)
 {
-	Vec3 eye = {0.0, 0.0, 5.0};
+	Vec3 eye = {0.0, 0.0, 8.0};
 	Vec3 forward = {0.0, 0.0, -1.0};
 	Vec3 right = {1.0, 0.0, 0.0};
 	Vec3 up = {0.0, 1.0, 0.0};
@@ -584,6 +647,7 @@ void load_scene(Scene* scene)
 {
 	Spectrum light_spd = generate_black_body_spd(4000.0);
 	normalise(light_spd);
+	//Spectrum light_spd = generate_constant_spd(1.0);
 	Spectrum white_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.8, 0.8});
 	Spectrum white_glossy_spd = RGB64_to_spectrum(RGB64{0.9, 0.9, 0.9});
 	Spectrum red_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.2, 0.2});
@@ -591,17 +655,27 @@ void load_scene(Scene* scene)
 	Spectrum green_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.8, 0.2});
 	Spectrum green_glossy_spd = RGB64_to_spectrum(RGB64{0.8, 0.9, 0.8});
 
-	Sphere sphere = {};
+	Spectrum sphere_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.2, 0.8});
+	Spectrum sphere_glossy_spd = RGB64_to_spectrum(RGB64{0.8, 0.8, 0.9});
+
+	Sphere sphere = 
+	{
+		{-0.5, -1.0, 1.0}, 0.5
+	};
 	Point light_p = {};
-	sphere.radius = 0.5;
-	double h = 2.0;
+	Sphere light_s = 
+	{
+		{0.0, 2.0, 2.0}, 0.5
+	};
+	double h = 3.0;
 	Plane back_wall = create_plane_from_points(Vec3{-h, h, -h}, Vec3{h, h, -h}, Vec3{-h, -h, -h});
 	Plane left_wall = create_plane_from_points(Vec3{-h, h, h}, Vec3{-h, h, -h}, Vec3{-h, -h, h});
 	Plane right_wall = create_plane_from_points(Vec3{h, h, -h}, Vec3{h, h, h}, Vec3{h, -h, -h});
 	Plane floor = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h});
 	Plane ceiling = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});
-	//add_sphere_light_to_scene(scene, sphere, light_spd);
-	add_point_light_to_scene(scene, light_p, 16.0 * light_spd);
+	add_sphere_light_to_scene(scene, light_s, light_spd);
+	//add_point_light_to_scene(scene, light_p, 64.0 * light_spd);
+	add_sphere_to_scene(scene, sphere, sphere_diffuse_spd, sphere_glossy_spd);
 	add_plane_to_scene(scene, back_wall, white_diffuse_spd, white_glossy_spd);
 	add_plane_to_scene(scene, left_wall, red_diffuse_spd, red_glossy_spd);
 	add_plane_to_scene(scene, right_wall, green_diffuse_spd, green_glossy_spd);
@@ -615,15 +689,24 @@ bool completed_raytrace = false;
 Spectrum_Render_Buffer final_image_buffer = {};
 HWND window = {};
 
+int number_of_render_samples = 4;
+double total_render_time = 0.0;
+double average_sample_render_time = 0.0;
+double max_sample_render_time = 0.0;
+double min_sample_render_time = DBL_MAX;
+
+void print_render_profile()
+{
+	printf("Time to render %d samples: %fms\n", number_of_render_samples, total_render_time);
+	printf("Average sample render time: %fms\n", average_sample_render_time);
+	printf("Max sample render time: %fms\n", max_sample_render_time);
+	printf("Min sample render time: %fms\n", min_sample_render_time);
+}
+
 DWORD WINAPI render_image(LPVOID param)
 {
 	printf("Starting render...\n");
-	int number_of_samples = 8;
 	Timer timer = {};
-	double total_render_time = 0.0;
-	double average_sample_render_time = 0.0;
-	double max_sample_render_time = 0.0;
-	double min_sample_render_time = DBL_MAX;
 
 	Spectrum_Render_Buffer spectrum_buffer = {};
 	spectrum_buffer.pixels = (Spectrum*)alloc(RENDER_TARGET_WIDTH * RENDER_TARGET_HEIGHT * sizeof(Spectrum));
@@ -633,7 +716,7 @@ DWORD WINAPI render_image(LPVOID param)
 	Scene scene = {};
 	load_scene(&scene);
 
-	for(int pass = 0; pass < number_of_samples; ++pass)
+	for(int pass = 0; pass < number_of_render_samples; ++pass)
 	{
 		printf("Starting pass %d\n", pass);
 		start_timer(&timer);
@@ -656,12 +739,9 @@ DWORD WINAPI render_image(LPVOID param)
 		ready_to_display_spectrum_buffer = true;
 		printf("Completed pass %d\n", pass);
 	}
-
-	printf("Time to render %d samples: %fms\n", number_of_samples, total_render_time);
-	printf("Average sample render time: %fms\n", average_sample_render_time);
-	printf("Max sample render time: %fms\n", max_sample_render_time);
-	printf("Min sample render time: %fms\n", min_sample_render_time);
 	printf("Render completed\n");
+	print_render_profile();
+
 	completed_raytrace = true;
 	return 0;
 }
@@ -670,6 +750,7 @@ DWORD WINAPI render_image(LPVOID param)
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd_line)
 {
 	srand(100000);
+
 	WNDCLASS window_class = {};
 	window_class.style = CS_HREDRAW | CS_VREDRAW;
 	window_class.lpfnWndProc = window_event_callback;
@@ -708,7 +789,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 
 	HANDLE raytrace_thread = CreateThread(NULL, 0, render_image, NULL, 0, NULL);
 
-	while(running)
+	while(running && !completed_raytrace)
 	{
 		MSG message;
 		while(PeekMessage(&message, 0, 0, 0, PM_REMOVE))
@@ -729,11 +810,10 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	TerminateThread(raytrace_thread, 0);
 	//WaitForSingleObject(raytrace_thread, INFINITE);
 	
-	if(completed_raytrace)
-	{
-		printf("Writing back buffer to file\n");
-		output_to_ppm("output.ppm", &__window_back_buffer__);
-	}
+	if(!completed_raytrace) print_render_profile();
+
+	printf("Writing back buffer to file\n");
+	output_to_ppm("output.ppm", &__window_back_buffer__);
 
 	CloseHandle(raytrace_thread);
 	return 0;
