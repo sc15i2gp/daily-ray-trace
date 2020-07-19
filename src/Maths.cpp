@@ -129,6 +129,16 @@ void operator/=(Vec2& v, double d)
 	v = v / d;
 }
 
+bool operator==(Vec2 v, Vec2 w)
+{
+	return (v.x == w.x) && (v.y == w.y);
+}
+
+bool operator!=(Vec2 v, Vec2 w)
+{
+	return !(v == w);
+}
+
 double dot(Vec2 v, Vec2 w)
 {
 	return v.x * w.x + v.y * w.y;
@@ -230,6 +240,16 @@ void operator/=(Vec3& v, Vec3 w)
 void operator/=(Vec3& v, double d)
 {
 	v = v / d;
+}
+
+bool operator==(Vec3 v, Vec3 w)
+{
+	return (v.x == w.x) && (v.y == w.y) && (v.z == w.z);
+}
+
+bool operator!=(Vec3 v, Vec3 w)
+{
+	return !(v == w);
 }
 
 Vec3 cross(Vec3 v, Vec3 w)
@@ -351,6 +371,15 @@ void operator/=(Vec4& v, double d)
 	v = v / d;
 }
 
+bool operator==(Vec4 v, Vec4 w)
+{
+	return (v.x == w.x) && (v.y == w.y) && (v.z == w.z) && (v.w == w.w);
+}
+
+bool operator!=(Vec4 v, Vec4 w)
+{
+	return !(v == w);
+}
 
 Vec4 cross(Vec4 v, Vec4 w)
 {

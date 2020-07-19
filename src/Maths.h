@@ -117,6 +117,9 @@ void operator*=(Vec2&, double);
 void operator/=(Vec2&, Vec2);
 void operator/=(Vec2&, double);
 
+bool operator==(Vec2, Vec2);
+bool operator!=(Vec2, Vec2);
+
 double dot(Vec2, Vec2);
 double length(Vec2);
 Vec2 normalise(Vec2);
@@ -136,6 +139,9 @@ void operator*=(Vec3&, Vec3);
 void operator*=(Vec3&, double);
 void operator/=(Vec3&, Vec3);
 void operator/=(Vec3&, double);
+
+bool operator==(Vec3, Vec3);
+bool operator!=(Vec3, Vec3);
 
 Vec3 cross(Vec3, Vec3);
 Vec3 normalise(Vec3);
@@ -157,6 +163,9 @@ void operator*=(Vec4&, Vec4);
 void operator*=(Vec4&, double);
 void operator/=(Vec4&, Vec4);
 void operator/=(Vec4&, double);
+
+bool operator==(Vec4, Vec4);
+bool operator!=(Vec4, Vec4);
 
 Vec4 cross(Vec4, Vec4);
 Vec4 normalise(Vec4);
