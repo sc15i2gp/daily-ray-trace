@@ -74,6 +74,7 @@
 //	- Add error handling to platform functions
 
 //TODO: NOW
+//	- Have mirror reflections return 0 if ray isn't eye ray
 //	- More materials/effects
 //		- Mirror
 //		- Metal
@@ -286,7 +287,10 @@ Spectrum glossy_phong_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 //TODO: Have specular reflectance and transmittance in material
 Spectrum perfect_specular_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 {
-	if(incoming == reflect_vector(outgoing, p.normal)) return generate_constant_spd(1.0);
+	if(incoming == reflect_vector(-outgoing, p.normal)) 
+	{
+		return generate_constant_spd(1.0);
+	}
 	else return Spectrum{};
 }
 
@@ -324,14 +328,18 @@ Vec3 sample_diffuse_direction(Surface_Point p, Vec3 outgoing, double* pdf_value)
 //NOTE: Although these two sample functions are the same now, the glossy one may be changed soon
 Vec3 sample_glossy_direction(Surface_Point p, Vec3 outgoing, double* pdf_value)
 {
+	/*
 	*pdf_value = 1.0;
-	return reflect_vector(outgoing, p.normal);
+	Vec3 dir = reflect_vector(-outgoing, p.normal);
+	return dir;
+	*/
+	return sample_diffuse_direction(p, outgoing, pdf_value);
 }
 
 Vec3 sample_specular_direction(Surface_Point p, Vec3 outgoing, double* pdf_value)
 {
 	*pdf_value = 1.0;
-	return reflect_vector(outgoing, p.normal);
+	return reflect_vector(-outgoing, p.normal);
 }
 
 Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shininess)
@@ -354,6 +362,17 @@ Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shinin
 	plastic.bsdfs[1] = glossy_reflection;
 
 	return plastic;
+}
+
+Material create_mirror()
+{
+	Material mirror = {};
+	mirror.number_of_bsdfs = 1;
+	mirror.bsdfs[0].bsdf = perfect_specular_bsdf;
+	mirror.bsdfs[0].sample_direction = sample_specular_direction;
+	mirror.bsdfs[0].is_mirror_reflection = true;
+
+	return mirror;
 }
 
 typedef Spectrum Radiance;
@@ -659,7 +678,8 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 		Surface_Point p = find_ray_scene_intersection(scene, outgoing);
 		if(p.exists && p.is_emissive && consider_emissive)
 		{
-			eye_ray_radiance += p.emission_spd;
+			eye_ray_radiance += f * p.emission_spd;
+			break;
 		}
 		else if(p.exists && !p.is_emissive)
 		{
@@ -669,9 +689,10 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 			//Choose new incoming direction
 			incoming.direction = choose_incoming_direction(p, outgoing.direction, &dir_pdf, &consider_emissive);
 			incoming.origin = p.position + 0.001*incoming.direction;
+			consider_emissive = consider_emissive && (depth == 0);
 
 			//Compute new direction pdf value
-			f *= (dot(p.normal, incoming.direction)/dir_pdf) * bsdf(p, outgoing.direction, incoming.direction);
+			f *= (dot(p.normal, incoming.direction)/dir_pdf) * bsdf(p, incoming.direction, outgoing.direction);
 			
 			outgoing = incoming;
 			outgoing.origin += 0.001*outgoing.direction;
@@ -722,26 +743,27 @@ void load_scene(Scene* scene)
 	//Spectrum light_spd = generate_black_body_spd(4000.0);
 	//normalise(light_spd);
 	Spectrum light_spd = generate_constant_spd(1.0);
-	Spectrum white_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.8, 0.8});
-	Spectrum white_glossy_spd = RGB64_to_spectrum(RGB64{0.9, 0.9, 0.9});
-	Spectrum red_diffuse_spd = RGB64_to_spectrum(RGB64{0.8, 0.2, 0.2});
-	Spectrum red_glossy_spd = RGB64_to_spectrum(RGB64{0.9, 0.8, 0.8});
-	Spectrum green_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.8, 0.2});
-	Spectrum green_glossy_spd = RGB64_to_spectrum(RGB64{0.8, 0.9, 0.8});
+	Spectrum white_diffuse_spd = RGB64_to_spectrum(RGB64{0.55, 0.55, 0.55});
+	Spectrum white_glossy_spd = RGB64_to_spectrum(RGB64{0.7, 0.7, 0.7});
+	Spectrum red_diffuse_spd = RGB64_to_spectrum(RGB64{0.5, 0.0, 0.0});
+	Spectrum red_glossy_spd = RGB64_to_spectrum(RGB64{0.7, 0.6, 0.6});
+	Spectrum green_diffuse_spd = RGB64_to_spectrum(RGB64{0.1, 0.35, 0.1});
+	Spectrum green_glossy_spd = RGB64_to_spectrum(RGB64{0.45, 0.55, 0.45});
 
 	Spectrum sphere_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.2, 0.8});
 	Spectrum sphere_glossy_spd = RGB64_to_spectrum(RGB64{0.8, 0.8, 0.9});
 
-	Material white_material = create_plastic(white_diffuse_spd, white_glossy_spd, 28.0);
-	Material red_material = create_plastic(red_diffuse_spd, red_glossy_spd, 100.0);
-	Material green_material = create_plastic(green_diffuse_spd, green_glossy_spd, 100.0);
-	Material sphere_material = create_plastic(sphere_diffuse_spd, sphere_glossy_spd, 100.0);
+	Material white_material = create_plastic(white_diffuse_spd, white_glossy_spd, 32.0);
+	Material red_material = create_plastic(red_diffuse_spd, red_glossy_spd, 32.0);
+	Material green_material = create_plastic(green_diffuse_spd, green_glossy_spd, 32.0);
+	Material sphere_material = create_plastic(sphere_diffuse_spd, sphere_glossy_spd, 50.0);
+	Material mirror = create_mirror();
 
 	Sphere sphere = 
 	{
-		{-0.5, -1.0, 1.0}, 0.5
+		{0.0, -1.0, -1.0}, 1.5
 	};
-	Point light_p = {};
+	Point light_p = {{0.0, 2.0, 2.0}};
 	Sphere light_s = 
 	{
 		{0.0, 2.0, 2.0}, 0.5
@@ -752,9 +774,9 @@ void load_scene(Scene* scene)
 	Plane right_wall = create_plane_from_points(Vec3{h, h, -h}, Vec3{h, h, h}, Vec3{h, -h, -h});
 	Plane floor = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h});
 	Plane ceiling = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});
-	add_sphere_light_to_scene(scene, light_s, 2.0 * light_spd);
+	add_sphere_light_to_scene(scene, light_s, 3.0 * light_spd);
 	//add_point_light_to_scene(scene, light_p, 64.0 * light_spd);
-	add_sphere_to_scene(scene, sphere, sphere_material);
+	add_sphere_to_scene(scene, sphere, mirror);
 	add_plane_to_scene(scene, back_wall, white_material);
 	add_plane_to_scene(scene, left_wall, red_material);
 	add_plane_to_scene(scene, right_wall, green_material);
@@ -768,7 +790,7 @@ bool completed_raytrace = false;
 Spectrum_Render_Buffer final_image_buffer = {};
 HWND window = {};
 
-int number_of_render_samples = 16;
+int number_of_render_samples = 32;
 double total_render_time = 0.0;
 double average_sample_render_time = 0.0;
 double max_sample_render_time = 0.0;
