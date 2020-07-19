@@ -74,19 +74,16 @@
 //	- Add error handling to platform functions
 
 //TODO: NOW
-//	- Handle cases where sampled functions return pdf of 0
-//	- Reduce variance
-//		- Sample sphere area light by finding cone subtended solid angle of sphere visible to a given point
-//		- then sampling the cone
-//		- Integration importance sampling
-//		- Image plane super sampling
-//		- Russian roulette with/without max depth
 //	- More materials/effects
 //		- Metal
 //		- Mirror
 //		- Glass
+//	- Reduce variance
+//		- Image plane super sampling
+//		- Russian roulette with/without max depth
 //	- Move platform code to platform file
 //	- Optimise
+//	- Quality of life
 
 struct Pixel_Render_Buffer
 {
@@ -534,7 +531,7 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 				Scene_Object light = scene->objects[i];
 				Vec3 light_point = sample_light_point(light, p.position, &light_pdf);
 				
-				if(points_mutually_visible(scene, p.position, light_point))
+				if(points_mutually_visible(scene, p.position, light_point) && light_pdf > 0.0)
 				{
 					Vec3 incoming = light_point - p.position;
 					double dist = length(incoming);
