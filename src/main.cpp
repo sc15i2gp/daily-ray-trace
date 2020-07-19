@@ -75,8 +75,8 @@
 
 //TODO: NOW
 //	- More materials/effects
-//		- Metal
 //		- Mirror
+//		- Metal
 //		- Glass
 //	- Reduce variance
 //		- Image plane super sampling
@@ -233,6 +233,31 @@ LRESULT CALLBACK window_event_callback(HWND window, UINT message, WPARAM wparam,
 	return result;
 }
 
+struct Surface_Point; //Forward decl
+typedef Spectrum (*REFLECTION_MODEL_FUNCTION)(Surface_Point, Vec3, Vec3);
+typedef Vec3 (*INDIRECT_SAMPLE_FUNCTION)(Surface_Point, Vec3, double*);
+
+struct BSDF
+{
+	//Needed to check if the emissive component of an object in the reflected direction should be considered
+	bool is_mirror_reflection; 
+	//Computes proportion of light reflected at given point with given incident and reflection directions
+	REFLECTION_MODEL_FUNCTION bsdf; 
+	//Samples a random direction at a given point with a given reflection direction
+	//This is included here so that, for a reflection model, importance sampling can take place
+	INDIRECT_SAMPLE_FUNCTION sample_direction;
+};
+
+#define MAT_BSDF_MAX 8
+struct Material
+{
+	int number_of_bsdfs;
+	BSDF bsdfs[MAT_BSDF_MAX];
+	Spectrum diffuse_spd;
+	Spectrum glossy_spd;
+	double shininess;
+};
+
 struct Surface_Point
 {
 	Spectrum diffuse_spd;
@@ -240,28 +265,95 @@ struct Surface_Point
 	Spectrum emission_spd;
 	Vec3 normal;
 	Vec3 position;
+	Material material;
 	bool exists;
 	bool is_emissive;
 };
 
-
+//REFLECTION MODELS
 Spectrum diffuse_phong_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 {
-	return p.diffuse_spd / PI;
+	return p.material.diffuse_spd / PI;
 }
 
 Spectrum glossy_phong_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 {
 	Vec3 bisector = (incoming + outgoing)/2.0;
-	double specular_coefficient = pow(d_max(0.0, dot(p.normal, bisector)), 100.0);
-	return specular_coefficient * p.glossy_spd;
+	double specular_coefficient = pow(d_max(0.0, dot(p.normal, bisector)), p.material.shininess);
+	return specular_coefficient * p.material.glossy_spd;
 }
 
-Spectrum bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
+//TODO: Have specular reflectance and transmittance in material
+Spectrum perfect_specular_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
+{
+	if(incoming == reflect_vector(outgoing, p.normal)) return generate_constant_spd(1.0);
+	else return Spectrum{};
+}
+
+//MATERIAL BSDFs
+Spectrum plastic_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 {
 	Spectrum diffuse = diffuse_phong_bsdf(p, incoming, outgoing);
 	Spectrum glossy = glossy_phong_bsdf(p, incoming, outgoing);
 	return diffuse + glossy;
+}
+
+Spectrum mirror_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
+{
+	return perfect_specular_bsdf(p, incoming, outgoing);
+}
+
+//GENERAL BSDF METHOD
+Spectrum bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
+{
+	Spectrum reflectance = {};
+	BSDF* material_bsdfs = p.material.bsdfs;
+	for(int i = 0; i < p.material.number_of_bsdfs; ++i)
+	{
+		reflectance += material_bsdfs[i].bsdf(p, incoming, outgoing);
+	}
+	return reflectance;
+}
+
+//DIRECTION SAMPLING METHODS
+Vec3 sample_diffuse_direction(Surface_Point p, Vec3 outgoing, double* pdf_value)
+{
+	return cos_weighted_sample_hemisphere(p.normal, pdf_value);
+}
+
+//NOTE: Although these two sample functions are the same now, the glossy one may be changed soon
+Vec3 sample_glossy_direction(Surface_Point p, Vec3 outgoing, double* pdf_value)
+{
+	*pdf_value = 1.0;
+	return reflect_vector(outgoing, p.normal);
+}
+
+Vec3 sample_specular_direction(Surface_Point p, Vec3 outgoing, double* pdf_value)
+{
+	*pdf_value = 1.0;
+	return reflect_vector(outgoing, p.normal);
+}
+
+Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shininess)
+{
+	Material plastic = {};
+	//Reflectances
+	plastic.diffuse_spd = diffuse_spd;
+	plastic.glossy_spd = glossy_spd;
+	plastic.shininess = shininess;
+	
+	//BSDFs
+	plastic.number_of_bsdfs = 2;
+	BSDF diffuse_reflection = {};
+	diffuse_reflection.bsdf = diffuse_phong_bsdf;
+	diffuse_reflection.sample_direction = sample_diffuse_direction;
+	BSDF glossy_reflection = {};
+	glossy_reflection.bsdf = glossy_phong_bsdf;
+	glossy_reflection.sample_direction = sample_glossy_direction;
+	plastic.bsdfs[0] = diffuse_reflection;
+	plastic.bsdfs[1] = glossy_reflection;
+
+	return plastic;
 }
 
 typedef Spectrum Radiance;
@@ -283,6 +375,7 @@ struct Scene_Light
 
 enum Geometry_Type
 {
+	GEO_TYPE_NONE = 0,
 	GEO_TYPE_POINT,
 	GEO_TYPE_SPHERE,
 	GEO_TYPE_PLANE,
@@ -310,10 +403,9 @@ struct Scene_Geometry
 struct Scene_Object
 {
 	Scene_Geometry geometry;
-	Spectrum diffuse_spd;
-	Spectrum glossy_spd;
-	Spectrum emission_spd;
+	Material material;
 	Light_Type light_type;
+	Spectrum emission_spd;
 	bool is_emissive;
 };
 
@@ -360,10 +452,10 @@ void add_sphere_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
 
 void add_plane_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
 {
-
+	//TODO
 }
 
-void add_sphere_to_scene(Scene* scene, Sphere s, Spectrum diffuse_spd, Spectrum glossy_spd)
+void add_sphere_to_scene(Scene* scene, Sphere s, Material material)
 {
 	Scene_Object sphere = {};
 	Scene_Geometry sphere_geometry = {};
@@ -371,13 +463,12 @@ void add_sphere_to_scene(Scene* scene, Sphere s, Spectrum diffuse_spd, Spectrum 
 	sphere_geometry.sphere = s;
 
 	sphere.geometry = sphere_geometry;
-	sphere.diffuse_spd = diffuse_spd;
-	sphere.glossy_spd = glossy_spd;
+	sphere.material = material;
 
 	add_object_to_scene(scene, sphere);
 }
 
-void add_plane_to_scene(Scene* scene, Plane p, Spectrum diffuse_spd, Spectrum glossy_spd)
+void add_plane_to_scene(Scene* scene, Plane p, Material material)
 {
 	Scene_Object plane = {};
 	Scene_Geometry plane_geometry = {};
@@ -385,8 +476,7 @@ void add_plane_to_scene(Scene* scene, Plane p, Spectrum diffuse_spd, Spectrum gl
 	plane_geometry.plane = p;
 
 	plane.geometry = plane_geometry;
-	plane.diffuse_spd = diffuse_spd;
-	plane.glossy_spd = glossy_spd;
+	plane.material = material;
 
 	add_object_to_scene(scene, plane);
 }
@@ -446,8 +536,7 @@ Surface_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 			}
 		}
 
-		p.diffuse_spd = object->diffuse_spd;
-		p.glossy_spd = object->glossy_spd;
+		p.material = object->material;
 		p.emission_spd = object->emission_spd;
 		p.normal = surface_normal;
 		p.position = intersection;
@@ -491,17 +580,10 @@ Vec3 uniform_sample_geometry(Scene_Geometry geometry, Vec3 p, double* pdf)
 			*pdf = 1.0;
 			return geometry.point.position;
 		}
-		#if 0
-		case GEO_TYPE_SPHERE: 
-		{
-			return uniform_sample_sphere(geometry.sphere, pdf);
-		}
-		#else
 		case GEO_TYPE_SPHERE: 
 		{
 			return uniform_sample_sphere_subtended(geometry.sphere, p, pdf);
 		}
-		#endif
 		case GEO_TYPE_PLANE: 
 		{
 			return uniform_sample_plane(geometry.plane, pdf);
@@ -510,6 +592,7 @@ Vec3 uniform_sample_geometry(Scene_Geometry geometry, Vec3 p, double* pdf)
 	return Vec3{};
 }
 
+//TODO: Move this into direct_light_contribution
 Vec3 sample_light_point(Scene_Object l, Vec3 p, double* pdf)
 {
 	Scene_Geometry light_geometry = l.geometry;
@@ -550,21 +633,14 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 	return contribution;
 }
 
-Vec3 choose_incoming_direction(Surface_Point p, Vec3 outgoing, double* pdf_value)
+//MIRROR CHANGE: Probability of sampling specular direction depends on material
+Vec3 choose_incoming_direction(Surface_Point p, Vec3 outgoing, double* pdf_value, bool* consider_emissive)
 {
 	double r = uniform_sample();
-	double t = 1.0/2.0;
-	Vec3 v = {};
-	if(r <= t)
-	{//Diffuse
-		v = cos_weighted_sample_hemisphere(p.normal, pdf_value);
-	}
-	else
-	{//Specular
-		v = reflect_vector(outgoing, p.normal);
-		*pdf_value = 1.0;
-	}
-	return v;
+	double n = (double)p.material.number_of_bsdfs;
+	int chosen_bsdf = (int)floor(r * n);
+	*consider_emissive = p.material.bsdfs[chosen_bsdf].is_mirror_reflection;
+	return p.material.bsdfs[chosen_bsdf].sample_direction(p, outgoing, pdf_value);
 }
 
 int max_depth = 8; //NOTE: Arbitrarily chosen
@@ -577,10 +653,11 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 	Ray incoming = {};
 	Spectrum f = generate_constant_spd(1.0);
 	double dir_pdf = 0.0;
+	bool consider_emissive = true;
 	for(int depth = 0; depth < max_depth; ++depth)
 	{
 		Surface_Point p = find_ray_scene_intersection(scene, outgoing);
-		if(p.exists && p.is_emissive && depth == 0)
+		if(p.exists && p.is_emissive && consider_emissive)
 		{
 			eye_ray_radiance += p.emission_spd;
 		}
@@ -590,7 +667,7 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 			eye_ray_radiance += f * direct_light_contribution(scene, p, outgoing);
 			
 			//Choose new incoming direction
-			incoming.direction = choose_incoming_direction(p, outgoing.direction, &dir_pdf);
+			incoming.direction = choose_incoming_direction(p, outgoing.direction, &dir_pdf, &consider_emissive);
 			incoming.origin = p.position + 0.001*incoming.direction;
 
 			//Compute new direction pdf value
@@ -655,6 +732,11 @@ void load_scene(Scene* scene)
 	Spectrum sphere_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.2, 0.8});
 	Spectrum sphere_glossy_spd = RGB64_to_spectrum(RGB64{0.8, 0.8, 0.9});
 
+	Material white_material = create_plastic(white_diffuse_spd, white_glossy_spd, 28.0);
+	Material red_material = create_plastic(red_diffuse_spd, red_glossy_spd, 100.0);
+	Material green_material = create_plastic(green_diffuse_spd, green_glossy_spd, 100.0);
+	Material sphere_material = create_plastic(sphere_diffuse_spd, sphere_glossy_spd, 100.0);
+
 	Sphere sphere = 
 	{
 		{-0.5, -1.0, 1.0}, 0.5
@@ -672,12 +754,12 @@ void load_scene(Scene* scene)
 	Plane ceiling = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});
 	add_sphere_light_to_scene(scene, light_s, 2.0 * light_spd);
 	//add_point_light_to_scene(scene, light_p, 64.0 * light_spd);
-	add_sphere_to_scene(scene, sphere, sphere_diffuse_spd, sphere_glossy_spd);
-	add_plane_to_scene(scene, back_wall, white_diffuse_spd, white_glossy_spd);
-	add_plane_to_scene(scene, left_wall, red_diffuse_spd, red_glossy_spd);
-	add_plane_to_scene(scene, right_wall, green_diffuse_spd, green_glossy_spd);
-	add_plane_to_scene(scene, floor, white_diffuse_spd, white_glossy_spd);
-	add_plane_to_scene(scene, ceiling, white_diffuse_spd, white_glossy_spd);
+	add_sphere_to_scene(scene, sphere, sphere_material);
+	add_plane_to_scene(scene, back_wall, white_material);
+	add_plane_to_scene(scene, left_wall, red_material);
+	add_plane_to_scene(scene, right_wall, green_material);
+	add_plane_to_scene(scene, floor, white_material);
+	add_plane_to_scene(scene, ceiling, white_material);
 
 }
 
