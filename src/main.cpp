@@ -45,6 +45,7 @@
 //		- Position
 
 //TODO: LONGTERM
+//	- Dispersion
 //	- Glossy lobe sampling
 //	- Easily compare sampling strategies
 //	- Maybe use vec4 for everything (to make matrix operations slightly easier and 4 numbers easier to optimise than 3)
@@ -74,9 +75,12 @@
 //	- Add error handling to platform functions
 
 //TODO: NOW
-//	- Have mirror reflections return 0 if ray isn't eye ray
+//	- Handle spd files which aren't given nicely
+//		- Currently they are all given as 380-720 nm at 5nm intervals
+//		- Most spectral data files give far beyond these ranges and not in integer intervals
+//		- Need to interpolate the values for the program's range
+//		- Could also preprocess the data
 //	- More materials/effects
-//		- Mirror
 //		- Metal
 //		- Glass
 //	- Reduce variance
@@ -798,7 +802,7 @@ double min_sample_render_time = DBL_MAX;
 
 void print_render_profile()
 {
-	printf("Time to render %d samples: %fms\n", number_of_render_samples, total_render_time);
+	printf("Time to render image: %fms\n", total_render_time);
 	printf("Average sample render time: %fms\n", average_sample_render_time);
 	printf("Max sample render time: %fms\n", max_sample_render_time);
 	printf("Min sample render time: %fms\n", min_sample_render_time);
@@ -819,7 +823,7 @@ DWORD WINAPI render_image(LPVOID param)
 
 	for(int pass = 0; pass < number_of_render_samples; ++pass)
 	{
-		printf("Starting pass %d\n", pass);
+		printf("Pass %d/%d\r", pass+1, number_of_render_samples);
 		start_timer(&timer);
 		
 		raytrace_scene(&spectrum_buffer, 90.0, 0.1, &scene);
@@ -838,7 +842,6 @@ DWORD WINAPI render_image(LPVOID param)
 		min_sample_render_time = d_min(min_sample_render_time, elapsed);
 
 		ready_to_display_spectrum_buffer = true;
-		printf("Completed pass %d\n", pass);
 	}
 	printf("Render completed\n");
 	print_render_profile();
