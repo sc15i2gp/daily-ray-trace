@@ -253,14 +253,30 @@ struct BSDF
 	INDIRECT_SAMPLE_FUNCTION sample_direction;
 };
 
+enum Material_Type
+{
+	MAT_TYPE_NONE = 0,
+	MAT_TYPE_DIELECTRIC,
+	MAT_TYPE_CONDUCTOR
+};
+
 #define MAT_BSDF_MAX 8
 struct Material
 {
+	Material_Type type;
 	int number_of_bsdfs;
 	BSDF bsdfs[MAT_BSDF_MAX];
+
+	//Plastic data
 	Spectrum diffuse_spd;
 	Spectrum glossy_spd;
 	double shininess;
+
+	//Conductor data
+	Spectrum refract_index;
+	Spectrum extinct_index;
+	bool is_dielectric;
+	bool is_conductor;
 };
 
 struct Surface_Point
@@ -268,11 +284,13 @@ struct Surface_Point
 	Spectrum diffuse_spd;
 	Spectrum glossy_spd;
 	Spectrum emission_spd;
+	Spectrum incident_refract_index;
 	Vec3 normal;
 	Vec3 position;
 	Material material;
 	bool exists;
 	bool is_emissive;
+	bool is_dielectric_conductor_boundary;
 };
 
 //REFLECTION MODELS
@@ -296,6 +314,64 @@ Spectrum perfect_specular_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 		return generate_constant_spd(1.0);
 	}
 	else return Spectrum{};
+}
+
+double fresnel_reflectance_dielectric(double incident_refraction_index, double transmit_refraction_index, double incident_cos, double transmit_cos)
+{
+	double parallel_reflectance = 
+		(transmit_refraction_index * incident_cos - incident_refraction_index * transmit_cos) / 
+		(transmit_refraction_index * incident_cos + incident_refraction_index * transmit_cos);
+	double perpendicular_reflectance = 
+		(incident_refraction_index * incident_cos - transmit_refraction_index * transmit_cos) / 
+		(incident_refraction_index * incident_cos + transmit_refraction_index * transmit_cos);
+
+	return 0.5 * (parallel_reflectance*parallel_reflectance + perpendicular_reflectance*perpendicular_reflectance);
+}
+
+double fresnel_reflectance_conductor(double incident_refract_index, double transmit_refract_index, double transmit_extinct_index, double incident_cos)
+{
+	double relative_refract_index = transmit_refract_index / incident_refract_index;
+	double relative_extinct_index = transmit_extinct_index / incident_refract_index;
+
+	double incident_cos_sq = incident_cos * incident_cos;
+	double incident_sin_sq = 1.0 - incident_cos_sq;
+	double relative_refract_index_sq = relative_refract_index * relative_refract_index;
+	double relative_extinct_index_sq = relative_extinct_index * relative_extinct_index;
+	double r = relative_refract_index_sq - relative_extinct_index_sq - incident_sin_sq;
+	double a_sq_plus_b_sq = sqrt(r * r + 4.0 * relative_refract_index_sq * relative_extinct_index_sq);
+	double a = sqrt(0.5 * (a_sq_plus_b_sq + r));
+	double s = a_sq_plus_b_sq + incident_cos_sq;
+	double t = 2.0 * a * incident_cos;
+	double u = incident_cos_sq * a_sq_plus_b_sq + incident_sin_sq * incident_sin_sq;
+	double v = t * incident_sin_sq;
+	double parallel_reflectance = (s - t) / (s + t);
+	double perpendicular_reflectance = parallel_reflectance * (u - v) / (u + v);
+
+	return 0.5 * (parallel_reflectance + perpendicular_reflectance);
+}
+
+Spectrum fresnel_reflectance_conductor(Spectrum incident_refract_index, Spectrum transmit_refract_index, Spectrum transmit_extinct_index, double incident_cos)
+{
+	Spectrum reflectance = {};
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		reflectance.samples[i] = fresnel_reflectance_conductor(incident_refract_index.samples[i], transmit_refract_index.samples[i], transmit_extinct_index.samples[i], incident_cos);
+	}
+	return reflectance;
+}
+
+//TODO: Make it so specular bsdfs don't have to check if incoming is specular reflection vector
+Spectrum fresnel_specular_reflection_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
+{
+	if(incoming == reflect_vector(-outgoing, p.normal))
+	{
+		double incident_cos = abs(dot(incoming, p.normal));
+		double reflectance_cos = abs(dot(outgoing, p.normal));
+
+		if(p.material.type == MAT_TYPE_CONDUCTOR) return fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, incident_cos) / reflectance_cos;
+		//else if(p.is_dielectric_dielectric_boundary) return fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, transmit_cos);
+	}
+	return Spectrum{};
 }
 
 //MATERIAL BSDFs
@@ -350,6 +426,7 @@ Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shinin
 {
 	Material plastic = {};
 	//Reflectances
+	plastic.type = MAT_TYPE_DIELECTRIC;
 	plastic.diffuse_spd = diffuse_spd;
 	plastic.glossy_spd = glossy_spd;
 	plastic.shininess = shininess;
@@ -371,12 +448,28 @@ Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shinin
 Material create_mirror()
 {
 	Material mirror = {};
+	mirror.type = MAT_TYPE_CONDUCTOR;
 	mirror.number_of_bsdfs = 1;
 	mirror.bsdfs[0].bsdf = perfect_specular_bsdf;
 	mirror.bsdfs[0].sample_direction = sample_specular_direction;
 	mirror.bsdfs[0].is_mirror_reflection = true;
 
 	return mirror;
+}
+
+Material create_conductor(Spectrum refract_index, Spectrum extinct_index)
+{
+	Material conductor = {};
+	conductor.type = MAT_TYPE_CONDUCTOR;
+	conductor.number_of_bsdfs = 1;
+	conductor.bsdfs[0].bsdf = fresnel_specular_reflection_bsdf;
+	conductor.bsdfs[0].sample_direction = sample_specular_direction;
+	conductor.bsdfs[0].is_mirror_reflection = true;
+
+	conductor.refract_index = refract_index;
+	conductor.extinct_index = extinct_index;
+
+	return conductor;
 }
 
 typedef Spectrum Radiance;
@@ -559,6 +652,7 @@ Surface_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 			}
 		}
 
+		p.incident_refract_index = generate_constant_spd(1.0);
 		p.material = object->material;
 		p.emission_spd = object->emission_spd;
 		p.normal = surface_normal;
@@ -762,6 +856,9 @@ void load_scene(Scene* scene)
 	Material green_material = create_plastic(green_diffuse_spd, green_glossy_spd, 32.0);
 	Material sphere_material = create_plastic(sphere_diffuse_spd, sphere_glossy_spd, 50.0);
 	Material mirror = create_mirror();
+	Spectrum gold_refract_index = load_spd("au_spec_n.csv");
+	Spectrum gold_extinct_index = load_spd("au_spec_k.csv");
+	Material gold = create_conductor(gold_refract_index, gold_extinct_index);
 
 	Sphere sphere = 
 	{
@@ -780,7 +877,8 @@ void load_scene(Scene* scene)
 	Plane ceiling = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});
 	add_sphere_light_to_scene(scene, light_s, 3.0 * light_spd);
 	//add_point_light_to_scene(scene, light_p, 64.0 * light_spd);
-	add_sphere_to_scene(scene, sphere, mirror);
+	//add_sphere_to_scene(scene, sphere, mirror);
+	add_sphere_to_scene(scene, sphere, gold);
 	add_plane_to_scene(scene, back_wall, white_material);
 	add_plane_to_scene(scene, left_wall, red_material);
 	add_plane_to_scene(scene, right_wall, green_material);
@@ -890,9 +988,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	final_image_buffer.height = window_height(window);
 	clear_render_buffer(&__window_back_buffer__, clear_colour);
 	clear_render_buffer(&final_image_buffer, clear_spectrum);
-
-	Spectrum s = load_spd("au_spec_n.csv");
-	write_spd("test_output.csv", s);
 
 	HANDLE raytrace_thread = CreateThread(NULL, 0, render_image, NULL, 0, NULL);
 

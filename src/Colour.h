@@ -2,6 +2,7 @@
 #include "Maths.h"
 #include "Platform.h"
 
+extern int number_of_samples;
 struct RGB8
 {
 	uint8_t B;
