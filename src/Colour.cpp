@@ -175,21 +175,60 @@ Spectrum red_rgb_to_spd = {};
 Spectrum green_rgb_to_spd = {};
 Spectrum blue_rgb_to_spd = {};
 
-Spectrum load_spd(const char* spd_path)
+void write_spd(const char* spd_path, Spectrum spd)
 {
-	Spectrum spd = {};
-	char* spd_contents = read_file_contents(spd_path);
-	
-	char* c = spd_contents;
+	char* spd_contents = (char*)alloc(MEGABYTES(4));
+
+	int spd_size = sprintf(spd_contents, "Wavelength,Power\n");
+
 	for(int i = 0; i < number_of_samples; ++i)
 	{
-		c = find_next_number(find_next_character(c, ','));
-		spd.samples[i] = (long double) atof(c);
+		double ith_wavelength = start_wavelength + (double)i * sample_interval;
+		spd_size += sprintf(spd_contents+spd_size, "%f,%f\n", ith_wavelength, spd.samples[i]);
+	}
+	write_file_contents(spd_path, spd_contents, spd_size);
+	dealloc(spd_contents);
+}
 
+Spectrum load_spd(const char* spd_path)
+{
+	//Store the spd file's contents in these 2 arrays
+	double file_wavelengths[SPECTRUM_FILE_SAMPLE_MAX] = {};
+	double file_samples[SPECTRUM_FILE_SAMPLE_MAX] = {};
+	int file_number_of_samples = 0;
+
+	Spectrum spd = {};
+	
+	char* spd_contents = read_file_contents(spd_path);
+	
+	//Find the number of samples given in the file
+	char* c = find_next_line(spd_contents);
+	for(char* d = c; d != NULL && *d != 0; d = find_next_line(d)) if(find_next_number(d)) ++file_number_of_samples;
+	//Read the file's samples and wavelengths
+	for(int i = 0; i < file_number_of_samples; ++i)
+	{
+		c = find_next_number(c);
+		file_wavelengths[i] = (double) atof(c);
+		c = find_next_number(find_next_character(c, ','));
+		file_samples[i] = (double) atof(c);
 		c = find_next_line(c);
 	}
-
-	dealloc(spd_contents);
+	
+	//This is so that an spd file can be given in nm or um
+	//If the first wavelength given in the file is less than an arbitrary number (10 in this case), then it is assumed that file is given in um
+	//Linearly interpolate the desired wavelength values from the file's contents
+	double um_threshold = 10.0;
+	if(file_wavelengths[0] < um_threshold)
+	{
+		for(int i = 0; i < file_number_of_samples; ++i) file_wavelengths[i] *= 1000.0;
+	}
+	int t = 0;
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		double ith_wavelength = start_wavelength + (double)i * sample_interval;
+		for(; file_wavelengths[t+1] < ith_wavelength; ++t);
+		spd.samples[i] = lerp(ith_wavelength, file_wavelengths[t], file_wavelengths[t+1], file_samples[t], file_samples[t+1]);
+	}
 
 	return spd;
 }

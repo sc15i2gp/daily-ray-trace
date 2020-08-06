@@ -30,6 +30,10 @@ double d_min(double a, double b)
 	return (a < b) ? a : b;
 }
 
+double lerp(double x, double x_0, double x_1, double y_0, double y_1)
+{
+	return y_0 + (x - x_0) * (y_1 - y_0) / (x_1 - x_0);
+}
 
 /*	Vectors	*/
 

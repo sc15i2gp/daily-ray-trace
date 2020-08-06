@@ -891,6 +891,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	clear_render_buffer(&__window_back_buffer__, clear_colour);
 	clear_render_buffer(&final_image_buffer, clear_spectrum);
 
+	Spectrum s = load_spd("au_spec_n.csv");
+	write_spd("test_output.csv", s);
+
 	HANDLE raytrace_thread = CreateThread(NULL, 0, render_image, NULL, 0, NULL);
 
 	while(running && !completed_raytrace)

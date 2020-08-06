@@ -17,6 +17,8 @@ double tan_deg(double t);
 double d_max(double, double);
 double d_min(double, double);
 
+double lerp(double x, double x_0, double x_1, double y_0, double y_1);
+
 /*	Vectors	*/
 
 struct Vec2

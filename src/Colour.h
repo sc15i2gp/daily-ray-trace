@@ -13,6 +13,7 @@ typedef Vec3 RGB64;
 RGB8 rgb64_to_rgb8(RGB64);
 
 #define SPECTRUM_SAMPLE_MAX 512
+#define SPECTRUM_FILE_SAMPLE_MAX 2048
 
 struct Spectrum
 {
@@ -34,6 +35,7 @@ RGB64 spectrum_to_RGB64(Spectrum);
 Spectrum RGB64_to_spectrum(RGB64);
 
 Spectrum load_spd(const char* spd_path);
+void write_spd(const char* spd_path, Spectrum);
 void load_colour_data();
 
 void set_reference_white(Spectrum);
