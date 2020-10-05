@@ -214,6 +214,7 @@ Vec3 uniform_sample_sphere(Sphere, Vec3 p, double* pdf_value);
 Vec3 uniform_sample_sphere_subtended(Sphere,Vec3 p, double* pdf_value); //Samples from points on sphere visible from p
 Vec3 uniform_sample_hemisphere(Vec3 normal, double* pdf_value);
 Vec3 uniform_sample_disc();
+double cos_weighted_sample_hemisphere_pdf(Vec3 normal, Vec3 v);
 Vec3 cos_weighted_sample_hemisphere(Vec3 normal, double* pdf_value);
 
 struct Plane

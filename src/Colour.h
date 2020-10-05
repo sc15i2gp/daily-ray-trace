@@ -29,6 +29,8 @@ void operator*=(Spectrum&, Spectrum);
 void operator/=(Spectrum&, double);
 void normalise(Spectrum& spd);
 
+double spd_value_at_wavelength(Spectrum&, double wavelength);
+
 Spectrum generate_black_body_spd(double temperature);
 Spectrum generate_constant_spd(double constant);
 

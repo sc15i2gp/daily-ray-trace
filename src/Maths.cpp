@@ -627,6 +627,11 @@ Vec3 uniform_sample_disc()
 	return r * Vec3{cos(t), sin(t), 0.0};
 }
 
+double cos_weighted_sample_hemisphere_pdf(Vec3 normal, Vec3 v)
+{
+	return dot(normal, v) / PI;
+}
+
 Vec3 cos_weighted_sample_hemisphere(Vec3 normal, double* pdf)
 {
 	Vec3 p = {};
@@ -639,7 +644,7 @@ Vec3 cos_weighted_sample_hemisphere(Vec3 normal, double* pdf)
 	//Rotate p by R such that R*(0, 0, 1) = normal
 	Mat3x3 r = find_rotation_between_vectors(Vec3{0.0, 0.0, 1.0}, normal);
 	Vec3 v = r * p;
-	*pdf = dot(normal, v) / PI;
+	*pdf = cos_weighted_sample_hemisphere_pdf(normal, v);
 	return v;
 }
 

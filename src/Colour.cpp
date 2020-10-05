@@ -87,6 +87,12 @@ void normalise(Spectrum& spd)
 	for(int i = 0; i < number_of_samples; ++i) spd.samples[i] /= highest_value;
 }
 
+double spd_value_at_wavelength(Spectrum& spd, double wavelength)
+{
+	int index = (int)((wavelength - start_wavelength)/sample_interval);
+	return spd.samples[index];
+}
+
 long double c = 2.99792458e8L; //Speed of light
 long double h = 6.626176e-34L; //Planck constant
 long double k = 1.380662e-23L; //Boltzmann constant
