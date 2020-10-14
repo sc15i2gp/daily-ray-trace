@@ -77,7 +77,6 @@
 
 //TODO: NOW
 //	- More materials/effects
-//		- Glass
 //		- Microfacet
 //	- Reduce variance
 //		- Image plane super sampling
@@ -393,20 +392,6 @@ Spectrum fresnel_transmittance_dielectric(Spectrum incident_refract_index, Spect
 	return transmittance;
 }
 
-//TODO: Make it so specular bsdfs don't have to check if incoming is specular reflection vector
-Spectrum fresnel_specular_reflection_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
-{
-	if(incoming == reflect_vector(-outgoing, p.normal))
-	{
-		double incident_cos = abs(dot(incoming, p.normal));
-		double reflectance_cos = abs(dot(outgoing, p.normal));
-
-		if(p.material.type == MAT_TYPE_CONDUCTOR) return fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, incident_cos) / reflectance_cos;
-		else if(p.material.type == MAT_TYPE_DIELECTRIC) return fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, reflectance_cos);
-	}
-	return Spectrum{};
-}
-
 //NOTE: The index of refraction chosen is the spectrum's value at 630 nm
 //	Most materials' given refraction indices are the single values at 633 nm
 //	630 is the closest value which can be used to this which is likely to work for any interval length
@@ -415,6 +400,9 @@ Spectrum fresnel_specular_reflection_bsdf(Surface_Point p, Vec3 incoming, Vec3 o
 
 Vec3 transmit_vector(double incident_refract_index, double transmit_refract_index, Vec3 normal, Vec3 outgoing)
 {
+	//Handles entering and leaving medium
+	if(dot(outgoing, normal) < 0.0) normal = -normal;
+
 	//Parallel and perpendicular to p.normal
 	Vec3 transmit_perpendicular_component = (incident_refract_index/transmit_refract_index) * (dot(outgoing, normal)*normal -outgoing);
 	Vec3 transmit_parallel_component = -sqrt(1.0 - dot(transmit_perpendicular_component, transmit_perpendicular_component))*normal;
@@ -434,16 +422,39 @@ Vec3 transmit_vector(Spectrum& incident_refract_index_spd, Spectrum& transmit_re
 	return transmit_vector(incident_refract_index, transmit_refract_index, normal, outgoing);
 }
 
+//TODO: Make it so specular bsdfs don't have to check if incoming is specular reflection vector
+Spectrum fresnel_specular_reflection_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
+{
+	if(incoming == reflect_vector(-outgoing, p.normal))
+	{
+		double incident_cos = abs(dot(outgoing, p.normal));
+		double reflectance_cos = abs(dot(incoming, p.normal));
+		double transmit_cos = abs(dot(transmit_vector(p.incident_refract_index, p.transmit_refract_index, p.normal, outgoing), p.normal));
+
+		if(p.material.type == MAT_TYPE_CONDUCTOR) return fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, incident_cos) / reflectance_cos;
+		else if(p.material.type == MAT_TYPE_DIELECTRIC) return fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, transmit_cos) / reflectance_cos;
+	}
+	return Spectrum{};
+}
+
+
 Spectrum fresnel_transmission_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 {
 	Spectrum transmittance = {};
 	if(incoming == transmit_vector(p.incident_refract_index, p.transmit_refract_index, p.normal, outgoing))
 	{
-		double incident_cos = abs(dot(incoming, p.normal));
-		double transmit_cos = abs(dot(outgoing, p.normal));
-		return fresnel_transmittance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, transmit_cos);
+		double incident_cos = abs(dot(outgoing, p.normal));
+		double transmit_cos = abs(dot(incoming, p.normal));
+		return fresnel_transmittance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, transmit_cos) / transmit_cos;
 	}
 	return transmittance;
+}
+
+Spectrum fresnel_reflection_transmission_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
+{
+	//TODO: Make bsdf fresnel specular names more consistent
+	Spectrum f = fresnel_specular_reflection_bsdf(p, incoming, outgoing) + fresnel_transmission_bsdf(p, incoming, outgoing);
+	return f;
 }
 
 //MATERIAL BSDFs
@@ -513,13 +524,59 @@ Vec3 sample_specular_transmission_direction(Surface_Point p, Vec3 outgoing, doub
 	return transmit_vector(p.incident_refract_index, p.transmit_refract_index, p.normal, outgoing);
 }
 
-Vec3 sample_specular_reflection_or_transmission(Surface_Point p, Vec3 outgoing, double* pdf_value)
+double fresnel_reflectance_dielectric(double incident_refraction_index, double transmit_refraction_index, double incident_cos)
 {
-	double incident_refract_index = p.incident_refract_index.samples[TRANSMISSION_WAVELENGTH];
-	double transmit_refract_index = p.transmit_refract_index.samples[TRANSMISSION_WAVELENGTH];
-	Vec3 transmission_direction = transmit_vector(incident_refract_index, transmit_refract_index, p.normal, outgoing);
-	double incident_cos = abs(dot(transmission_direction, p.normal));
-	double transmit_cos = abs(dot(outgoing, p.normal));
+	double relative_refract_index = incident_refraction_index / transmit_refraction_index;
+	double incident_sin_sq = d_max(0.0, 1.0 - incident_cos * incident_cos);
+	double transmit_sin_sq = relative_refract_index * relative_refract_index * incident_sin_sq;
+	
+	//Total internal reflection
+	if(transmit_sin_sq >= 1.0) 
+	{
+		return 1.0;
+	}
+
+	double transmit_cos = sqrt(d_max(0.0, 1.0 - transmit_sin_sq * transmit_sin_sq));
+
+	double parallel_reflectance = 
+		(transmit_refraction_index * incident_cos - incident_refraction_index * transmit_cos) / 
+		(transmit_refraction_index * incident_cos + incident_refraction_index * transmit_cos);
+	double perpendicular_reflectance = 
+		(incident_refraction_index * incident_cos - transmit_refraction_index * transmit_cos) / 
+		(incident_refraction_index * incident_cos + transmit_refraction_index * transmit_cos);
+
+	double reflectance = 0.5 * (parallel_reflectance*parallel_reflectance + perpendicular_reflectance*perpendicular_reflectance);
+	return reflectance;
+}
+
+
+//TODO: Total internal reflection
+//TODO: Fix this function
+//	- transmit_cos doesn't need the transmission vector to work it out
+//	- fresnel_reflectance should return 1.0 with total internal reflection
+Vec3 sample_specular_reflection_or_transmission_direction(Surface_Point p, Vec3 outgoing, double* pdf_value)
+{
+	double incident_refract_index = spd_value_at_wavelength(p.incident_refract_index, TRANSMISSION_WAVELENGTH);
+	double transmit_refract_index = spd_value_at_wavelength(p.transmit_refract_index, TRANSMISSION_WAVELENGTH);
+	double incident_cos = abs(dot(outgoing, p.normal));
+
+	double reflectance = fresnel_reflectance_dielectric(incident_refract_index, transmit_refract_index, incident_cos);
+
+	double f = uniform_sample();
+
+	Vec3 sampled_direction = {};
+	if(f < reflectance)
+	{
+		sampled_direction = reflect_vector(-outgoing, p.normal);
+		*pdf_value = reflectance;
+	}
+	else
+	{
+		sampled_direction = transmit_vector(incident_refract_index, transmit_refract_index, p.normal, outgoing);
+		*pdf_value = 1.0 - reflectance;
+	}
+	
+	return sampled_direction;
 }
 
 Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shininess)
@@ -581,19 +638,15 @@ Material create_dielectric(Spectrum refract_index)
 {
 	Material dielectric = {};
 	dielectric.type = MAT_TYPE_DIELECTRIC;
-	dielectric.number_of_bsdfs = 3;
+	dielectric.number_of_bsdfs = 1;
 	dielectric.bsdfs[0].type = BSDF_TYPE_SPECULAR;
-	dielectric.bsdfs[0].bsdf = fresnel_transmission_bsdf;
-	dielectric.bsdfs[0].sample_direction = sample_specular_transmission_direction;
+	dielectric.bsdfs[0].bsdf = fresnel_reflection_transmission_bsdf;
+	dielectric.bsdfs[0].sample_direction = sample_specular_reflection_or_transmission_direction;
 
-	dielectric.bsdfs[1].type = BSDF_TYPE_SPECULAR;
-	dielectric.bsdfs[1].bsdf = fresnel_specular_reflection_bsdf;
-	dielectric.bsdfs[1].sample_direction = sample_specular_direction;
-
-	dielectric.bsdfs[2].type = BSDF_TYPE_DIFFUSE;
-	dielectric.bsdfs[2].pdf = diffuse_pdf;
-	dielectric.bsdfs[2].bsdf = glossy_phong_bsdf;
-	dielectric.bsdfs[2].sample_direction = sample_glossy_direction;
+	dielectric.bsdfs[1].type = BSDF_TYPE_DIFFUSE;
+	dielectric.bsdfs[1].pdf = diffuse_pdf;
+	dielectric.bsdfs[1].bsdf = glossy_phong_bsdf;
+	dielectric.bsdfs[1].sample_direction = sample_glossy_direction;
 
 	dielectric.glossy_spd = generate_constant_spd(1.0);
 	dielectric.shininess = 16.0;
@@ -946,7 +999,6 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 			//Choose new incoming direction
 			incoming.direction = choose_incoming_direction(p, outgoing.direction, &dir_pdf, &consider_emissive);
 			incoming.origin = p.position + 0.001*incoming.direction;
-			consider_emissive = consider_emissive && (depth == 0);
 
 			//Compute new direction pdf value
 			f *= (abs(dot(p.normal, incoming.direction)/dir_pdf)) * bsdf(p, incoming.direction, outgoing.direction);
@@ -1026,7 +1078,7 @@ void load_scene(Scene* scene)
 
 	Sphere glass_sphere = 
 	{
-		{1.0, -2.0, 1.0}, 0.75
+		{0.0, 0.0, 1.0}, 0.75
 	};
 	Sphere sphere =
 	{
@@ -1044,7 +1096,7 @@ void load_scene(Scene* scene)
 	Plane front_wall = create_plane_from_points(Vec3{h, h, h}, Vec3{-h, h, h}, Vec3{h, -h, h});
 	Plane floor = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h});
 	Plane ceiling = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});
-	add_sphere_light_to_scene(scene, light_s, 3.0 * light_spd);
+	add_sphere_light_to_scene(scene, light_s, 10.0 * light_spd);
 	//add_point_light_to_scene(scene, light_p, 64.0 * light_spd);
 	//add_sphere_to_scene(scene, sphere, mirror);
 	//add_sphere_to_scene(scene, sphere, gold);
