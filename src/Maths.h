@@ -17,6 +17,8 @@ double tan_deg(double t);
 double d_max(double, double);
 double d_min(double, double);
 
+double clamp(double, double low, double high);
+
 double lerp(double x, double x_0, double x_1, double y_0, double y_1);
 
 /*	Vectors	*/
@@ -191,6 +193,7 @@ Mat3x3 operator*(Mat3x3, Mat3x3);
 Mat3x3 operator*(double, Mat3x3);
 Mat3x3 identity3x3();
 
+//TODO: Rotation from v to w?
 Mat3x3 find_rotation_between_vectors(Vec3 v, Vec3 w);
 
 Vec3 reflect_vector(Vec3 v, Vec3 n); //Reflects v through n
