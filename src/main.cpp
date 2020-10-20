@@ -335,12 +335,30 @@ double fresnel_reflectance_dielectric(double incident_refraction_index, double t
 	return reflectance;
 }
 
-Spectrum fresnel_reflectance_dielectric(Spectrum incident_refract_index, Spectrum transmit_refract_index, double incident_cos, double transmit_cos)
+double fresnel_reflectance_dielectric(double incident_refraction_index, double transmit_refraction_index, double incident_cos)
+{
+	double relative_refract_index = incident_refraction_index / transmit_refraction_index;
+	double incident_sin_sq = d_max(0.0, 1.0 - incident_cos * incident_cos);
+	double transmit_sin_sq = relative_refract_index * relative_refract_index * incident_sin_sq;
+	
+	//Total internal reflection
+	if(transmit_sin_sq >= 1.0) 
+	{
+		return 1.0;
+	}
+
+	double transmit_cos = sqrt(d_max(0.0, 1.0 - transmit_sin_sq * transmit_sin_sq));
+
+	return fresnel_reflectance_dielectric(incident_refraction_index, transmit_refraction_index, incident_cos, transmit_cos);
+}
+
+
+Spectrum fresnel_reflectance_dielectric(Spectrum incident_refract_index, Spectrum transmit_refract_index, double incident_cos)
 {
 	Spectrum reflectance = {};
 	for(int i = 0; i < number_of_samples; ++i)
 	{
-		reflectance.samples[i] = fresnel_reflectance_dielectric(incident_refract_index.samples[i], transmit_refract_index.samples[i], incident_cos, transmit_cos);
+		reflectance.samples[i] = fresnel_reflectance_dielectric(incident_refract_index.samples[i], transmit_refract_index.samples[i], incident_cos);
 	}
 	return reflectance;
 }
@@ -430,10 +448,9 @@ Spectrum fresnel_specular_reflection_bsdf(Surface_Point p, Vec3 incoming, Vec3 o
 	{
 		double incident_cos = abs(dot(outgoing, p.normal));
 		double reflectance_cos = abs(dot(incoming, p.normal));
-		double transmit_cos = abs(dot(transmit_vector(p.incident_refract_index, p.transmit_refract_index, p.normal, outgoing), p.normal));
 
 		if(p.material.type == MAT_TYPE_CONDUCTOR) return fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, incident_cos) / reflectance_cos;
-		else if(p.material.type == MAT_TYPE_DIELECTRIC) return fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, transmit_cos) / reflectance_cos;
+		else if(p.material.type == MAT_TYPE_DIELECTRIC) return fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos) / reflectance_cos;
 	}
 	return Spectrum{};
 }
@@ -623,14 +640,11 @@ Spectrum cook_torrance_reflectance_bsdf(Surface_Point p, Vec3 incoming, Vec3 out
 
 	double cos_mn_out = abs(dot(outgoing, microfacet_normal));
 	double cos_mn_in = abs(dot(incoming, microfacet_normal));
-	
-	Vec3 transmission = transmit_vector(p.incident_refract_index, p.transmit_refract_index, microfacet_normal, outgoing);
-	double cos_mn_transmit = abs(dot(transmission, microfacet_normal));
 
 	Spectrum fr = {};
 
 	if(p.material.type == MAT_TYPE_CONDUCTOR) fr = fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, cos_mn_out) / cos_mn_in;
-	else if(p.material.type == MAT_TYPE_DIELECTRIC) fr = fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, cos_mn_out, cos_mn_transmit) / cos_mn_in;
+	else if(p.material.type == MAT_TYPE_DIELECTRIC) fr = fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, cos_mn_out) / cos_mn_in;
 
 	Spectrum reflectance = ggx_distribution(surface_normal, microfacet_normal, p.material.roughness) * geometric_attenuation(incoming, outgoing, surface_normal, microfacet_normal, p.material.roughness) * fr;
 	reflectance /= (4.0 * cos_sn_out * cos_sn_in);
@@ -647,10 +661,9 @@ Spectrum torrance_sparrow_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 	Spectrum fr = {};
 	double incident_cos = abs(cos_th_out);
 	double reflectance_cos = abs(cos_th_in);
-	double transmit_cos = abs(dot(transmit_vector(p.incident_refract_index, p.transmit_refract_index, p.normal, outgoing), p.normal));
 
 	if(p.material.type == MAT_TYPE_CONDUCTOR) fr = fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, incident_cos) / reflectance_cos;
-	else if(p.material.type == MAT_TYPE_DIELECTRIC) fr = fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, transmit_cos) / reflectance_cos;
+	else if(p.material.type == MAT_TYPE_DIELECTRIC) fr = fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos) / reflectance_cos;
 
 	Vec3 halfway = (outgoing + incoming)/2.0;
 	Spectrum reflectance = microfacet_distribution(p, halfway) * geometric_attenuation(p, incoming, outgoing) * fr;
@@ -765,31 +778,6 @@ Vec3 sample_specular_transmission_direction(Surface_Point p, Vec3 outgoing, doub
 	return transmit_vector(p.incident_refract_index, p.transmit_refract_index, p.normal, outgoing);
 }
 
-double fresnel_reflectance_dielectric(double incident_refraction_index, double transmit_refraction_index, double incident_cos)
-{
-	double relative_refract_index = incident_refraction_index / transmit_refraction_index;
-	double incident_sin_sq = d_max(0.0, 1.0 - incident_cos * incident_cos);
-	double transmit_sin_sq = relative_refract_index * relative_refract_index * incident_sin_sq;
-	
-	//Total internal reflection
-	if(transmit_sin_sq >= 1.0) 
-	{
-		return 1.0;
-	}
-
-	double transmit_cos = sqrt(d_max(0.0, 1.0 - transmit_sin_sq * transmit_sin_sq));
-
-	double parallel_reflectance = 
-		(transmit_refraction_index * incident_cos - incident_refraction_index * transmit_cos) / 
-		(transmit_refraction_index * incident_cos + incident_refraction_index * transmit_cos);
-	double perpendicular_reflectance = 
-		(incident_refraction_index * incident_cos - transmit_refraction_index * transmit_cos) / 
-		(incident_refraction_index * incident_cos + transmit_refraction_index * transmit_cos);
-
-	double reflectance = 0.5 * (parallel_reflectance*parallel_reflectance + perpendicular_reflectance*perpendicular_reflectance);
-	return reflectance;
-}
-
 
 //TODO: Total internal reflection
 //TODO: Fix this function
@@ -860,21 +848,24 @@ Material create_mirror()
 	return mirror;
 }
 
-Material create_conductor(Spectrum refract_index, Spectrum extinct_index, double roughness = 0.001)
+Material create_conductor(Spectrum refract_index, Spectrum extinct_index, double roughness)
 {
 	Material conductor = {};
 	conductor.type = MAT_TYPE_CONDUCTOR;
 	conductor.number_of_bsdfs = 1;
-#if 1
-	conductor.bsdfs[0].type = BSDF_TYPE_SPECULAR;
-	conductor.bsdfs[0].bsdf = cook_torrance_reflectance_bsdf;
-	conductor.bsdfs[0].sample_direction = sample_cook_torrance_reflection_direction;
-#else
 
-	conductor.bsdfs[0].type = BSDF_TYPE_SPECULAR;
-	conductor.bsdfs[0].bsdf = fresnel_specular_reflection_bsdf;
-	conductor.bsdfs[0].sample_direction = sample_specular_direction;
-#endif
+	if(roughness >= 0.001)
+	{
+		conductor.bsdfs[0].type = BSDF_TYPE_SPECULAR;
+		conductor.bsdfs[0].bsdf = cook_torrance_reflectance_bsdf;
+		conductor.bsdfs[0].sample_direction = sample_cook_torrance_reflection_direction;
+	}
+	else
+	{
+		conductor.bsdfs[0].type = BSDF_TYPE_SPECULAR;
+		conductor.bsdfs[0].bsdf = fresnel_specular_reflection_bsdf;
+		conductor.bsdfs[0].sample_direction = sample_specular_direction;
+	}
 
 	conductor.refract_index = refract_index;
 	conductor.extinct_index = extinct_index;
@@ -1000,9 +991,19 @@ void add_sphere_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
 	add_object_to_scene(scene, sphere_light);
 }
 
-void add_plane_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
+void add_plane_light_to_scene(Scene* scene, Plane p, Spectrum emission_spd)
 {
-	//TODO
+	Scene_Object plane_light = {};
+	Scene_Geometry plane_geometry = {};
+	plane_geometry.type = GEO_TYPE_PLANE;
+	plane_geometry.plane = p;
+
+	plane_light.geometry = plane_geometry;
+	plane_light.emission_spd = emission_spd;
+	plane_light.light_type = LIGHT_TYPE_AREA;
+	plane_light.is_emissive = true;
+
+	add_object_to_scene(scene, plane_light);
 }
 
 void add_sphere_to_scene(Scene* scene, Sphere s, Material material)
@@ -1332,18 +1333,32 @@ void load_scene(Scene* scene)
 	Material mirror = create_mirror();
 	Spectrum gold_refract_index = load_spd("au_spec_n.csv");
 	Spectrum gold_extinct_index = load_spd("au_spec_k.csv");
-	Material gold = create_conductor(gold_refract_index, gold_extinct_index);
+	Material gold = create_conductor(gold_refract_index, gold_extinct_index, 0.344);
 	Spectrum glass_refract_index = load_spd("glass.csv");
 	Material glass = create_dielectric(glass_refract_index);
 
-	Sphere glass_sphere = 
+	Sphere glass_sphere =
 	{
-		{-2.0, -2.2, 1.0}, 0.75
+		{1.5, -1.8, 2.0}, 1.0
 	};
-	Sphere sphere =
+
+	Sphere gold_sphere = 
 	{
-		{0.0, 0.0, -2.0}, 0.3
+		{-2.0, -2.2, -0.5}, 0.75
 	};
+
+	Sphere mirror_sphere =
+	{
+		{0.0, 1.0, -1.0}, 1.0
+	};
+
+	Sphere plastic_sphere =
+	{
+		{2.0, -1.0, -2.0}, 1.0
+	};
+
+	Plane mirror_plane = create_plane_from_points(Vec3{-1.0, 1.0, -2.4}, Vec3{1.0, 1.0, -2.4}, Vec3{-1.0, -1.0, -2.9});
+
 	Point light_p = {{0.0, 2.0, 2.0}};
 	Sphere light_s = 
 	{
@@ -1356,12 +1371,18 @@ void load_scene(Scene* scene)
 	Plane front_wall = create_plane_from_points(Vec3{h, h, h}, Vec3{-h, h, h}, Vec3{h, -h, h});
 	Plane floor = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h});
 	Plane ceiling = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});
-	add_sphere_light_to_scene(scene, light_s, 10.0 * light_spd);
+
+	Plane light_plane = create_plane_from_points(Vec3{-0.5, 2.9, 0.5}, Vec3{0.5, 2.9, 0.5}, Vec3{-0.5, 2.9, -0.5});
+
+	//add_sphere_light_to_scene(scene, light_s, 10.0 * light_spd);
+	add_plane_light_to_scene(scene, light_plane, light_spd);
 	//add_point_light_to_scene(scene, light_p, 64.0 * light_spd);
-	//add_sphere_to_scene(scene, sphere, mirror);
-	add_sphere_to_scene(scene, glass_sphere, gold);
-	//add_sphere_to_scene(scene, glass_sphere, glass);
-	add_sphere_to_scene(scene, sphere, sphere_material);
+	//add_sphere_to_scene(scene, mirror_sphere, mirror);
+	add_sphere_to_scene(scene, glass_sphere, glass);
+	add_sphere_to_scene(scene, gold_sphere, gold);
+	add_sphere_to_scene(scene, plastic_sphere, sphere_material);
+	add_plane_to_scene(scene, mirror_plane, mirror);
+
 	add_plane_to_scene(scene, back_wall, blue_material);
 	add_plane_to_scene(scene, left_wall, red_material);
 	add_plane_to_scene(scene, right_wall, green_material);

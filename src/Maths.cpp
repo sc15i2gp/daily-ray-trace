@@ -511,6 +511,7 @@ Plane create_plane_from_bounds(Vec3 p, Vec3 u, Vec3 v)
 	return plane;
 }
 
+//TODO: Make the arguments work ccw instead of cw
 Plane create_plane_from_points(Vec3 p, Vec3 u, Vec3 v)
 {
 	Plane plane = {};
