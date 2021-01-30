@@ -46,46 +46,72 @@
 //		- Position
 
 //TODO: LONGTERM
-//	- Add citations in code for origin of algorithm/technique/bsdf etc.
 //	- Dispersion
-//	- Glossy lobe sampling
-//	- Easily compare sampling strategies
-//	- Maybe use vec4 for everything (to make matrix operations slightly easier and 4 numbers easier to optimise than 3)
-//	- Note failure points/error cases and handle
 //	- Change reference white + find more precise spectra (maybe parameterise)
-//	- Consider using explicitly sized types
-//	- Scene editing
-//		- OpenGL for rendering scene preview and UI
-//		- UI for camera control, raytrace beginning
-//		- Maybe screen shows progress of raytrace
-//	- Volumetric transport
-//	- Skybox/infinite light/infinite geometry (such as infinite ground plane)
-//	- Better RNG
-//	- Output to bmp/jpg/png
+//	- Animation
+//	- CSG
+
+//TODO: Alternative methods
+//	- Trowbridge-Reitz distribution for microfacets
+//	- Oren-Nayar for diffuse materials
+//	- Ward BSDF for microfacets
+//	- Fourier BSDFs
 //	- Investigate different SPD representations
-//	- Kirschoff's law for non-black body sources
-//	- Different RGB -> SPD method: "Physically Meaningful Rendering using Tristimulus Colours"
-//	- Texturing (images + surface properties)
 //	- Different camera models/lenses (fisheye etc.)
-//	- Try and get rid of reliance on plane normal direction (hard to use else)
-//	- Direct MVSC build output files (that aren't exe) to build folder
-//	- Invesitgate use of unity build
+//	- Different RGB -> SPD method: "Physically Meaningful Rendering using Tristimulus Colours"
+//	- Consider using explicitly sized types
+//	- Maybe use vec4 for everything (to make matrix operations slightly easier and 4 numbers easier to optimise than 3)
+//	- Kirschoff's law for non-black body sources
+//	- Better RNG
 //	- Remove CSTDLIB
 //		- Implement printf/sprintf/etc.
 //		- Implement maths functions (trig, pow, ln etc.)
 //		- Numeric limits (e.g. DBL_MAX)
-//	- Add error handling to platform functions
+//	- Bidirectional methods
+
+//TODO: Necessary
+//	- Textures
+//		- Colour/image
+//		- Normal map/bump map/displacement map
+//		- Frosted glass roughness
+//	- Move platform code to platform file
+//	- Optimise
+//		- Reduce amount of code
+//		- Profiling
+//		- Write faster code
+//	- Quality of life
+//		- Output time taken in seconds, minutes, hours etc.
+//		- Resizing screen and how rendering should be handled/updated etc.
+//		- Functionality for producing comparison images (e.g. sampling strategies)
+//		- Output to jpg/bmp/png
+//		- Try and get rid of reliance on plane normal direction (hard to use else)
+//		- Invesitgate use of unity build
+//		- Note failure points/error cases and handle
+//		- Direct build output files (that aren't exe) to a particular location
+//		- Add error handling to platform functions
+//		- Add citations in code for origin of algorithm/technique/bsdf etc.
+//	- Scene editing
+//		- OpenGL for rendering scene preview and UI
+//		- UI for camera control, raytrace control, parameterisation etc.
+//		- Maybe screen shows progress of raytrace
+//	- Subsurface scattering
+//	- Allow objects within transmission media (will not work correctly as of yet)
+//	- Generic triangulation rendering
+//	- Skybox/infinite light/infinite geometry (such as infinite ground plane)
+//	- Volumetric transport
 
 //TODO: NOW
 //	- Reduce variance
 //		- Image plane super sampling
 //		- Russian roulette with/without max depth
-//	- Textures
-//		- Colour
-//		- Normal map
-//	- Move platform code to platform file
-//	- Optimise
-//	- Quality of life
+//	- Generic triangulation rendering
+//		- OBJ file load
+//		- Diredge structure
+//	- Texturing
+//	- Skybox/infinite light/infinite geometry
+//	- Allow objects within transmission media
+//	- Work out how to do sampling with time/animation stuff
+//	- Optimisation/Cleaning
 
 struct Pixel_Render_Buffer
 {
@@ -134,6 +160,33 @@ void output_to_ppm(const char* path, Pixel_Render_Buffer* r_buffer)
 	
 	write_file_contents(path, contents, contents_size);
 	dealloc(contents);
+}
+
+void invert_render_buffer(Pixel_Render_Buffer* r_buffer)
+{
+	for(int y = 0; y < r_buffer->height/2; ++y)
+	{
+		for(int x = 0; x < r_buffer->width; ++x)
+		{
+			uint32_t* p_0 = get_pixel(r_buffer, x,  y);
+			uint32_t* p_1 = get_pixel(r_buffer, x, r_buffer->height - 1 - y);
+			uint32_t p_temp = *p_0;
+			*p_0 = *p_1;
+			*p_1 = p_temp;
+		}
+	}
+
+	for(int y = 0; y < r_buffer->height; ++y)
+	{
+		for(int x = 0; x < r_buffer->width/2; ++x)
+		{
+			uint32_t* p_0 = get_pixel(r_buffer, x, y);
+			uint32_t* p_1 = get_pixel(r_buffer, r_buffer->width - 1 - x, y);
+			uint32_t p_temp = *p_0;
+			*p_0 = *p_1;
+			*p_1 = p_temp;
+		}
+	}
 }
 
 struct Spectrum_Render_Buffer
@@ -208,7 +261,7 @@ void update_window_front_buffer(HWND window, Pixel_Render_Buffer* back_buffer)
 	(
 		window_device_context, 
 		0, 0, window_width(window), window_height(window), 
-		0, 0, back_buffer->width, back_buffer->height, 
+		back_buffer->width, back_buffer->height, -back_buffer->width, -back_buffer->height, 
 		back_buffer->pixels, &__back_buffer_info__,
 		DIB_RGB_COLORS, SRCCOPY
 	);
@@ -1273,32 +1326,51 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 	return eye_ray_radiance;
 }
 
-void raytrace_scene(Spectrum_Render_Buffer* render_target, double fov, double near_plane, Scene* scene)
+void raytrace_scene(Spectrum_Render_Buffer* render_target, Scene* scene, double fov, double focal_length, double focal_depth, double aperture_radius)
 {
-	Vec3 eye = {0.0, 0.0, 8.0};
+	Vec3 image_plane_position = {0.0, 0.0, 8.0};
 	Vec3 forward = {0.0, 0.0, -1.0};
 	Vec3 right = {1.0, 0.0, 0.0};
 	Vec3 up = {0.0, 1.0, 0.0};
 
 	int image_plane_width_px = render_target->width;
 	int image_plane_height_px = render_target->height;
+
 	double aspect_ratio = (double)(image_plane_width_px)/(double)(image_plane_height_px);
-	double image_plane_width = 2.0 * near_plane * tan_deg(fov/2.0);
+	
+	double image_plane_aperture_distance = (focal_length * focal_depth) / (focal_length + focal_depth);
+	double image_plane_width = 2.0 * image_plane_aperture_distance * tan_deg(fov/2.0);
 	double image_plane_height = image_plane_width / aspect_ratio;
+	
 	double pixel_width = image_plane_width/(double)(image_plane_width_px);
 	double pixel_height = image_plane_height/(double)(image_plane_height_px);
 
-	Vec3 image_plane_top_left = eye + near_plane * forward - 0.5 * image_plane_width * right + 0.5 * image_plane_height * up;
+	Vec3 image_plane_top_left = image_plane_position - 0.5 * image_plane_width * right + 0.5 * image_plane_height * up;
+
+	Vec3 pinhole_position = image_plane_position + image_plane_aperture_distance * forward;
+
 	Spectrum pixel_spectrum = {};
 	Vec3 pixel_center = {};
 	Ray eye_ray = {};
+
 	for(int y = 0; y < image_plane_height_px; ++y)
 	{
 		for(int x = 0; x < image_plane_width_px; ++x)
 		{
 			pixel_center = image_plane_top_left + ((double)x + 0.5)*pixel_width*right - ((double)y + 0.5)*pixel_height*up;
-			eye_ray.origin = eye;
-			eye_ray.direction = normalise(pixel_center - eye_ray.origin);
+			if(aperture_radius > 0)
+			{
+				Vec3 plane_of_focus_point = pixel_center + focal_depth * normalise(pinhole_position - pixel_center);
+				Mat3x3 r = find_rotation_between_vectors(forward, Vec3{0.0, 0.0, 1.0});
+				Vec3 sampled_lens_point = pinhole_position + r * ((focal_length / aperture_radius) * uniform_sample_disc());
+				eye_ray.origin = sampled_lens_point;
+				eye_ray.direction = normalise(plane_of_focus_point - eye_ray.origin);
+			}
+			else
+			{
+				eye_ray.origin = pixel_center;
+				eye_ray.direction = normalise(pinhole_position - eye_ray.origin);
+			}
 			pixel_spectrum = cast_ray(scene, eye_ray);			
 			set_render_buffer_pixel_spectrum(render_target, x, y, pixel_spectrum);
 		}
@@ -1428,7 +1500,7 @@ DWORD WINAPI render_image(LPVOID param)
 		printf("Pass %d/%d\r", pass+1, number_of_render_samples);
 		start_timer(&timer);
 		
-		raytrace_scene(&spectrum_buffer, 90.0, 0.1, &scene);
+		raytrace_scene(&spectrum_buffer, &scene, 90.0, 0.5, 8.0, 1.4);
 
 		for(int j = 0; j < final_image_buffer.width * final_image_buffer.height; ++j)
 		{
@@ -1519,6 +1591,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	if(!completed_raytrace) print_render_profile();
 
 	printf("Writing back buffer to file\n");
+	invert_render_buffer(&__window_back_buffer__);
 	output_to_ppm("output.ppm", &__window_back_buffer__);
 
 	CloseHandle(raytrace_thread);
