@@ -438,6 +438,15 @@ Mat3x3 operator+(Mat3x3 m, Mat3x3 n)
 	return m;
 }
 
+Mat3x3 operator-(Mat3x3 m)
+{
+	for(int i = 0; i < 3; ++i)
+	{
+		m.columns[i] = -m.columns[i];
+	}
+	return m;
+}
+
 Vec3 operator*(Mat3x3 m, Vec3 v)
 {
 	Vec3 w = {};
@@ -479,17 +488,25 @@ Mat3x3 find_rotation_between_vectors(Vec3 v, Vec3 w)
 	Vec3 n = cross(v, w);
 	double s = length(n);
 	double c = dot(v, w);
-	
-	Mat3x3 m = {};
-	m[0][1] = n.z;
-	m[0][2] = -n.y;
-	m[1][0] = -n.z;
-	m[1][2] = n.x;
-	m[2][0] = n.y;
-	m[2][1] = -n.x;
 
-	Mat3x3 r = identity3x3() + m + (1.0/(1.0 + c))*m*m;
+	Mat3x3 r;
+	if(dot(n, n) == 0)
+	{
+		if(c > 0) r = identity3x3();
+		else r = -identity3x3();
+	}
+	else
+	{
+		Mat3x3 m = {};
+		m[0][1] = n.z;
+		m[0][2] = -n.y;
+		m[1][0] = -n.z;
+		m[1][2] = n.x;
+		m[2][0] = n.y;
+		m[2][1] = -n.x;
 
+		r = identity3x3() + m + (1.0/(1.0 + c))*m*m;
+	}
 	return r;
 }
 

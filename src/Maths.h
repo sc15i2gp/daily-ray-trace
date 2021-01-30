@@ -188,6 +188,7 @@ struct Mat3x3
 };
 
 Mat3x3 operator+(Mat3x3, Mat3x3);
+Mat3x3 operator-(Mat3x3);
 Vec3 operator*(Mat3x3, Vec3);
 Mat3x3 operator*(Mat3x3, Mat3x3);
 Mat3x3 operator*(double, Mat3x3);
