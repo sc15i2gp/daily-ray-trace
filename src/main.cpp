@@ -101,17 +101,29 @@
 //	- Volumetric transport
 
 //TODO: NOW
-//	- Reduce variance
-//		- Image plane super sampling
+//	- Reduce variance/antialiasing
 //		- Russian roulette with/without max depth
 //	- Generic triangulation rendering
-//		- OBJ file load
-//		- Diredge structure
+//		- Diredge cube
 //	- Texturing
+//		- Colour/image
+//		- Normal map
+//		- Displacement map
 //	- Skybox/infinite light/infinite geometry
+//		- Skybox
+//		- Sun
+//		- Infinite ground plane
 //	- Allow objects within transmission media
+//		- Distinguish between air and vacuum
+//		- Stack-like structure for tracking current medium
 //	- Work out how to do sampling with time/animation stuff
+//		- Go through monte carlo integration
+//		- Go through light calculations and units
+//		- Decide whether it is worth doing at this time
 //	- Optimisation/Cleaning
+//		- Remove superfluous code 
+//		- Profiling
+//		- Optimise slow methods
 
 struct Pixel_Render_Buffer
 {
@@ -1326,7 +1338,7 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 	return eye_ray_radiance;
 }
 
-void raytrace_scene(Spectrum_Render_Buffer* render_target, Scene* scene, double fov, double focal_length, double focal_depth, double aperture_radius)
+void raytrace_scene(Spectrum_Render_Buffer* render_target, Scene* scene, double fov, double focal_length, double focal_depth, double aperture_radius, int i)
 {
 	Vec3 image_plane_position = {0.0, 0.0, 8.0};
 	Vec3 forward = {0.0, 0.0, -1.0};
@@ -1350,17 +1362,21 @@ void raytrace_scene(Spectrum_Render_Buffer* render_target, Scene* scene, double 
 	Vec3 pinhole_position = image_plane_position + image_plane_aperture_distance * forward;
 
 	Spectrum pixel_spectrum = {};
-	Vec3 pixel_center = {};
+	Vec3 pixel_top_left = {};
+	Vec3 sampled_pixel_point = {};
 	Ray eye_ray = {};
 
 	for(int y = 0; y < image_plane_height_px; ++y)
 	{
 		for(int x = 0; x < image_plane_width_px; ++x)
 		{
-			pixel_center = image_plane_top_left + ((double)x + 0.5)*pixel_width*right - ((double)y + 0.5)*pixel_height*up;
+			pixel_top_left = image_plane_top_left + ((double)x)*pixel_width*right - ((double)y)*pixel_height*up;
+			Vec3 x_pixel_sample = (0.5 * pixel_width + (double)(i%2) * pixel_width) * Vec3{1.0, 0.0, 0.0};
+			Vec3 y_pixel_sample = (0.5 * pixel_height + (double)(i / 2) * pixel_height) * Vec3{0.0, 1.0, 0.0};
+			sampled_pixel_point = pixel_top_left + x_pixel_sample + y_pixel_sample;
 			if(aperture_radius > 0)
 			{
-				Vec3 plane_of_focus_point = pixel_center + focal_depth * normalise(pinhole_position - pixel_center);
+				Vec3 plane_of_focus_point = sampled_pixel_point + focal_depth * normalise(pinhole_position - sampled_pixel_point);
 				Mat3x3 r = find_rotation_between_vectors(forward, Vec3{0.0, 0.0, 1.0});
 				Vec3 sampled_lens_point = pinhole_position + r * ((focal_length / aperture_radius) * uniform_sample_disc());
 				eye_ray.origin = sampled_lens_point;
@@ -1368,7 +1384,7 @@ void raytrace_scene(Spectrum_Render_Buffer* render_target, Scene* scene, double 
 			}
 			else
 			{
-				eye_ray.origin = pixel_center;
+				eye_ray.origin = sampled_pixel_point;
 				eye_ray.direction = normalise(pinhole_position - eye_ray.origin);
 			}
 			pixel_spectrum = cast_ray(scene, eye_ray);			
@@ -1500,7 +1516,8 @@ DWORD WINAPI render_image(LPVOID param)
 		printf("Pass %d/%d\r", pass+1, number_of_render_samples);
 		start_timer(&timer);
 		
-		raytrace_scene(&spectrum_buffer, &scene, 90.0, 0.5, 8.0, 1.4);
+		//raytrace_scene(&spectrum_buffer, &scene, 90.0, 0.5, 80.0 1.4, pass % 4);
+		raytrace_scene(&spectrum_buffer, &scene, 90.0, 0.5, 8.0, 0.0, pass % 4);
 
 		for(int j = 0; j < final_image_buffer.width * final_image_buffer.height; ++j)
 		{
