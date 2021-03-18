@@ -32,6 +32,8 @@
 //		- Not sure yet what's causing it
 //		- The artifacts are symmetrical about the center of the sphere along the plane
 //		- (SOLVED) Was caused by floating point precision error
+//	- Had difficulty debugging when looking for problems causing black pixels
+//		- Turns out I'd forgotten that the lens model changed which flips the image output buffer
 
 //NOTES: Parameters I've wanted to change/view but had to rebuild for:
 //	- Emission/reflectance spectra
@@ -101,10 +103,7 @@
 //	- Volumetric transport
 
 //TODO: NOW
-//	- Reduce variance/antialiasing
-//		- Russian roulette with/without max depth
-//	- Generic triangulation rendering
-//		- Diredge cube
+//	- Add debug info to surface points
 //	- Texturing
 //		- Colour/image
 //		- Normal map
@@ -985,12 +984,25 @@ enum Geometry_Type
 	GEO_TYPE_POINT,
 	GEO_TYPE_SPHERE,
 	GEO_TYPE_PLANE,
-	GEO_TYPE_TRIANGULATION
+	GEO_TYPE_MODEL
 };
 
 struct Point
 {
 	Vec3 position;
+};
+
+struct Model_Vertex
+{
+	Vec3 position;
+	Vec3 normal;
+	Vec2 texture_coords;
+};
+
+struct Model
+{
+	int number_of_vertices;
+	Model_Vertex* vertices;
 };
 
 struct Scene_Geometry
@@ -1001,6 +1013,7 @@ struct Scene_Geometry
 		Point point;
 		Sphere sphere;
 		Plane plane;
+		Model model;
 	};
 };
 
@@ -1097,11 +1110,56 @@ void add_plane_to_scene(Scene* scene, Plane p, Material material)
 	add_object_to_scene(scene, plane);
 }
 
+void add_model_to_scene(Scene* scene, Model m, Material material)
+{
+	Scene_Object model = {};
+	Scene_Geometry model_geometry = {};
+	model_geometry.type = GEO_TYPE_MODEL;
+	model_geometry.model = m;
+
+	model.geometry = model_geometry;
+	model.material = material;
+
+	add_object_to_scene(scene, model);
+}
+
+bool ray_intersects_model(Ray ray, Model m, double* t, int* intersecting_triangle_index, double* a, double* b, double* c)
+{
+	for(int i = 0; i < m.number_of_vertices; i += 3)
+	{
+		Vec3 triangle_normal = (m.vertices[i].normal + m.vertices[i+1].normal + m.vertices[i+2].normal)/3.0;
+		if(dot(ray.direction, triangle_normal) != 0.0)
+		{
+			double distance_to_triangle = dot(m.vertices[i].position - ray.origin, triangle_normal)/dot(ray.direction, triangle_normal);
+			Vec3 p = ray.origin + distance_to_triangle * ray.direction;
+
+			*a = sqrt(point_to_line_distance_sq(p, m.vertices[i+1].position, m.vertices[i+2].position)/point_to_line_distance_sq(m.vertices[i].position, m.vertices[i+1].position,m.vertices[i+2].position));
+			*b = sqrt(point_to_line_distance_sq(p, m.vertices[i+2].position, m.vertices[i].position)/point_to_line_distance_sq(m.vertices[i+1].position, m.vertices[i+2].position, m.vertices[i].position));
+			*c = sqrt(point_to_line_distance_sq(p, m.vertices[i].position, m.vertices[i+1].position)/point_to_line_distance_sq(m.vertices[i+2].position, m.vertices[i].position, m.vertices[i+1].position));
+
+			double d = *a + *b + *c;
+			if(d <= 1.00001)
+			{
+				*intersecting_triangle_index = i;
+				*t = distance_to_triangle;
+				return distance_to_triangle > 0.0;
+			}
+		}
+	}
+	return false;
+}
+
 Surface_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 {
 	int intersecting_object = -1;
 	double length_along_ray = DBL_MAX;
 	Vec3 surface_normal = {};
+	int intersect_triangle_index = -1;
+
+	//Barycentric coordinates
+	double bc_a = 0.0;
+	double bc_b = 0.0;
+	double bc_c = 0.0;
 	for(int i = 0; i < scene->number_of_objects; ++i)
 	{
 		Scene_Geometry* ith_object_geometry = &(scene->objects[i].geometry);
@@ -1120,6 +1178,11 @@ Surface_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 				case GEO_TYPE_PLANE: 
 				{
 					ray_intersects_ith_object = ray_intersects_plane(ray, ith_object_geometry->plane, &ith_length_along_ray);
+					break;
+				}
+				case GEO_TYPE_MODEL:
+				{
+					ray_intersects_ith_object = ray_intersects_model(ray, ith_object_geometry->model, &ith_length_along_ray, &intersect_triangle_index, &bc_a, &bc_b, &bc_c);
 					break;
 				}
 			}
@@ -1150,9 +1213,15 @@ Surface_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 				surface_normal = geometry->plane.n;
 				break;
 			}
+			case GEO_TYPE_MODEL:
+			{
+				Model m = geometry->model;
+				int i = intersect_triangle_index;
+				surface_normal = bc_a * m.vertices[i].normal + bc_b * m.vertices[i+1].normal + bc_c * m.vertices[i+2].normal;
+				break;
+			}
 		}
 
-		//TODO: This sucks, make it better
 		//If object transmits and the light is incident to the object
 		//	p.incident_refract_index = vacuum_refract_index
 		//	p.transmit_refract_index = object_refract_index
@@ -1178,19 +1247,6 @@ Surface_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 	}
 
 	return p;
-}
-
-bool points_mutually_visible(Scene* scene, Vec3 p_0, Vec3 p_1)
-{
-	Ray shadow_ray = {};
-	shadow_ray.direction = normalise(p_1 - p_0);
-	shadow_ray.origin = p_0 + 0.001*shadow_ray.direction;
-
-	Surface_Point shadow_test_point = find_ray_scene_intersection(scene, shadow_ray);
-	double shadow_ray_length = length(shadow_test_point.position - p_0);
-	double ray_length = length(p_1 - p_0);
-	double difference_between_ray_lengths = shadow_ray_length - ray_length;
-	return !(shadow_test_point.exists && difference_between_ray_lengths < -1e-12);
 }
 
 double compute_area(Scene_Geometry geometry)
@@ -1247,7 +1303,18 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 				Scene_Object light = scene->objects[i];
 				Vec3 light_point = sample_light_point(light, p.position, &light_pdf);
 				
-				if(points_mutually_visible(scene, p.position, light_point) && light_pdf > 0.0)
+				Ray shadow_ray = {};
+				shadow_ray.direction = normalise(light_point - p.position);
+				shadow_ray.origin = p.position + 0.001*shadow_ray.direction;
+
+				Surface_Point shadow_test_point = find_ray_scene_intersection(scene, shadow_ray);
+				double shadow_ray_length = length(shadow_test_point.position - p.position);
+				double ray_length = length(light_point - p.position);
+				double difference_between_ray_lengths = shadow_ray_length - ray_length;
+				bool light_point_visible = !(shadow_test_point.exists && difference_between_ray_lengths < -5e-12);
+				//bool light_point_visible = shadow_test_point.position == light_point;
+
+				if(light_point_visible && light_pdf > 0.0)
 				{
 					Vec3 incoming = light_point - p.position;
 					double dist = length(incoming);
@@ -1299,6 +1366,7 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 	Spectrum f = generate_constant_spd(1.0);
 	double dir_pdf = 0.0;
 	bool consider_emissive = true;
+	bool collided_once = false;
 	for(int depth = 0; depth < max_depth; ++depth)
 	{
 		Surface_Point p = find_ray_scene_intersection(scene, outgoing);
@@ -1309,6 +1377,7 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 		}
 		else if(p.exists && !p.is_emissive)
 		{
+			collided_once = true;
 			outgoing.direction = -outgoing.direction; //Reverse for bsdf computation, needs to start other way round for intersection test
 			eye_ray_radiance += f * direct_light_contribution(scene, p, outgoing);
 			
@@ -1396,6 +1465,48 @@ void raytrace_scene(Spectrum_Render_Buffer* render_target, Scene* scene, double 
 #define RENDER_TARGET_WIDTH 800
 #define RENDER_TARGET_HEIGHT 600
 
+Model create_triangle_model()
+{
+	Model triangle = {};
+	triangle.number_of_vertices = 3;
+	triangle.vertices = (Model_Vertex*)malloc(triangle.number_of_vertices * sizeof(Model_Vertex));
+
+	double h = 2.0;
+	double z = 2.0;
+
+	Vec3 position_0 = {0.0f, h, z-4.0};
+	Vec3 position_1 = {-h, -h, z};
+	Vec3 position_2 = {h, -h, z};
+	Vec3 normal = normalise(cross(position_2 - position_0, position_1 - position_0));
+
+	//Top vertex
+	triangle.vertices[0] =
+	{
+		position_0,
+		normal,
+		{0.5f, 1.0f}
+	};
+
+	//Bottom left vertex
+	triangle.vertices[1] = 
+	{
+		position_1,
+		normal,
+		{0.0f, 0.0f}
+	};
+
+	//Bottom right vertex
+	triangle.vertices[2] = 
+	{
+		position_2,
+		normal,
+		{1.0f, 0.0f}
+	};
+
+	return triangle;
+
+}
+
 void load_scene(Scene* scene)
 {
 	//Spectrum light_spd = generate_black_body_spd(4000.0);
@@ -1409,6 +1520,8 @@ void load_scene(Scene* scene)
 	Spectrum green_glossy_spd = RGB64_to_spectrum(RGB64{0.45, 0.55, 0.45});
 	Spectrum blue_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.2, 0.8});
 	Spectrum blue_glossy_spd = RGB64_to_spectrum(RGB64{0.8, 0.8, 0.9});
+	Spectrum orange_diffuse_spd = RGB64_to_spectrum(RGB64{1.0, 0.64, 0.0});
+	Spectrum orange_glossy_spd = RGB64_to_spectrum(RGB64{1.0, 0.8, 0.0});
 
 	Spectrum sphere_diffuse_spd = RGB64_to_spectrum(RGB64{0.2, 0.8, 0.8});
 	Spectrum sphere_glossy_spd = RGB64_to_spectrum(RGB64{0.8, 0.9, 0.9});
@@ -1417,6 +1530,7 @@ void load_scene(Scene* scene)
 	Material red_material = create_plastic(red_diffuse_spd, red_glossy_spd, 32.0);
 	Material green_material = create_plastic(green_diffuse_spd, green_glossy_spd, 32.0);
 	Material blue_material = create_plastic(blue_diffuse_spd, blue_glossy_spd, 32.0);
+	Material orange_material = create_plastic(orange_diffuse_spd, orange_glossy_spd, 32.0);
 	Material sphere_material = create_plastic(sphere_diffuse_spd, sphere_glossy_spd, 50.0);
 	Material mirror = create_mirror();
 	Spectrum gold_refract_index = load_spd("au_spec_n.csv");
@@ -1452,6 +1566,7 @@ void load_scene(Scene* scene)
 	{
 		{0.0, 2.5, 2.0}, 0.5
 	};
+
 	double h = 3.0;
 	Plane back_wall = create_plane_from_points(Vec3{-h, h, -h}, Vec3{h, h, -h}, Vec3{-h, -h, -h});
 	Plane left_wall = create_plane_from_points(Vec3{-h, h, h}, Vec3{-h, h, -h}, Vec3{-h, -h, h});
@@ -1462,14 +1577,15 @@ void load_scene(Scene* scene)
 
 	Plane light_plane = create_plane_from_points(Vec3{-0.5, 2.9, 0.5}, Vec3{0.5, 2.9, 0.5}, Vec3{-0.5, 2.9, -0.5});
 
+	Model triangle = create_triangle_model();
 	//add_sphere_light_to_scene(scene, light_s, 10.0 * light_spd);
 	add_plane_light_to_scene(scene, light_plane, light_spd);
 	//add_point_light_to_scene(scene, light_p, 64.0 * light_spd);
 	//add_sphere_to_scene(scene, mirror_sphere, mirror);
-	add_sphere_to_scene(scene, glass_sphere, glass);
-	add_sphere_to_scene(scene, gold_sphere, gold);
-	add_sphere_to_scene(scene, plastic_sphere, sphere_material);
-	add_plane_to_scene(scene, mirror_plane, mirror);
+	//add_sphere_to_scene(scene, glass_sphere, glass);
+	//add_sphere_to_scene(scene, gold_sphere, gold);
+	//add_sphere_to_scene(scene, plastic_sphere, sphere_material);
+	//add_plane_to_scene(scene, mirror_plane, mirror);
 
 	add_plane_to_scene(scene, back_wall, blue_material);
 	add_plane_to_scene(scene, left_wall, red_material);
@@ -1477,6 +1593,7 @@ void load_scene(Scene* scene)
 	add_plane_to_scene(scene, floor, white_material);
 	add_plane_to_scene(scene, ceiling, white_material);
 
+	add_model_to_scene(scene, triangle, orange_material);
 }
 
 bool ready_to_display_spectrum_buffer = false;
