@@ -351,6 +351,7 @@ struct Material
 
 struct Surface_Point
 {
+	char* name;
 	Spectrum diffuse_spd;
 	Spectrum glossy_spd;
 	Spectrum emission_spd;
@@ -1021,6 +1022,7 @@ struct Scene_Geometry
 
 struct Scene_Object
 {
+	char* name;
 	Scene_Geometry geometry;
 	Material material;
 	Light_Type light_type;
@@ -1069,13 +1071,14 @@ void add_sphere_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
 	add_object_to_scene(scene, sphere_light);
 }
 
-void add_plane_light_to_scene(Scene* scene, Plane p, Spectrum emission_spd)
+void add_plane_light_to_scene(Scene* scene, Plane p, Spectrum emission_spd, char* name)
 {
 	Scene_Object plane_light = {};
 	Scene_Geometry plane_geometry = {};
 	plane_geometry.type = GEO_TYPE_PLANE;
 	plane_geometry.plane = p;
 
+	plane_light.name = name;
 	plane_light.geometry = plane_geometry;
 	plane_light.emission_spd = emission_spd;
 	plane_light.light_type = LIGHT_TYPE_AREA;
@@ -1084,39 +1087,42 @@ void add_plane_light_to_scene(Scene* scene, Plane p, Spectrum emission_spd)
 	add_object_to_scene(scene, plane_light);
 }
 
-void add_sphere_to_scene(Scene* scene, Sphere s, Material material)
+void add_sphere_to_scene(Scene* scene, Sphere s, Material material, char* name)
 {
 	Scene_Object sphere = {};
 	Scene_Geometry sphere_geometry = {};
 	sphere_geometry.type = GEO_TYPE_SPHERE;
 	sphere_geometry.sphere = s;
 
+	sphere.name = name;
 	sphere.geometry = sphere_geometry;
 	sphere.material = material;
 
 	add_object_to_scene(scene, sphere);
 }
 
-void add_plane_to_scene(Scene* scene, Plane p, Material material)
+void add_plane_to_scene(Scene* scene, Plane p, Material material, char* name)
 {
 	Scene_Object plane = {};
 	Scene_Geometry plane_geometry = {};
 	plane_geometry.type = GEO_TYPE_PLANE;
 	plane_geometry.plane = p;
 
+	plane.name = name;
 	plane.geometry = plane_geometry;
 	plane.material = material;
 
 	add_object_to_scene(scene, plane);
 }
 
-void add_model_to_scene(Scene* scene, Model m, Material material)
+void add_model_to_scene(Scene* scene, Model m, Material material, char* name)
 {
 	Scene_Object model = {};
 	Scene_Geometry model_geometry = {};
 	model_geometry.type = GEO_TYPE_MODEL;
 	model_geometry.model = m;
 
+	model.name = name;
 	model.geometry = model_geometry;
 	model.material = material;
 
@@ -1238,6 +1244,7 @@ Surface_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 			p.incident_refract_index = object->material.refract_index;
 			p.transmit_refract_index = generate_constant_spd(1.0);
 		}
+		p.name = object->name;
 		p.material = object->material;
 		p.emission_spd = object->emission_spd;
 		p.normal = surface_normal;
@@ -1579,7 +1586,7 @@ void load_scene(Scene* scene)
 
 	Model triangle = create_triangle_model();
 	//add_sphere_light_to_scene(scene, light_s, 10.0 * light_spd);
-	add_plane_light_to_scene(scene, light_plane, light_spd);
+	add_plane_light_to_scene(scene, light_plane, light_spd, "Scene light");
 	//add_point_light_to_scene(scene, light_p, 64.0 * light_spd);
 	//add_sphere_to_scene(scene, mirror_sphere, mirror);
 	//add_sphere_to_scene(scene, glass_sphere, glass);
@@ -1587,13 +1594,13 @@ void load_scene(Scene* scene)
 	//add_sphere_to_scene(scene, plastic_sphere, sphere_material);
 	//add_plane_to_scene(scene, mirror_plane, mirror);
 
-	add_plane_to_scene(scene, back_wall, blue_material);
-	add_plane_to_scene(scene, left_wall, red_material);
-	add_plane_to_scene(scene, right_wall, green_material);
-	add_plane_to_scene(scene, floor, white_material);
-	add_plane_to_scene(scene, ceiling, white_material);
+	add_plane_to_scene(scene, back_wall, blue_material, "Back wall");
+	add_plane_to_scene(scene, left_wall, red_material, "Left wall");
+	add_plane_to_scene(scene, right_wall, green_material, "Right wall");
+	add_plane_to_scene(scene, floor, white_material, "Floor");
+	add_plane_to_scene(scene, ceiling, white_material, "Ceiling");
 
-	add_model_to_scene(scene, triangle, orange_material);
+	add_model_to_scene(scene, triangle, orange_material, "Model");
 }
 
 bool ready_to_display_spectrum_buffer = false;
