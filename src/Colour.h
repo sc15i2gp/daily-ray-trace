@@ -31,6 +31,8 @@ void normalise(Spectrum& spd);
 
 double spd_value_at_wavelength(Spectrum&, double wavelength);
 
+bool zero_spectrum(Spectrum&);
+
 Spectrum generate_black_body_spd(double temperature);
 Spectrum generate_constant_spd(double constant);
 

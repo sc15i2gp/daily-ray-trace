@@ -93,6 +93,15 @@ double spd_value_at_wavelength(Spectrum& spd, double wavelength)
 	return spd.samples[index];
 }
 
+bool zero_spectrum(Spectrum& spd)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		if(spd.samples[i] > 0.0) return false;
+	}
+	return true;
+}
+
 long double c = 2.99792458e8L; //Speed of light
 long double h = 6.626176e-34L; //Planck constant
 long double k = 1.380662e-23L; //Boltzmann constant
