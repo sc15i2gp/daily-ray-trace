@@ -105,10 +105,11 @@
 
 //TODO: NOW
 //	- Texturing
-//		- Colour/image
-//		- Normal map
-//		- Displacement map
+//		- Spectrum any material spectrum
+//		- Double shininess and roughness
+//		- Vector normal map
 //	- Tetrahedron
+//	- Frosted glass
 //	- Skybox/infinite light/infinite geometry
 //		- Skybox
 //		- Sun
@@ -653,6 +654,7 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 		if(gp.scene_object >= 0)
 		{
 			Vec3 surface_normal = {};
+			Vec2 texture_coordinates = {};
 			Scene_Object* object = scene->objects + gp.scene_object;
 			Scene_Geometry* geometry = &(object->geometry);
 			switch(geometry->type)
@@ -660,11 +662,13 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 				case GEO_TYPE_SPHERE: 
 				{
 					surface_normal = normalise(gp.position - geometry->sphere.center);
+					//TODO: texture_coords = ?
 					break;
 				}
 				case GEO_TYPE_PLANE: 
 				{
 					surface_normal = geometry->plane.n;
+					//TODO: texture_coords = ?
 					break;
 				}
 				case GEO_TYPE_MODEL:
@@ -672,6 +676,7 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 					Model m = geometry->model;
 					int i = gp.model_triangle_index;
 					surface_normal = gp.bc_a * m.vertices[i].normal + gp.bc_b * m.vertices[i+1].normal + gp.bc_c * m.vertices[i+2].normal;
+					texture_coordinates = gp.bc_a * m.vertices[i].texture_coords + gp.bc_b * m.vertices[i+1].texture_coords + gp.bc_c * m.vertices[i+2].texture_coords;
 					break;
 				}
 			}

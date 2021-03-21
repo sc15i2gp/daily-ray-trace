@@ -44,11 +44,9 @@ struct Material
 	Spectrum glossy_spd;
 	double shininess;
 
-	//Conductor data
+	//Fresnel data
 	Spectrum refract_index;
 	Spectrum extinct_index;
-	bool is_dielectric;
-
 	double roughness;
 };
 
