@@ -543,6 +543,32 @@ Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shinin
 	return plastic;
 }
 
+Material create_textured_plastic(Texture diffuse_spd_texture, Spectrum glossy_spd, double shininess)
+{
+	Material plastic = {};
+	plastic.type = MAT_TYPE_DIELECTRIC;
+	plastic.diffuse_spd_texture = diffuse_spd_texture;
+	plastic.glossy_spd = glossy_spd;
+	plastic.shininess = shininess;
+
+	plastic.number_of_bsdfs = 2;
+	BSDF diffuse_reflection = {};
+	diffuse_reflection.type = BSDF_TYPE_DIFFUSE;
+	diffuse_reflection.pdf = diffuse_pdf;
+	diffuse_reflection.bsdf = diffuse_phong_bsdf;
+	diffuse_reflection.sample_direction = sample_diffuse_direction;
+
+	BSDF glossy_reflection = {};
+	glossy_reflection.type = BSDF_TYPE_DIFFUSE;
+	glossy_reflection.pdf = diffuse_pdf;
+	glossy_reflection.bsdf = glossy_phong_bsdf;
+	glossy_reflection.sample_direction = sample_glossy_direction;
+	plastic.bsdfs[0] = diffuse_reflection;
+	plastic.bsdfs[1] = glossy_reflection;
+
+	return plastic;
+}
+
 Material create_mirror()
 {
 	Material mirror = {};

@@ -37,6 +37,13 @@ double clamp(double d, double low, double high)
 	else return d;
 }
 
+int clamp(int i, int low, int high)
+{
+	if(i < low) return low;
+	else if(i > high) return high;
+	else return i;
+}
+
 double lerp(double x, double x_0, double x_1, double y_0, double y_1)
 {
 	return y_0 + (x - x_0) * (y_1 - y_0) / (x_1 - x_0);

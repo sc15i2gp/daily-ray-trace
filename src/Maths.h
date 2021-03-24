@@ -18,6 +18,7 @@ double d_max(double, double);
 double d_min(double, double);
 
 double clamp(double, double low, double high);
+int clamp(int, int low, int high);
 
 double lerp(double x, double x_0, double x_1, double y_0, double y_1);
 

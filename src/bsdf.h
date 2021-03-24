@@ -1,6 +1,7 @@
 #pragma once
 #include "Colour.h"
 #include "Maths.h"
+#include "Texture.h"
 
 struct Surface_Point; //Forward decl
 typedef Spectrum (*REFLECTION_MODEL_FUNCTION)(Surface_Point, Vec3, Vec3);
@@ -39,6 +40,8 @@ struct Material
 	int number_of_bsdfs;
 	BSDF bsdfs[MAT_BSDF_MAX];
 
+	Spectrum emission_spd;
+
 	//Plastic data
 	Spectrum diffuse_spd;
 	Spectrum glossy_spd;
@@ -48,14 +51,20 @@ struct Material
 	Spectrum refract_index;
 	Spectrum extinct_index;
 	double roughness;
+
+	//Textures
+	Texture emission_spd_texture;
+	Texture diffuse_spd_texture;
+	Texture glossy_spd_texture;
+	Texture shininess_texture;
+	Texture refract_index_texture;
+	Texture extinct_index_texture;
+	Texture roughness_texture;
 };
 
 struct Surface_Point
 {
 	char* name;
-	Spectrum diffuse_spd;
-	Spectrum glossy_spd;
-	Spectrum emission_spd;
 	Spectrum incident_refract_index;
 	Spectrum transmit_refract_index;
 	Vec3 normal;
@@ -67,6 +76,7 @@ struct Surface_Point
 
 Spectrum bsdf(Surface_Point, Vec3 incoming, Vec3 outgoing);
 Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shininess);
+Material create_textured_plastic(Texture diffuse_spd_texture, Spectrum glossy_spd, double shininess);
 Material create_mirror();
 Material create_conductor(Spectrum refract_index, Spectrum extinct_index, double roughness);
 Material create_dielectric(Spectrum refract_index);

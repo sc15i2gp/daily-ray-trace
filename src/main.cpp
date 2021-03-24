@@ -367,7 +367,6 @@ struct Scene_Object
 	Scene_Geometry geometry;
 	Material material;
 	Light_Type light_type;
-	Spectrum emission_spd;
 	bool is_emissive;
 };
 
@@ -390,7 +389,7 @@ void add_point_light_to_scene(Scene* scene, Point p, Spectrum emission_spd)
 	point_geometry.point = p;
 	
 	point_light.geometry = point_geometry;
-	point_light.emission_spd = emission_spd;
+	point_light.material.emission_spd = emission_spd;
 	point_light.light_type = LIGHT_TYPE_POINT;
 	point_light.is_emissive = true;
 
@@ -405,7 +404,7 @@ void add_sphere_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
 	sphere_geometry.sphere = s;
 
 	sphere_light.geometry = sphere_geometry;
-	sphere_light.emission_spd = emission_spd;
+	sphere_light.material.emission_spd = emission_spd;
 	sphere_light.light_type = LIGHT_TYPE_AREA;
 	sphere_light.is_emissive = true;
 
@@ -421,7 +420,7 @@ void add_plane_light_to_scene(Scene* scene, Plane p, Spectrum emission_spd, char
 
 	plane_light.name = name;
 	plane_light.geometry = plane_geometry;
-	plane_light.emission_spd = emission_spd;
+	plane_light.material.emission_spd = emission_spd;
 	plane_light.light_type = LIGHT_TYPE_AREA;
 	plane_light.is_emissive = true;
 
@@ -605,7 +604,7 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 					double d = abs(dot(incoming, p.normal));
 					double f = attenuation_factor * d / light_pdf;
 
-					contribution += f * bsdf(p, incoming, outgoing.direction) * light.emission_spd;
+					contribution += f * bsdf(p, incoming, outgoing.direction) * light.material.emission_spd;
 				}
 			}
 		}
@@ -681,21 +680,50 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 				}
 			}
 
+			p.name = object->name;
+			p.material = object->material;
+			if(object->material.emission_spd_texture.in_use)
+			{
+				p.material.emission_spd = *(Spectrum*)(sample_texture(object->material.emission_spd_texture, texture_coordinates));
+			}
+			if(object->material.diffuse_spd_texture.in_use)
+			{
+				p.material.diffuse_spd = *(Spectrum*)(sample_texture(object->material.diffuse_spd_texture, texture_coordinates));
+			}
+			if(object->material.glossy_spd_texture.in_use)
+			{
+				p.material.glossy_spd = *(Spectrum*)(sample_texture(object->material.glossy_spd_texture, texture_coordinates));
+			}
+			if(object->material.shininess_texture.in_use)
+			{
+				p.material.shininess = *(double*)(sample_texture(object->material.shininess_texture, texture_coordinates));
+			}
+			if(object->material.refract_index_texture.in_use)
+			{
+				p.material.refract_index = *(Spectrum*)(sample_texture(object->material.refract_index_texture, texture_coordinates));
+			}
+			if(object->material.extinct_index_texture.in_use)
+			{
+				p.material.extinct_index = *(Spectrum*)(sample_texture(object->material.extinct_index_texture, texture_coordinates));
+			}
+			if(object->material.roughness_texture.in_use)
+			{
+				p.material.roughness = *(double*)(sample_texture(object->material.roughness_texture, texture_coordinates));
+			}
+
 			//If object transmits and the light is incident to the object
 			if(dot(outgoing.direction, surface_normal) < 0.0)
 			{
 				p.incident_refract_index = generate_constant_spd(1.0);
-				p.transmit_refract_index = object->material.refract_index;
+				p.transmit_refract_index = p.material.refract_index;
 			}
 			//Else if object transmits and the light is transmitting through the object
 			else
 			{
-				p.incident_refract_index = object->material.refract_index;
+				p.incident_refract_index = p.material.refract_index;
 				p.transmit_refract_index = generate_constant_spd(1.0);
 			}
-			p.name = object->name;
-			p.material = object->material;
-			p.emission_spd = object->emission_spd;
+
 			p.normal = surface_normal;
 			p.position = gp.position;
 			p.exists = true;
@@ -704,7 +732,7 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 
 		if(p.exists && p.is_emissive && consider_emissive)
 		{
-			eye_ray_radiance += f * p.emission_spd;
+			eye_ray_radiance += f * p.material.emission_spd;
 			break;
 		}
 		else if(p.exists && !p.is_emissive)
@@ -838,6 +866,30 @@ Model create_triangle_model()
 
 }
 
+Texture create_default_spd_texture()
+{
+	Texture texture = {};
+	texture.in_use = true;
+	texture.width = 32;
+	texture.height = 32;
+	texture.pixel_size = sizeof(Spectrum);
+	texture.pixels = (uint8_t*)malloc(texture.width * texture.height * texture.pixel_size);
+
+	Spectrum purple = RGB64_to_spectrum(RGB64{0.875, 0.0, 0.996});
+	Spectrum black = {};
+	
+	for(int y = 0; y < texture.height; ++y)
+	{
+		for(int x = 0; x < texture.width; ++x)
+		{
+			Spectrum* pixel = (Spectrum*)(get_pixel(texture, x, y));
+			*pixel = ((x/8) % 2 == (y/8) % 2) ? purple : black;
+		}
+	}
+
+	return texture;
+}
+
 void load_scene(Scene* scene)
 {
 	//Spectrum light_spd = generate_black_body_spd(4000.0);
@@ -861,7 +913,6 @@ void load_scene(Scene* scene)
 	Material red_material = create_plastic(red_diffuse_spd, red_glossy_spd, 32.0);
 	Material green_material = create_plastic(green_diffuse_spd, green_glossy_spd, 32.0);
 	Material blue_material = create_plastic(blue_diffuse_spd, blue_glossy_spd, 32.0);
-	Material orange_material = create_plastic(orange_diffuse_spd, orange_glossy_spd, 32.0);
 	Material sphere_material = create_plastic(sphere_diffuse_spd, sphere_glossy_spd, 50.0);
 	Material mirror = create_mirror();
 	Spectrum gold_refract_index = load_spd("au_spec_n.csv");
@@ -869,6 +920,7 @@ void load_scene(Scene* scene)
 	Material gold = create_conductor(gold_refract_index, gold_extinct_index, 0.344);
 	Spectrum glass_refract_index = load_spd("glass.csv");
 	Material glass = create_dielectric(glass_refract_index);
+
 
 	Sphere glass_sphere =
 	{
@@ -909,6 +961,7 @@ void load_scene(Scene* scene)
 	Plane light_plane = create_plane_from_points(Vec3{-0.5, 2.9, 0.5}, Vec3{0.5, 2.9, 0.5}, Vec3{-0.5, 2.9, -0.5});
 
 	Model triangle = create_triangle_model();
+	Material triangle_material = create_textured_plastic(create_default_spd_texture(), white_glossy_spd, 32.0);
 	//add_sphere_light_to_scene(scene, light_s, 10.0 * light_spd);
 	add_plane_light_to_scene(scene, light_plane, light_spd, "Scene light");
 	//add_point_light_to_scene(scene, light_p, 64.0 * light_spd);
@@ -924,7 +977,7 @@ void load_scene(Scene* scene)
 	add_plane_to_scene(scene, floor, white_material, "Floor");
 	add_plane_to_scene(scene, ceiling, white_material, "Ceiling");
 
-	add_model_to_scene(scene, triangle, orange_material, "Model");
+	add_model_to_scene(scene, triangle, triangle_material, "Model");
 }
 
 bool ready_to_display_spectrum_buffer = false;
