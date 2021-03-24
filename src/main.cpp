@@ -104,12 +104,6 @@
 //	- Volumetric transport
 
 //TODO: NOW
-//	- Texturing
-//		- Spectrum any material spectrum
-//		- Double shininess and roughness
-//		- Vector normal map
-//	- Tetrahedron
-//	- Frosted glass
 //	- Skybox/infinite light/infinite geometry
 //		- Skybox
 //		- Sun
@@ -117,15 +111,14 @@
 //	- Allow objects within transmission media
 //		- Distinguish between air and vacuum
 //		- Stack-like structure for tracking current medium
-//	- Work out how to do sampling with time/animation stuff
-//		- Go through monte carlo integration
-//		- Go through light calculations and units
-//		- Decide whether it is worth doing at this time
 //	- Optimisation/Cleaning
 //		- Sort out floating point precision issues
 //		- Remove superfluous code 
 //		- Profiling
 //		- Optimise slow methods
+//	- Fun things to render
+//		- Water in a box
+//		- Frosted glass with earth texture for frostiness
 
 struct Pixel_Render_Buffer
 {
@@ -469,8 +462,14 @@ void add_model_to_scene(Scene* scene, Model m, Material material, char* name)
 	add_object_to_scene(scene, model);
 }
 
-bool ray_intersects_model(Ray ray, Model m, double* t, int* intersecting_triangle_index, double* a, double* b, double* c)
+bool ray_intersects_model(Ray ray, Model m, double* t, int* ret_intersecting_triangle_index, double* ret_a, double* ret_b, double* ret_c)
 {
+	double a = 0.0;
+	double b = 0.0;
+	double c = 0.0;
+
+	double min_distance_to_triangle = DBL_MAX;
+	int intersecting_triangle_index = -1;
 	for(int i = 0; i < m.number_of_vertices; i += 3)
 	{
 		Vec3 triangle_normal = (m.vertices[i].normal + m.vertices[i+1].normal + m.vertices[i+2].normal)/3.0;
@@ -479,20 +478,29 @@ bool ray_intersects_model(Ray ray, Model m, double* t, int* intersecting_triangl
 			double distance_to_triangle = dot(m.vertices[i].position - ray.origin, triangle_normal)/dot(ray.direction, triangle_normal);
 			Vec3 p = ray.origin + distance_to_triangle * ray.direction;
 
-			*a = sqrt(point_to_line_distance_sq(p, m.vertices[i+1].position, m.vertices[i+2].position)/point_to_line_distance_sq(m.vertices[i].position, m.vertices[i+1].position,m.vertices[i+2].position));
-			*b = sqrt(point_to_line_distance_sq(p, m.vertices[i+2].position, m.vertices[i].position)/point_to_line_distance_sq(m.vertices[i+1].position, m.vertices[i+2].position, m.vertices[i].position));
-			*c = sqrt(point_to_line_distance_sq(p, m.vertices[i].position, m.vertices[i+1].position)/point_to_line_distance_sq(m.vertices[i+2].position, m.vertices[i].position, m.vertices[i+1].position));
+			double temp_a = sqrt(point_to_line_distance_sq(p, m.vertices[i+1].position, m.vertices[i+2].position)/point_to_line_distance_sq(m.vertices[i].position, m.vertices[i+1].position,m.vertices[i+2].position));
+			double temp_b = sqrt(point_to_line_distance_sq(p, m.vertices[i+2].position, m.vertices[i].position)/point_to_line_distance_sq(m.vertices[i+1].position, m.vertices[i+2].position, m.vertices[i].position));
+			double temp_c = sqrt(point_to_line_distance_sq(p, m.vertices[i].position, m.vertices[i+1].position)/point_to_line_distance_sq(m.vertices[i+2].position, m.vertices[i].position, m.vertices[i+1].position));
 
-			double d = *a + *b + *c;
-			if(d <= 1.00001)
+			double d = temp_a + temp_b + temp_c;
+			if(d <= 1.00001 && distance_to_triangle < min_distance_to_triangle && distance_to_triangle > 0.0)
 			{
-				*intersecting_triangle_index = i;
-				*t = distance_to_triangle;
-				return distance_to_triangle > 0.0;
+				intersecting_triangle_index = i;
+				min_distance_to_triangle = distance_to_triangle;
+				a = temp_a;
+				b = temp_b;
+				c = temp_c;
 			}
 		}
 	}
-	return false;
+	
+	*ret_a = a;
+	*ret_b = b;
+	*ret_c = c;
+
+	*t = min_distance_to_triangle;
+	*ret_intersecting_triangle_index = intersecting_triangle_index;
+	return intersecting_triangle_index >= 0;
 }
 
 struct Geometry_Intersection_Point
@@ -824,45 +832,45 @@ void raytrace_scene(Spectrum_Render_Buffer* render_target, Scene* scene, double 
 #define RENDER_TARGET_WIDTH 800
 #define RENDER_TARGET_HEIGHT 600
 
-Model create_triangle_model()
+Model create_model()
 {
-	Model triangle = {};
-	triangle.number_of_vertices = 3;
-	triangle.vertices = (Model_Vertex*)malloc(triangle.number_of_vertices * sizeof(Model_Vertex));
+	Model model = {};
+	model.number_of_vertices = 12;
+	model.vertices = (Model_Vertex*)malloc(model.number_of_vertices * sizeof(Model_Vertex));
 
-	double h = 2.0;
-	double z = 2.0;
+	Vec3 position_0 = {1.0, -1.0/sqrt(3.0), -1.0/sqrt(6.0)};
+	Vec3 position_1 = {-1.0, -1.0/sqrt(3.0), -1.0/sqrt(6.0)};
+	Vec3 position_2 = {0.0, 2.0/sqrt(3.0), -1.0/sqrt(6.0)};
+	Vec3 position_3 = {0.0, 0.0, 3.0/sqrt(6.0)};
 
-	Vec3 position_0 = {0.0f, h, z-4.0};
-	Vec3 position_1 = {-h, -h, z};
-	Vec3 position_2 = {h, -h, z};
-	Vec3 normal = normalise(cross(position_2 - position_0, position_1 - position_0));
+	Vec3 normal_0 = normalise(cross(position_2 - position_0, position_1 - position_0));
+	Vec3 normal_1 = normalise(cross(position_3 - position_1, position_2 - position_1));
+	Vec3 normal_2 = normalise(cross(position_2 - position_3, position_0 - position_3));
+	Vec3 normal_3 = normalise(cross(position_1 - position_0, position_3 - position_0));
 
-	//Top vertex
-	triangle.vertices[0] =
-	{
-		position_0,
-		normal,
-		{0.5f, 1.0f}
-	};
+	int v = 0;
+	//Back triangle
+	model.vertices[v++] = {position_0, normal_0, {0.5f, 1.0f}};
+	model.vertices[v++] = {position_1, normal_0, {0.0f, 0.0f}};
+	model.vertices[v++] = {position_2, normal_0, {1.0f, 0.0f}};
 
-	//Bottom left vertex
-	triangle.vertices[1] = 
-	{
-		position_1,
-		normal,
-		{0.0f, 0.0f}
-	};
+	//Left triangle
+	model.vertices[v++] = {position_1, normal_1, {0.5f, 1.0f}};
+	model.vertices[v++] = {position_3, normal_1, {0.0f, 0.0f}};
+	model.vertices[v++] = {position_2, normal_1, {1.0f, 0.0f}};
 
-	//Bottom right vertex
-	triangle.vertices[2] = 
-	{
-		position_2,
-		normal,
-		{1.0f, 0.0f}
-	};
+	//Right triangle
+	model.vertices[v++] = {position_3, normal_2, {0.5f, 1.0f}};
+	model.vertices[v++] = {position_0, normal_2, {0.0f, 0.0f}};
+	model.vertices[v++] = {position_2, normal_2, {1.0f, 0.0f}};
 
-	return triangle;
+	//Bottom triangle
+	model.vertices[v++] = {position_0, normal_3, {0.5f, 1.0f}};
+	model.vertices[v++] = {position_3, normal_3, {0.0f, 0.0f}};
+	model.vertices[v++] = {position_1, normal_3, {1.0f, 0.0f}};
+
+
+	return model;
 
 }
 
@@ -960,7 +968,7 @@ void load_scene(Scene* scene)
 
 	Plane light_plane = create_plane_from_points(Vec3{-0.5, 2.9, 0.5}, Vec3{0.5, 2.9, 0.5}, Vec3{-0.5, 2.9, -0.5});
 
-	Model triangle = create_triangle_model();
+	Model triangle = create_model();
 	Material triangle_material = create_textured_plastic(create_default_spd_texture(), white_glossy_spd, 32.0);
 	//add_sphere_light_to_scene(scene, light_s, 10.0 * light_spd);
 	add_plane_light_to_scene(scene, light_plane, light_spd, "Scene light");
