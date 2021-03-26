@@ -28,4 +28,5 @@ $(EXE): $(SRC)
 	g++ -std=c++17 $(SRC) $(OPTS) -o $(EXE)
 	
 $(DEBUG_EXE): $(SRC)
-	cl $(DEBUG_OPTS) /Zi $(SRC) /Fe:$(DEBUG_EXE) user32.lib gdi32.lib 
+	cl $(DEBUG_OPTS) /DDEBUG_BUILD /Zi $(SRC) /Fe:$(DEBUG_EXE) user32.lib gdi32.lib 
+

@@ -5,6 +5,7 @@
 #include "Maths.h"
 #include "Colour.h"
 #include "bsdf.h"
+#include "Debug.h"
 
 //CODE STANDARDS:
 //	- No templates (they kinda suck and are hard to use)
@@ -104,21 +105,24 @@
 //	- Volumetric transport
 
 //TODO: NOW
-//	- Skybox/infinite light/infinite geometry
-//		- Skybox
-//		- Sun
-//		- Infinite ground plane
-//	- Allow objects within transmission media
-//		- Distinguish between air and vacuum
-//		- Stack-like structure for tracking current medium
-//	- Optimisation/Cleaning
+//	- Debug info
+//		- Need types defined in non debug headers for debug info, but other headers need debug functions
+//		- Don't want to have to forward declare types
+//		- Unity build may help overcome this
+//		- First need to split platform and scene code
+//	- Optimisation/Cleaning + ease of debugging
+//		- Possibly have preview scene using opengl rasterising
+//		- Debug build which adds checks for invalid state or yet to be fixed problems
+//		- Debug info struct
 //		- Sort out floating point precision issues
 //		- Remove superfluous code 
 //		- Profiling
 //		- Optimise slow methods
+//		- Maybe multithreading
 //	- Fun things to render
 //		- Water in a box
 //		- Frosted glass with earth texture for frostiness
+//		- Torus
 
 struct Pixel_Render_Buffer
 {
@@ -806,6 +810,7 @@ void raytrace_scene(Spectrum_Render_Buffer* render_target, Scene* scene, double 
 	{
 		for(int x = 0; x < image_plane_width_px; ++x)
 		{
+			DEBUG(debug_set_pixel(x, y));
 			pixel_top_left = image_plane_top_left + ((double)x)*pixel_width*right - ((double)y)*pixel_height*up;
 			Vec3 x_pixel_sample = (0.5 * pixel_width + (double)(i%2) * pixel_width) * Vec3{1.0, 0.0, 0.0};
 			Vec3 y_pixel_sample = (0.5 * pixel_height + (double)(i / 2) * pixel_height) * Vec3{0.0, 1.0, 0.0};
