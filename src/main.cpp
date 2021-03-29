@@ -1,11 +1,4 @@
-#include <stdio.h>
-#include <stdint.h>
-#include "Platform.h"
-#include "Maths.h"
-#include "Colour.h"
-#include "bsdf.h"
-#include "Debug.h"
-#include "Scene.h"
+#include "daily_ray_trace.h"
 
 //CODE STANDARDS:
 //	- No templates (they kinda suck and are hard to use)
@@ -107,10 +100,8 @@
 
 //TODO: NOW
 //	- Debug info
-//		- Need types defined in non debug headers for debug info, but other headers need debug functions
-//		- Don't want to have to forward declare types
-//		- Unity build may help overcome this
-//		- 
+//		- Intended for when there is a crash or some global state is needed while debugging
+//		- Should include info which can help track down bugs
 //	- Optimisation/Cleaning + ease of debugging
 //		- Possibly have preview scene using opengl rasterising
 //		- Debug build which adds checks for invalid state or yet to be fixed problems

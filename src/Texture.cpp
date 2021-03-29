@@ -1,4 +1,3 @@
-#include "Texture.h"
 
 uint8_t* get_pixel(Texture texture, int x, int y)
 {

@@ -1,4 +1,3 @@
-#include "Maths.h"
 
 double uniform_sample()
 {

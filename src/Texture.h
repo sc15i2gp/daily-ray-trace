@@ -1,7 +1,4 @@
-#pragma once
 #include <string.h>
-#include "Maths.h"
-#include "Platform.h"
 
 struct Texture
 {

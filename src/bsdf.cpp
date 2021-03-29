@@ -1,4 +1,3 @@
-#include "bsdf.h"
 
 double fresnel_reflectance_dielectric(double incident_refraction_index, double transmit_refraction_index, double incident_cos, double transmit_cos)
 {

@@ -1,10 +1,4 @@
-#pragma once
 #include <float.h>
-#include "Colour.h"
-#include "Maths.h"
-#include "Texture.h"
-#include "bsdf.h"
-#include "Debug.h"
 
 typedef Spectrum Radiance;
 

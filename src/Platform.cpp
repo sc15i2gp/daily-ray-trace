@@ -1,4 +1,3 @@
-#include "Platform.h"
 
 RECT window_rect(HWND window)
 {

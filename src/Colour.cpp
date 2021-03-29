@@ -1,4 +1,3 @@
-#include "Colour.h"
 
 double start_wavelength = 380.0; //In nm
 double end_wavelength = 720.0; //In nm

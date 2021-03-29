@@ -1,4 +1,3 @@
-#include "Scene.h"
 
 void add_object_to_scene(Scene* scene, Scene_Object object)
 {

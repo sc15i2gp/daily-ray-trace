@@ -1,8 +1,3 @@
-#pragma once
-#include "Colour.h"
-#include "Maths.h"
-#include "Texture.h"
-
 struct Surface_Point; //Forward decl
 typedef Spectrum (*REFLECTION_MODEL_FUNCTION)(Surface_Point, Vec3, Vec3);
 typedef double (*DISTRIBUTION_FUNCTION)(Surface_Point, Vec3, Vec3);
