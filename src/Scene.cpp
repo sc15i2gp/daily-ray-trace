@@ -396,7 +396,7 @@ Model create_model()
 {
 	Model model = {};
 	model.number_of_vertices = 12;
-	model.vertices = (Model_Vertex*)malloc(model.number_of_vertices * sizeof(Model_Vertex));
+	model.vertices = (Model_Vertex*)alloc(model.number_of_vertices * sizeof(Model_Vertex));
 
 	Vec3 position_0 = {1.0, -1.0/sqrt(3.0), -1.0/sqrt(6.0)};
 	Vec3 position_1 = {-1.0, -1.0/sqrt(3.0), -1.0/sqrt(6.0)};
@@ -436,13 +436,7 @@ Model create_model()
 
 Texture create_default_spd_texture()
 {
-	Texture texture = {};
-	texture.in_use = true;
-	texture.width = 32;
-	texture.height = 32;
-	texture.pixel_size = sizeof(Spectrum);
-	texture.pixels = (uint8_t*)malloc(texture.width * texture.height * texture.pixel_size);
-
+	Texture texture = TEXTURE_CREATE(Spectrum, 32, 32);
 	Spectrum purple = RGB64_to_spectrum(RGB64{0.875, 0.0, 0.996});
 	Spectrum black = {};
 	

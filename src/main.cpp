@@ -110,7 +110,7 @@
 //		- Need types defined in non debug headers for debug info, but other headers need debug functions
 //		- Don't want to have to forward declare types
 //		- Unity build may help overcome this
-//		- First need to split platform and scene code
+//		- 
 //	- Optimisation/Cleaning + ease of debugging
 //		- Possibly have preview scene using opengl rasterising
 //		- Debug build which adds checks for invalid state or yet to be fixed problems
