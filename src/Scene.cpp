@@ -165,6 +165,12 @@ Geometry_Intersection_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 					break;
 				}
 			}
+			
+			DEBUG(if(ray_intersects_ith_object)
+			{
+				intersection_point.position = ray.origin + length_along_ray * ray.direction;
+				debug_set_last_intersection_computed(intersection_point);
+			})
 
 			if(ray_intersects_ith_object && ith_length_along_ray < length_along_ray)
 			{
@@ -262,6 +268,15 @@ Vec3 choose_incoming_direction(Surface_Point p, Vec3 outgoing, double* pdf_value
 
 int max_depth = 8; //NOTE: Arbitrarily chosen
 
+
+uint8_t* sample_texture_or_default(uint8_t* default_value, Texture texture, Vec2 texture_coords)
+{
+	if(texture.in_use) return sample_texture(texture, texture_coords);
+	else return default_value;
+}
+
+#define TEXTURE_SAMPLE_OR_DEFAULT(type, default_value, texture, texture_coords) *(type*)sample_texture_or_default((uint8_t*)&default_value, texture, texture_coords)
+
 Radiance cast_ray(Scene* scene, Ray eye_ray)
 {
 	Radiance eye_ray_radiance = {};
@@ -273,6 +288,7 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 	bool consider_emissive = true;
 	for(int depth = 0; depth < max_depth; ++depth)
 	{
+		DEBUG(debug_set_current_eye_radiance(eye_ray_radiance);)
 		Geometry_Intersection_Point gp = find_ray_scene_intersection(scene, outgoing);
 		Surface_Point p = {};
 		if(gp.scene_object >= 0)
@@ -307,34 +323,13 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 
 			p.name = object->name;
 			p.material = object->material;
-			if(object->material.emission_spd_texture.in_use)
-			{
-				p.material.emission_spd = *(Spectrum*)(sample_texture(object->material.emission_spd_texture, texture_coordinates));
-			}
-			if(object->material.diffuse_spd_texture.in_use)
-			{
-				p.material.diffuse_spd = *TEXTURE_SAMPLE(Spectrum, object->material.diffuse_spd_texture, texture_coordinates);
-			}
-			if(object->material.glossy_spd_texture.in_use)
-			{
-				p.material.glossy_spd = *(Spectrum*)(sample_texture(object->material.glossy_spd_texture, texture_coordinates));
-			}
-			if(object->material.shininess_texture.in_use)
-			{
-				p.material.shininess = *(double*)(sample_texture(object->material.shininess_texture, texture_coordinates));
-			}
-			if(object->material.refract_index_texture.in_use)
-			{
-				p.material.refract_index = *(Spectrum*)(sample_texture(object->material.refract_index_texture, texture_coordinates));
-			}
-			if(object->material.extinct_index_texture.in_use)
-			{
-				p.material.extinct_index = *(Spectrum*)(sample_texture(object->material.extinct_index_texture, texture_coordinates));
-			}
-			if(object->material.roughness_texture.in_use)
-			{
-				p.material.roughness = *(double*)(sample_texture(object->material.roughness_texture, texture_coordinates));
-			}
+			p.material.emission_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.emission_spd, object->material.emission_spd_texture, texture_coordinates);
+			p.material.glossy_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.glossy_spd, object->material.glossy_spd_texture, texture_coordinates);
+			p.material.diffuse_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.diffuse_spd, object->material.diffuse_spd_texture, texture_coordinates);
+			p.material.shininess = TEXTURE_SAMPLE_OR_DEFAULT(double, object->material.shininess, object->material.shininess_texture, texture_coordinates);
+			p.material.refract_index = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.refract_index, object->material.refract_index_texture, texture_coordinates);
+			p.material.extinct_index = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.extinct_index, object->material.extinct_index_texture, texture_coordinates);
+			p.material.roughness = TEXTURE_SAMPLE_OR_DEFAULT(double, object->material.roughness, object->material.roughness_texture, texture_coordinates);
 
 			//If object transmits and the light is incident to the object
 			if(dot(outgoing.direction, surface_normal) < 0.0)

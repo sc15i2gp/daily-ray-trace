@@ -2,6 +2,7 @@
 uint8_t* get_pixel(Texture texture, int x, int y)
 {
 	//Clamp for now
+	DEBUG(debug_set_last_sampled_texture(texture);)
 	x = clamp(x, 0, texture.width-1);
 	y = clamp(y, 0, texture.height -1);
 	uint8_t* pixel = texture.pixels + ((y * texture.width) + x)*texture.pixel_size;

@@ -86,5 +86,24 @@ struct Geometry_Intersection_Point
 	double bc_c;
 };
 
+struct Camera
+{
+	double fov;
+	double focal_length;
+	double focal_depth;
+	double aperture_radius;
+
+	Vec3 position;
+	Vec3 forward;
+	Vec3 right;
+	Vec3 up;
+
+	Vec3 pinhole_position;
+
+	double image_plane_width;
+	double image_plane_height;
+
+};
+
 void render_image(Texture* render_target);
 void print_render_profile();

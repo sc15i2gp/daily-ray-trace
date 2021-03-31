@@ -99,13 +99,9 @@
 //	- Volumetric transport
 
 //TODO: NOW
-//	- Debug info
-//		- Intended for when there is a crash or some global state is needed while debugging
-//		- Should include info which can help track down bugs
 //	- Optimisation/Cleaning + ease of debugging
 //		- Possibly have preview scene using opengl rasterising
 //		- Debug build which adds checks for invalid state or yet to be fixed problems
-//		- Debug info struct
 //		- Sort out floating point precision issues
 //		- Remove superfluous code 
 //		- Profiling
