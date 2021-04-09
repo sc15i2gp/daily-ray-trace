@@ -5,11 +5,12 @@
 #include "bsdf.h"
 #include "Scene.h"
 #include "Debug.h"
+#include "Profiling.h"
 
-#include "Platform.cpp"
 #include "Maths.cpp"
 #include "Colour.cpp"
 #include "Texture.cpp"
 #include "bsdf.cpp"
 #include "Scene.cpp"
 #include "Debug.cpp"
+#include "Profiling.cpp"

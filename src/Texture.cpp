@@ -28,6 +28,7 @@ void clear_texture(Texture texture, uint8_t* clear_value)
 
 uint8_t* sample_texture(Texture texture, Vec2 texture_coordinates)
 {
+	TIMED_FUNCTION;
 	Vec2 texture_dimensions = {(double)texture.width, (double)texture.height};
 	Vec2 actual_texture_coordinates = texture_dimensions * texture_coordinates;
 	

@@ -135,6 +135,7 @@ bool ray_intersects_model(Ray ray, Model m, double* t, int* ret_intersecting_tri
 
 Geometry_Intersection_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 {
+	TIMED_FUNCTION;
 	Geometry_Intersection_Point intersection_point;
 	intersection_point.scene_object = -1;
 
@@ -187,6 +188,7 @@ Geometry_Intersection_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 
 Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 {
+	TIMED_FUNCTION;
 	Radiance contribution = {};
 	if(!p.is_emissive)
 	{
@@ -247,6 +249,7 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 //MIRROR CHANGE: Probability of sampling specular direction depends on material
 Vec3 choose_incoming_direction(Surface_Point p, Vec3 outgoing, double* pdf_value, bool* consider_emissive)
 {
+	TIMED_FUNCTION;
 	double r = uniform_sample();
 	double n = (double)p.material.number_of_bsdfs;
 	int chosen_bsdf = (int)floor(r * n);
@@ -277,8 +280,75 @@ uint8_t* sample_texture_or_default(uint8_t* default_value, Texture texture, Vec2
 
 #define TEXTURE_SAMPLE_OR_DEFAULT(type, default_value, texture, texture_coords) *(type*)sample_texture_or_default((uint8_t*)&default_value, texture, texture_coords)
 
+Surface_Point find_intersection_surface_point(Scene* scene, Ray outgoing)
+{
+	TIMED_FUNCTION;
+	Geometry_Intersection_Point gp = find_ray_scene_intersection(scene, outgoing);
+	Surface_Point p = {};
+	if(gp.scene_object >= 0)
+	{
+		Vec3 surface_normal = {};
+		Vec2 texture_coordinates = {};
+		Scene_Object* object = scene->objects + gp.scene_object;
+		Scene_Geometry* geometry = &(object->geometry);
+		switch(geometry->type)
+		{
+			case GEO_TYPE_SPHERE: 
+			{
+				surface_normal = normalise(gp.position - geometry->sphere.center);
+				//TODO: texture_coords = ?
+				break;
+			}
+			case GEO_TYPE_PLANE: 
+			{
+				surface_normal = geometry->plane.n;
+				//TODO: texture_coords = ?
+				break;
+			}
+			case GEO_TYPE_MODEL:
+			{
+				Model m = geometry->model;
+				int i = gp.model_triangle_index;
+				surface_normal = gp.bc_a * m.vertices[i].normal + gp.bc_b * m.vertices[i+1].normal + gp.bc_c * m.vertices[i+2].normal;
+				texture_coordinates = gp.bc_a * m.vertices[i].texture_coords + gp.bc_b * m.vertices[i+1].texture_coords + gp.bc_c * m.vertices[i+2].texture_coords;
+				break;
+			}
+		}
+
+		p.name = object->name;
+		p.material = object->material;
+		p.material.emission_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.emission_spd, object->material.emission_spd_texture, texture_coordinates);
+		p.material.glossy_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.glossy_spd, object->material.glossy_spd_texture, texture_coordinates);
+		p.material.diffuse_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.diffuse_spd, object->material.diffuse_spd_texture, texture_coordinates);
+		p.material.shininess = TEXTURE_SAMPLE_OR_DEFAULT(double, object->material.shininess, object->material.shininess_texture, texture_coordinates);
+		p.material.refract_index = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.refract_index, object->material.refract_index_texture, texture_coordinates);
+		p.material.extinct_index = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.extinct_index, object->material.extinct_index_texture, texture_coordinates);
+		p.material.roughness = TEXTURE_SAMPLE_OR_DEFAULT(double, object->material.roughness, object->material.roughness_texture, texture_coordinates);
+
+		//If object transmits and the light is incident to the object
+		if(dot(outgoing.direction, surface_normal) < 0.0)
+		{
+			p.incident_refract_index = generate_constant_spd(1.0);
+			p.transmit_refract_index = p.material.refract_index;
+		}
+		//Else if object transmits and the light is transmitting through the object
+		else
+		{
+			p.incident_refract_index = p.material.refract_index;
+			p.transmit_refract_index = generate_constant_spd(1.0);
+		}
+
+		p.normal = surface_normal;
+		p.position = gp.position;
+		p.exists = true;
+		p.is_emissive = object->is_emissive;
+	}
+	return p;
+}
+
 Radiance cast_ray(Scene* scene, Ray eye_ray)
 {
+	TIMED_FUNCTION;
 	Radiance eye_ray_radiance = {};
 	Radiance direct_contribution = {};
 	Ray outgoing = eye_ray;
@@ -289,66 +359,8 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 	for(int depth = 0; depth < max_depth; ++depth)
 	{
 		DEBUG(debug_set_current_eye_radiance(eye_ray_radiance);)
-		Geometry_Intersection_Point gp = find_ray_scene_intersection(scene, outgoing);
-		Surface_Point p = {};
-		if(gp.scene_object >= 0)
-		{
-			Vec3 surface_normal = {};
-			Vec2 texture_coordinates = {};
-			Scene_Object* object = scene->objects + gp.scene_object;
-			Scene_Geometry* geometry = &(object->geometry);
-			switch(geometry->type)
-			{
-				case GEO_TYPE_SPHERE: 
-				{
-					surface_normal = normalise(gp.position - geometry->sphere.center);
-					//TODO: texture_coords = ?
-					break;
-				}
-				case GEO_TYPE_PLANE: 
-				{
-					surface_normal = geometry->plane.n;
-					//TODO: texture_coords = ?
-					break;
-				}
-				case GEO_TYPE_MODEL:
-				{
-					Model m = geometry->model;
-					int i = gp.model_triangle_index;
-					surface_normal = gp.bc_a * m.vertices[i].normal + gp.bc_b * m.vertices[i+1].normal + gp.bc_c * m.vertices[i+2].normal;
-					texture_coordinates = gp.bc_a * m.vertices[i].texture_coords + gp.bc_b * m.vertices[i+1].texture_coords + gp.bc_c * m.vertices[i+2].texture_coords;
-					break;
-				}
-			}
 
-			p.name = object->name;
-			p.material = object->material;
-			p.material.emission_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.emission_spd, object->material.emission_spd_texture, texture_coordinates);
-			p.material.glossy_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.glossy_spd, object->material.glossy_spd_texture, texture_coordinates);
-			p.material.diffuse_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.diffuse_spd, object->material.diffuse_spd_texture, texture_coordinates);
-			p.material.shininess = TEXTURE_SAMPLE_OR_DEFAULT(double, object->material.shininess, object->material.shininess_texture, texture_coordinates);
-			p.material.refract_index = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.refract_index, object->material.refract_index_texture, texture_coordinates);
-			p.material.extinct_index = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.extinct_index, object->material.extinct_index_texture, texture_coordinates);
-			p.material.roughness = TEXTURE_SAMPLE_OR_DEFAULT(double, object->material.roughness, object->material.roughness_texture, texture_coordinates);
-
-			//If object transmits and the light is incident to the object
-			if(dot(outgoing.direction, surface_normal) < 0.0)
-			{
-				p.incident_refract_index = generate_constant_spd(1.0);
-				p.transmit_refract_index = p.material.refract_index;
-			}
-			//Else if object transmits and the light is transmitting through the object
-			else
-			{
-				p.incident_refract_index = p.material.refract_index;
-				p.transmit_refract_index = generate_constant_spd(1.0);
-			}
-
-			p.normal = surface_normal;
-			p.position = gp.position;
-			p.exists = true;
-			p.is_emissive = object->is_emissive;
-		}
+		Surface_Point p = find_intersection_surface_point(scene, outgoing);
 
 		if(p.exists && p.is_emissive && consider_emissive)
 		{
@@ -357,6 +369,7 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 		}
 		else if(p.exists && !p.is_emissive)
 		{
+			TIMED_BLOCK("Light integral block");
 			outgoing.direction = -outgoing.direction; //Reverse for bsdf computation, needs to start other way round for intersection test
 			eye_ray_radiance += f * direct_light_contribution(scene, p, outgoing);
 			
@@ -536,7 +549,7 @@ void load_scene(Scene* scene)
 	add_model_to_scene(scene, triangle, triangle_material, "Model");
 }
 
-int number_of_render_samples = 256;
+int number_of_render_samples = 4;
 double total_render_time = 0.0;
 double average_sample_render_time = 0.0;
 double max_sample_render_time = 0.0;
@@ -552,6 +565,7 @@ void print_render_profile()
 
 void render_image(Texture* render_target)
 {
+	TIMED_FUNCTION;
 	printf("Starting render...\n");
 	Timer timer = {};
 

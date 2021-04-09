@@ -23,5 +23,8 @@ struct Timer
 void query_pc_frequency();
 void start_timer(Timer*);
 void stop_timer(Timer*);
+double cycles_to_s(long unsigned int);
+double cycles_to_ms(long unsigned int);
 double elapsed_time_in_s(Timer*);
 double elapsed_time_in_ms(Timer*);
+long unsigned int elapsed_time_in_cycles(Timer*);

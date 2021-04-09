@@ -101,7 +101,6 @@
 //TODO: NOW
 //	- Optimisation/Cleaning + ease of debugging
 //		- Possibly have preview scene using opengl rasterising
-//		- Debug build which adds checks for invalid state or yet to be fixed problems
 //		- Sort out floating point precision issues
 //		- Remove superfluous code 
 //		- Profiling
@@ -111,6 +110,103 @@
 //		- Water in a box
 //		- Frosted glass with earth texture for frostiness
 //		- Torus
+
+RECT window_rect(HWND window)
+{
+	RECT rect = {};
+	GetClientRect(window, &rect);
+	return rect;
+}
+
+int window_width(HWND window)
+{
+	RECT rect = window_rect(window);
+	return rect.right - rect.left;
+}
+
+int window_height(HWND window)
+{
+	RECT rect = window_rect(window);
+	return rect.bottom - rect.top;
+}
+
+void* alloc(int size)
+{
+	void* ptr = VirtualAlloc(0, size, MEM_COMMIT, PAGE_READWRITE);
+	ZeroMemory(ptr, size);
+	return ptr;
+}
+
+void dealloc(void* ptr)
+{
+	VirtualFree(ptr, 0, MEM_RELEASE);
+}
+
+char* read_file_contents(const char* path)
+{
+	HANDLE file = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	DWORD size = GetFileSize(file, NULL);
+	char* contents = (char*)alloc(size);
+	ZeroMemory(contents, size);
+	DWORD bytes_read = 0;
+	ReadFile(file, contents, size, &bytes_read, NULL);
+
+	CloseHandle(file);
+	return contents;
+}
+
+void write_file_contents(const char* path, char* contents, int contents_size)
+{
+	DWORD bytes_written = 0;
+	HANDLE file = CreateFile(path, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	WriteFile(file, contents, contents_size, &bytes_written, NULL);
+	CloseHandle(file);
+}
+
+double pc_frequency = 0.0; //In counts/s
+
+void query_pc_frequency()
+{
+	LARGE_INTEGER pc = {};
+	QueryPerformanceFrequency(&pc); //NOTE: FAILURE POINT if function fails (returns false)
+	pc_frequency = (double)pc.QuadPart;
+}
+
+void start_timer(Timer* t)
+{
+	QueryPerformanceCounter(&t->start_time);
+}
+
+void stop_timer(Timer* t)
+{
+	QueryPerformanceCounter(&t->stop_time);
+}
+
+double cycles_to_s(long unsigned int cycles)
+{
+	return (double)(cycles)/pc_frequency;
+}
+
+double cycles_to_ms(long unsigned int cycles)
+{
+	return cycles_to_s(cycles) * 1000.0;
+}
+
+long unsigned int elapsed_time_in_cycles(Timer* t)
+{
+	long unsigned int elapsed = (long unsigned int)(t->stop_time.QuadPart - t->start_time.QuadPart);
+	return elapsed;
+}
+
+double elapsed_time_in_s(Timer* t)
+{
+	return cycles_to_s(elapsed_time_in_cycles(t));
+}
+
+double elapsed_time_in_ms(Timer* t)
+{
+	return cycles_to_ms(elapsed_time_in_cycles(t));
+}
 
 void output_to_ppm(const char* path, Texture r_buffer)
 {
@@ -237,6 +333,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	__window_back_buffer__.pixels = (uint8_t*)alloc(back_buffer_size);
 	__window_back_buffer__.pixel_size = sizeof(uint32_t);
 
+	init_profiling();
+
 	bool completed_raytrace = false;
 	HANDLE raytrace_thread = CreateThread(NULL, 0, render_image_task, &completed_raytrace, 0, NULL);
 
@@ -264,6 +362,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	TerminateThread(raytrace_thread, 0);
 	
 	print_render_profile();
+	print_profile();
 
 	printf("Writing back buffer to file\n");
 	invert_render_buffer(__window_back_buffer__);

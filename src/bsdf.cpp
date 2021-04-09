@@ -375,6 +375,7 @@ Spectrum torrance_sparrow_bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 //GENERAL BSDF METHOD
 Spectrum bsdf(Surface_Point p, Vec3 incoming, Vec3 outgoing)
 {
+	TIMED_FUNCTION;
 	Spectrum reflectance = {};
 	BSDF* material_bsdfs = p.material.bsdfs;
 	for(int i = 0; i < p.material.number_of_bsdfs; ++i)
