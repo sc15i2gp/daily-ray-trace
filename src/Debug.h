@@ -17,6 +17,6 @@ struct Debug_Info
 
 void debug_set_pixel(int x, int y);
 void debug_set_sample_number(int n);
-void debug_set_current_eye_radiance(Spectrum radiance);
+void debug_set_current_eye_radiance(Spectrum& radiance);
 void debug_set_last_intersection_computed(Geometry_Intersection_Point);
 void debug_set_last_sampled_texture(Texture);

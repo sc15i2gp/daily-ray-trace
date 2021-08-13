@@ -1,7 +1,7 @@
 struct Surface_Point; //Forward decl
-typedef Spectrum (*REFLECTION_MODEL_FUNCTION)(Surface_Point, Vec3, Vec3);
-typedef double (*DISTRIBUTION_FUNCTION)(Surface_Point, Vec3, Vec3);
-typedef Vec3 (*INDIRECT_SAMPLE_FUNCTION)(Surface_Point, Vec3, double*);
+typedef Spectrum (*REFLECTION_MODEL_FUNCTION)(Surface_Point&, Vec3, Vec3);
+typedef double (*DISTRIBUTION_FUNCTION)(Surface_Point&, Vec3, Vec3);
+typedef Vec3 (*INDIRECT_SAMPLE_FUNCTION)(Surface_Point&, Vec3, double*);
 
 enum BSDF_TYPE
 {
@@ -69,7 +69,7 @@ struct Surface_Point
 	bool is_emissive;
 };
 
-Spectrum bsdf(Surface_Point, Vec3 incoming, Vec3 outgoing);
+Spectrum bsdf(Surface_Point&, Vec3 incoming, Vec3 outgoing);
 Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shininess);
 Material create_textured_plastic(Texture diffuse_spd_texture, Spectrum glossy_spd, double shininess);
 Material create_mirror();

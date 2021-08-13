@@ -23,6 +23,7 @@ struct Profile_Node
 	Profile_Node* children[16];
 	Timed_Block_Signature signature;
 	long unsigned int total_block_time;
+	int number_of_calls;
 };
 
 struct Profile

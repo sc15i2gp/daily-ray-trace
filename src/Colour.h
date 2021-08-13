@@ -17,13 +17,21 @@ struct Spectrum
 {
 	double samples[SPECTRUM_SAMPLE_MAX];
 };
-Spectrum operator+(Spectrum, Spectrum);
-Spectrum operator*(Spectrum, Spectrum);
-Spectrum operator*(double, Spectrum);
-Spectrum operator/(Spectrum, double);
-void operator+=(Spectrum&, Spectrum);
-void operator*=(Spectrum&, Spectrum);
+inline
+Spectrum operator+(const Spectrum&, const Spectrum&);
+inline
+Spectrum operator*(const Spectrum&, const Spectrum&);
+inline
+Spectrum operator*(double, const Spectrum&);
+inline
+Spectrum operator/(const Spectrum&, double);
+inline
+void operator+=(Spectrum&, const Spectrum&);
+inline
+void operator*=(Spectrum&, const Spectrum&);
+inline
 void operator/=(Spectrum&, double);
+
 void normalise(Spectrum& spd);
 
 double spd_value_at_wavelength(Spectrum&, double wavelength);

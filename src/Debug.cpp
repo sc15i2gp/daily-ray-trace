@@ -12,7 +12,7 @@ void debug_set_sample_number(int n)
 	debug_info.sample_number = n;
 }
 
-void debug_set_current_eye_radiance(Spectrum radiance)
+void debug_set_current_eye_radiance(Spectrum& radiance)
 {
 	debug_info.current_eye_ray_radiance = radiance;
 }

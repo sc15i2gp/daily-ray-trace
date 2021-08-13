@@ -99,8 +99,10 @@
 //	- Volumetric transport
 
 //TODO: NOW
+//	- Optimise memory stuff
+//		- Reduce number of calls to memcpy and memset
+//		- Improve cache performance
 //	- Optimisation/Cleaning + ease of debugging
-//		- Possibly have preview scene using opengl rasterising
 //		- Sort out floating point precision issues
 //		- Remove superfluous code 
 //		- Profiling
@@ -110,6 +112,11 @@
 //		- Water in a box
 //		- Frosted glass with earth texture for frostiness
 //		- Torus
+
+//Reduce time spent copying:
+//	- Don't store any spectra on the stack
+//	- Have pool of spectra which can be accessed
+//	- Remove overloaded operators for spectra
 
 RECT window_rect(HWND window)
 {

@@ -22,7 +22,75 @@ RGB8 rgb64_to_rgb8(RGB64 rgb64)
 	return rgb8;
 }
 
-Spectrum operator+(Spectrum spd_0, Spectrum spd_1)
+//Spectral operations and example locations:
+//	- spectrum = 0
+//	- spectrum = double | cast_ray in Scene.cpp
+//	- spectrum_0 = spectrum_1
+
+//	- spectrum_0 = (double_0 * spectrum_0 + spectrum_1)/double_1 | render_image in Scene.cpp
+//	- spectrum_0 = spectrum_0 + spectrum_1 * spectrum_2 | cast_ray in Scene.cpp
+//	- spectrum_0 = spectrum_0 + double * spectrum_1 * spectrum_2 | direct_light_contribution in Scene.cpp
+
+//	- spectrum_0 = spectrum_0 * double * spectrum_1
+//	- spectrum_0 = (double * double) * spectrum | torrance_sparrow_bsdf in bsdf.cpp
+//	- spectrum_0 = double * spectrum | glossy_phong_bsdf in bsdf.cpp
+
+//	- spectrum_0 = spectrum_1 / double | diffuse_phong_bsdf in bsdf.cpp
+//	- spectrum_0 = spectrum_1 / double | cook_torrance_reflectance_bsdf in bsdf.cpp
+
+//	- spectrum_0 = spectrum_1 + spectrum_2 | plastic_bsdf in bsdf.cpp
+//	- spectrum_0 = spectrum_0 + spectrum_1 | bsdf in bsdf.cpp
+
+void set_spectrum_to_value(Spectrum& spd, double d)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		spd.samples[i] = d;
+	}
+}
+
+void copy_spectrum(Spectrum& src_spd, Spectrum& dst_spd)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		dst_spd.samples[i] = src_spd.samples[i];
+	}
+}
+
+void spectral_sum(Spectrum& spd_0, Spectrum& spd_1, Spectrum& dst_spd)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		dst_spd.samples[i] = spd_0.samples[i] + spd_1.samples[i];
+	}
+}
+
+void spectral_multiply(Spectrum& spd_0, double d, Spectrum& dst_spd)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		dst_spd.samples[i] = d * spd_0.samples[i];
+	}
+}
+
+void spectral_multiply(Spectrum& spd_0, Spectrum& spd_1, double d, Spectrum& dst_spd)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		dst_spd.samples[i] = d * spd_0.samples[i] * spd_1.samples[i];
+	}
+}
+
+void spectral_sum_and_multiply(Spectrum& spd_0, Spectrum& spd_1, Spectrum& spd_2, Spectrum& dst_spd)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		dst_spd.samples[i] = spd_0.samples[i] + (spd_1.samples[i] * spd_2.samples[i]);
+	}
+}
+
+inline
+Spectrum operator+(const Spectrum& spd_0, const Spectrum& spd_1)
 {
 	Spectrum spd = {};
 	for(int i = 0; i < number_of_samples; ++i)
@@ -32,8 +100,8 @@ Spectrum operator+(Spectrum spd_0, Spectrum spd_1)
 	return spd;
 }
 
-//NOTE: Currently assumes both spectra have same wavelength ranges and intervals
-Spectrum operator*(Spectrum spd_0, Spectrum spd_1)
+inline
+Spectrum operator*(const Spectrum& spd_0, const Spectrum& spd_1)
 {
 	Spectrum spd = {};
 	for(int i = 0; i < number_of_samples; ++i)
@@ -43,7 +111,8 @@ Spectrum operator*(Spectrum spd_0, Spectrum spd_1)
 	return spd;
 }
 
-Spectrum operator*(double d, Spectrum spd_0)
+inline
+Spectrum operator*(double d, const Spectrum& spd_0)
 {
 	Spectrum spd = {};
 	for(int i = 0; i < number_of_samples; ++i)
@@ -53,7 +122,8 @@ Spectrum operator*(double d, Spectrum spd_0)
 	return spd;
 }
 
-Spectrum operator/(Spectrum spd_0, double d)
+inline
+Spectrum operator/(const Spectrum& spd_0, double d)
 {
 	Spectrum spd = {};
 	for(int i = 0; i < number_of_samples; ++i)
@@ -63,16 +133,19 @@ Spectrum operator/(Spectrum spd_0, double d)
 	return spd;
 }
 
-void operator+=(Spectrum& spd_0, Spectrum spd_1)
+inline
+void operator+=(Spectrum& spd_0, const Spectrum& spd_1)
 {
 	spd_0 = spd_0 + spd_1;
 }
 
-void operator*=(Spectrum& spd_0, Spectrum spd_1)
+inline
+void operator*=(Spectrum& spd_0, const Spectrum& spd_1)
 {
 	spd_0 = spd_0 * spd_1;
 }
 
+inline
 void operator/=(Spectrum& spd, double d)
 {
 	spd = spd/d;

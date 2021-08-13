@@ -186,7 +186,7 @@ Geometry_Intersection_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 	return intersection_point;
 }
 
-Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
+Radiance direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing)
 {
 	TIMED_FUNCTION;
 	Radiance contribution = {};
@@ -197,7 +197,7 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 			if(scene->objects[i].is_emissive)
 			{
 				double light_pdf = 1.0;
-				Scene_Object light = scene->objects[i];
+				Scene_Object& light = scene->objects[i];
 				Vec3 light_point = {};
 				switch(light.geometry.type)
 				{
@@ -247,7 +247,7 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point p, Ray outgoing)
 }
 
 //MIRROR CHANGE: Probability of sampling specular direction depends on material
-Vec3 choose_incoming_direction(Surface_Point p, Vec3 outgoing, double* pdf_value, bool* consider_emissive)
+Vec3 choose_incoming_direction(Surface_Point& p, Vec3 outgoing, double* pdf_value, bool* consider_emissive)
 {
 	TIMED_FUNCTION;
 	double r = uniform_sample();
@@ -269,7 +269,6 @@ Vec3 choose_incoming_direction(Surface_Point p, Vec3 outgoing, double* pdf_value
 	return direction;
 }
 
-int max_depth = 8; //NOTE: Arbitrarily chosen
 
 
 uint8_t* sample_texture_or_default(uint8_t* default_value, Texture texture, Vec2 texture_coords)
@@ -280,11 +279,13 @@ uint8_t* sample_texture_or_default(uint8_t* default_value, Texture texture, Vec2
 
 #define TEXTURE_SAMPLE_OR_DEFAULT(type, default_value, texture, texture_coords) *(type*)sample_texture_or_default((uint8_t*)&default_value, texture, texture_coords)
 
-Surface_Point find_intersection_surface_point(Scene* scene, Ray outgoing)
+void find_intersection_surface_point(Scene* scene, Ray outgoing, Surface_Point& p)
 {
 	TIMED_FUNCTION;
 	Geometry_Intersection_Point gp = find_ray_scene_intersection(scene, outgoing);
-	Surface_Point p = {};
+	p.exists = false;
+	p.is_emissive = false;
+	p.name = NULL;
 	if(gp.scene_object >= 0)
 	{
 		Vec3 surface_normal = {};
@@ -343,9 +344,9 @@ Surface_Point find_intersection_surface_point(Scene* scene, Ray outgoing)
 		p.exists = true;
 		p.is_emissive = object->is_emissive;
 	}
-	return p;
 }
 
+int max_depth = 4; //NOTE: Arbitrarily chosen
 Radiance cast_ray(Scene* scene, Ray eye_ray)
 {
 	TIMED_FUNCTION;
@@ -356,11 +357,12 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 	Spectrum f = generate_constant_spd(1.0);
 	double dir_pdf = 0.0;
 	bool consider_emissive = true;
+	Surface_Point p = {};
 	for(int depth = 0; depth < max_depth; ++depth)
 	{
 		DEBUG(debug_set_current_eye_radiance(eye_ray_radiance);)
 
-		Surface_Point p = find_intersection_surface_point(scene, outgoing);
+		find_intersection_surface_point(scene, outgoing, p);
 
 		if(p.exists && p.is_emissive && consider_emissive)
 		{
@@ -369,32 +371,18 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 		}
 		else if(p.exists && !p.is_emissive)
 		{
-			TIMED_BLOCK("Light integral block");
 			outgoing.direction = -outgoing.direction; //Reverse for bsdf computation, needs to start other way round for intersection test
 			eye_ray_radiance += f * direct_light_contribution(scene, p, outgoing);
 			
 			//Choose new incoming direction
 			incoming.direction = choose_incoming_direction(p, outgoing.direction, &dir_pdf, &consider_emissive);
 			incoming.origin = p.position + 0.001*incoming.direction;
-			
-			if(dir_pdf <= 0.0) break;
-
 			//Compute new direction pdf value
-			f *= (abs(dot(p.normal, incoming.direction)/dir_pdf)) * bsdf(p, incoming.direction, outgoing.direction);
+			f *= (abs(dot(p.normal, incoming.direction) * (1.0/dir_pdf))) * bsdf(p, incoming.direction, outgoing.direction);
 			
 			outgoing = incoming;
-			outgoing.origin += 0.001*outgoing.direction;
 		}
 		else break;
-	}
-
-	if(eye_ray_radiance.samples[0] < 0.0) 
-	{
-		printf("RADIANCE IS NEGATIVE\n");
-	}
-	else if(isnan(eye_ray_radiance.samples[0])) 
-	{
-		printf("RADIANCE IS NAN\n");
 	}
 	return eye_ray_radiance;
 }
@@ -535,10 +523,10 @@ void load_scene(Scene* scene)
 	add_plane_light_to_scene(scene, light_plane, light_spd, "Scene light");
 	//add_point_light_to_scene(scene, light_p, 64.0 * light_spd);
 	//add_sphere_to_scene(scene, mirror_sphere, mirror);
-	//add_sphere_to_scene(scene, glass_sphere, glass);
-	//add_sphere_to_scene(scene, gold_sphere, gold);
+	add_sphere_to_scene(scene, glass_sphere, glass, "Glass sphere");
+	add_sphere_to_scene(scene, gold_sphere, gold, "Gold sphere");
 	//add_sphere_to_scene(scene, plastic_sphere, sphere_material);
-	//add_plane_to_scene(scene, mirror_plane, mirror);
+	add_plane_to_scene(scene, mirror_plane, mirror, "Mirror");
 
 	add_plane_to_scene(scene, back_wall, blue_material, "Back wall");
 	add_plane_to_scene(scene, left_wall, red_material, "Left wall");

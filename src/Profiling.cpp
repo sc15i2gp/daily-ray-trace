@@ -24,7 +24,7 @@ void print_profile_node(Profile_Node* node, int depth)
 
 	long unsigned int node_time = node->total_block_time;
 	for(int i = 0; i < node->number_of_children; ++i) node_time -= node->children[i]->total_block_time;
-	printf("%*s| %s: %f s\n", depth, " ", node->signature.block_name, cycles_to_s(node_time));
+	printf("%*s| %s: %f s with %d calls\n", depth, " ", node->signature.block_name, cycles_to_s(node_time), node->number_of_calls);
 
 	for(int i = 0; i < node->number_of_children; ++i) print_profile_node(node->children[i], depth + 1);
 }
@@ -32,8 +32,6 @@ void print_profile_node(Profile_Node* node, int depth)
 void print_profile()
 {
 	//printf("\t| %s: %lu cycles\n", node->signature.block_name, node->total_block_time);
-	printf("NUMBER OF NODES = %d\n", raytrace_profile.nodes[0].number_of_children);
-	printf("NODES IN USE = %d\n", raytrace_profile.number_of_nodes_in_use);
 	for(int i = 0; i < raytrace_profile.nodes[0].number_of_children; ++i)
 	{
 		print_profile_node(raytrace_profile.nodes[0].children[i], 1);
@@ -98,6 +96,7 @@ Timed_Block::Timed_Block(const char* block_name, int line_number, const char* fi
 	this->profile_node->parent = raytrace_profile.currently_executing_block;
 
 	set_currently_executing_block(this->profile_node);
+	++this->profile_node->number_of_calls;
 	start_timer(&this->timer);
 }
 
