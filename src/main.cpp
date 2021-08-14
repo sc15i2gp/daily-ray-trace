@@ -114,9 +114,9 @@
 //		- Torus
 
 //Reduce time spent copying:
+//	- Majority of time now spent copying material data
 //	- Don't store any spectra on the stack
 //	- Have pool of spectra which can be accessed
-//	- Remove overloaded operators for spectra
 
 RECT window_rect(HWND window)
 {
