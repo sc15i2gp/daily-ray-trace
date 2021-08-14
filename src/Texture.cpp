@@ -49,5 +49,6 @@ Texture create_texture(int width, int height, int pixel_size)
 	t.height = height;
 	t.pixel_size = pixel_size;
 	t.pixels = (uint8_t*)alloc(width * height * pixel_size);
+	if(t.pixels == NULL) printf("TEXTURE FUCKED\n\n");
 	return t;
 }

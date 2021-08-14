@@ -12,7 +12,8 @@ void add_point_light_to_scene(Scene* scene, Point p, Spectrum emission_spd)
 	point_geometry.point = p;
 	
 	point_light.geometry = point_geometry;
-	point_light.material.emission_spd = emission_spd;
+	point_light.material.emission_spd_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	TEXTURE_CLEAR(point_light.material.emission_spd_texture, emission_spd);
 	point_light.light_type = LIGHT_TYPE_POINT;
 	point_light.is_emissive = true;
 
@@ -27,7 +28,8 @@ void add_sphere_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
 	sphere_geometry.sphere = s;
 
 	sphere_light.geometry = sphere_geometry;
-	sphere_light.material.emission_spd = emission_spd;
+	sphere_light.material.emission_spd_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	TEXTURE_CLEAR(sphere_light.material.emission_spd_texture, emission_spd);
 	sphere_light.light_type = LIGHT_TYPE_AREA;
 	sphere_light.is_emissive = true;
 
@@ -43,7 +45,8 @@ void add_plane_light_to_scene(Scene* scene, Plane p, Spectrum emission_spd, char
 
 	plane_light.name = name;
 	plane_light.geometry = plane_geometry;
-	plane_light.material.emission_spd = emission_spd;
+	plane_light.material.emission_spd_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	TEXTURE_CLEAR(plane_light.material.emission_spd_texture, emission_spd);
 	plane_light.light_type = LIGHT_TYPE_AREA;
 	plane_light.is_emissive = true;
 
@@ -240,7 +243,9 @@ void direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing, Rad
 					double f = attenuation_factor * d / light_pdf;
 
 					bsdf(p, incoming, outgoing.direction, bsdf_result);
-					spectral_multiply(bsdf_result, light.material.emission_spd, bsdf_result);
+					Vec2 t = {0.5, 0.5};
+					Spectrum& emission_spd = *TEXTURE_SAMPLE(Spectrum, light.material.emission_spd_texture, t);
+					spectral_multiply(bsdf_result, emission_spd, bsdf_result);
 					spectral_sum_and_multiply(contribution, bsdf_result, f, contribution);
 				}
 			}
@@ -253,18 +258,18 @@ Vec3 choose_incoming_direction(Surface_Point& p, Vec3 outgoing, double* pdf_valu
 {
 	TIMED_FUNCTION;
 	double r = uniform_sample();
-	double n = (double)p.material.number_of_bsdfs;
+	double n = (double)p.surface_material->number_of_bsdfs;
 	int chosen_bsdf = (int)floor(r * n);
-	BSDF_TYPE chosen_bsdf_type = p.material.bsdfs[chosen_bsdf].type;
+	BSDF_TYPE chosen_bsdf_type = p.surface_material->bsdfs[chosen_bsdf].type;
 	*consider_emissive = chosen_bsdf_type & BSDF_TYPE_SPECULAR;
-	Vec3 direction = p.material.bsdfs[chosen_bsdf].sample_direction(p, outgoing, pdf_value);
+	Vec3 direction = p.surface_material->bsdfs[chosen_bsdf].sample_direction(p, outgoing, pdf_value);
 
 	//Sum probabilities for BSDFs with same distributions (that aren't specular)
-	for(int i = 0; i < p.material.number_of_bsdfs; ++i)
+	for(int i = 0; i < p.surface_material->number_of_bsdfs; ++i)
 	{
-		if(i != chosen_bsdf && chosen_bsdf_type != BSDF_TYPE_SPECULAR && p.material.bsdfs[i].type == chosen_bsdf_type)
+		if(i != chosen_bsdf && chosen_bsdf_type != BSDF_TYPE_SPECULAR && p.surface_material->bsdfs[i].type == chosen_bsdf_type)
 		{
-			*pdf_value += p.material.bsdfs[i].pdf(p, outgoing, direction);
+			*pdf_value += p.surface_material->bsdfs[i].pdf(p, outgoing, direction);
 		}
 	}
 	*pdf_value /= n;
@@ -300,12 +305,14 @@ void find_intersection_surface_point(Scene* scene, Ray outgoing, Surface_Point& 
 			{
 				surface_normal = normalise(gp.position - geometry->sphere.center);
 				//TODO: texture_coords = ?
+				texture_coordinates = {0.5, 0.5};
 				break;
 			}
 			case GEO_TYPE_PLANE: 
 			{
 				surface_normal = geometry->plane.n;
 				//TODO: texture_coords = ?
+				texture_coordinates = {0.5, 0.5};
 				break;
 			}
 			case GEO_TYPE_MODEL:
@@ -319,30 +326,21 @@ void find_intersection_surface_point(Scene* scene, Ray outgoing, Surface_Point& 
 		}
 
 		p.name = object->name;
-		p.material = object->material;
-		p.material.emission_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.emission_spd, object->material.emission_spd_texture, texture_coordinates);
-		p.material.glossy_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.glossy_spd, object->material.glossy_spd_texture, texture_coordinates);
-		p.material.diffuse_spd = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.diffuse_spd, object->material.diffuse_spd_texture, texture_coordinates);
-		p.material.shininess = TEXTURE_SAMPLE_OR_DEFAULT(double, object->material.shininess, object->material.shininess_texture, texture_coordinates);
-		p.material.refract_index = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.refract_index, object->material.refract_index_texture, texture_coordinates);
-		p.material.extinct_index = TEXTURE_SAMPLE_OR_DEFAULT(Spectrum, object->material.extinct_index, object->material.extinct_index_texture, texture_coordinates);
-		p.material.roughness = TEXTURE_SAMPLE_OR_DEFAULT(double, object->material.roughness, object->material.roughness_texture, texture_coordinates);
-
-		//If object transmits and the light is incident to the object
+		p.surface_material = &(object->material);
 		if(dot(outgoing.direction, surface_normal) < 0.0)
 		{
-			p.incident_refract_index = generate_constant_spd(1.0);
-			p.transmit_refract_index = p.material.refract_index;
+			p.incident_material = &(scene->air_material);
+			p.transmit_material = &(object->material);
 		}
-		//Else if object transmits and the light is transmitting through the object
 		else
 		{
-			p.incident_refract_index = p.material.refract_index;
-			p.transmit_refract_index = generate_constant_spd(1.0);
+			p.incident_material = &(object->material);
+			p.transmit_material = &(scene->air_material);
 		}
 
 		p.normal = surface_normal;
 		p.position = gp.position;
+		p.texture_coordinates = texture_coordinates;
 		p.exists = true;
 		p.is_emissive = object->is_emissive;
 	}
@@ -372,8 +370,8 @@ void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 
 		if(p.exists && p.is_emissive && consider_emissive)
 		{
-			spectral_sum_and_multiply(eye_ray_radiance, f, p.material.emission_spd, eye_ray_radiance);
-			//eye_ray_radiance += f * p.material.emission_spd;
+			Spectrum& emission_spd = *TEXTURE_SAMPLE(Spectrum, p.surface_material->emission_spd_texture, p.texture_coordinates);
+			spectral_sum_and_multiply(eye_ray_radiance, f, emission_spd, eye_ray_radiance);
 			break;
 		}
 		else if(p.exists && !p.is_emissive)
@@ -381,16 +379,15 @@ void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 			outgoing.direction = -outgoing.direction; //Reverse for bsdf computation, needs to start other way round for intersection test
 			direct_light_contribution(scene, p, outgoing, direct_contribution);
 			spectral_sum_and_multiply(eye_ray_radiance, f, direct_contribution, eye_ray_radiance);
-			//eye_ray_radiance += f * direct_light_contribution(scene, p, outgoing);
 			
 			//Choose new incoming direction
 			incoming.direction = choose_incoming_direction(p, outgoing.direction, &dir_pdf, &consider_emissive);
 			incoming.origin = p.position + 0.001*incoming.direction;
+
 			//Compute new direction pdf value
 			double f_coefficient = abs(dot(p.normal, incoming.direction)) * (1.0/dir_pdf);
 			bsdf(p, incoming.direction, outgoing.direction, bsdf_result);
 			spectral_multiply(f, bsdf_result, f_coefficient, f);
-			//f *= (abs(dot(p.normal, incoming.direction) * (1.0/dir_pdf))) * bsdf(p, incoming.direction, outgoing.direction);
 			
 			outgoing = incoming;
 		}
@@ -463,6 +460,12 @@ void load_scene(Scene* scene)
 	//Spectrum light_spd = generate_black_body_spd(4000.0);
 	//normalise(light_spd);
 	Spectrum light_spd = generate_constant_spd(1.0);
+
+	scene->air_material.refract_index_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	TEXTURE_CLEAR(scene->air_material.refract_index_texture, light_spd);
+	scene->air_material.extinct_index_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	TEXTURE_CLEAR(scene->air_material.extinct_index_texture, light_spd);
+
 	Spectrum white_diffuse_spd = RGB64_to_spectrum(RGB64{0.55, 0.55, 0.55});
 	Spectrum white_glossy_spd = RGB64_to_spectrum(RGB64{0.7, 0.7, 0.7});
 	Spectrum red_diffuse_spd = RGB64_to_spectrum(RGB64{0.5, 0.0, 0.0});

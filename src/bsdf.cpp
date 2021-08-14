@@ -124,7 +124,8 @@ double microfacet_distribution(Surface_Point& p, Vec3 v)
 	double cos_ph_sq = cos_ph * cos_ph;
 	double sin_ph_sq = sin_ph * sin_ph;
 
-	double r_sq = p.material.roughness * p.material.roughness;
+	double r = *TEXTURE_SAMPLE(double, p.surface_material->roughness_texture, p.texture_coordinates);
+	double r_sq = r * r;
 	double d = exp(-tan_th_sq / r_sq) / (PI * r_sq * cos_th_sq * cos_th_sq);
 
 	return d;
@@ -140,7 +141,8 @@ double lambda(Surface_Point& p, Vec3 v)
 	double cos_ph_sq = cos_ph * cos_ph;
 	double sin_ph_sq = sin_ph * sin_ph;
 
-	double r_sq = p.material.roughness * p.material.roughness;
+	double r = *TEXTURE_SAMPLE(double, p.surface_material->roughness_texture, p.texture_coordinates);
+	double r_sq = r * r; 
 	double alpha = sqrt(cos_ph_sq * r_sq + sin_ph_sq * r_sq); //alpha = sqrt(2) * sigma
 	double a = 1.0 / (alpha * abs_tan_th);
 	
@@ -252,14 +254,17 @@ double geometric_attenuation(Vec3 incoming, Vec3 outgoing, Vec3 surface_normal, 
 
 void diffuse_phong_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
-	spectral_multiply(p.material.diffuse_spd, 1.0/PI, reflectance);
+	Spectrum* diffuse_spd = TEXTURE_SAMPLE(Spectrum, p.surface_material->diffuse_spd_texture, p.texture_coordinates);
+	spectral_multiply(*diffuse_spd, 1.0/PI, reflectance);
 }
 
 void glossy_phong_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
 	Vec3 bisector = (incoming + outgoing)/2.0;
-	double specular_coefficient = pow(d_max(0.0, dot(p.normal, bisector)), p.material.shininess);
-	spectral_multiply(p.material.glossy_spd, specular_coefficient, reflectance);
+	double* shininess = TEXTURE_SAMPLE(double, p.surface_material->shininess_texture, p.texture_coordinates);
+	double specular_coefficient = pow(d_max(0.0, dot(p.normal, bisector)), *shininess);
+	Spectrum* glossy_spd = TEXTURE_SAMPLE(Spectrum, p.surface_material->glossy_spd_texture, p.texture_coordinates);
+	spectral_multiply(*glossy_spd, specular_coefficient, reflectance);
 }
 
 void perfect_specular_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
@@ -278,15 +283,18 @@ void fresnel_specular_reflection_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outg
 	{
 		double incident_cos = abs(dot(outgoing, p.normal));
 		double reflectance_cos = abs(dot(incoming, p.normal));
+		Spectrum& incident_refract_index = *TEXTURE_SAMPLE(Spectrum, p.incident_material->refract_index_texture, p.texture_coordinates);
+		Spectrum& transmit_refract_index = *TEXTURE_SAMPLE(Spectrum, p.transmit_material->refract_index_texture, p.texture_coordinates);
 
-		if(p.material.type == MAT_TYPE_CONDUCTOR) 
+		if(p.surface_material->type == MAT_TYPE_CONDUCTOR) 
 		{
-			fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, incident_cos, reflectance);
+			Spectrum& transmit_extinct_index = *TEXTURE_SAMPLE(Spectrum, p.transmit_material->extinct_index_texture, p.texture_coordinates);
+			fresnel_reflectance_conductor(incident_refract_index, transmit_refract_index, transmit_extinct_index, incident_cos, reflectance);
 			spectral_multiply(reflectance, 1.0 / reflectance_cos, reflectance);
 		}
-		else if(p.material.type == MAT_TYPE_DIELECTRIC)
+		else if(p.surface_material->type == MAT_TYPE_DIELECTRIC)
 		{
-			fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, reflectance);
+			fresnel_reflectance_dielectric(incident_refract_index, transmit_refract_index, incident_cos, reflectance);
 			spectral_multiply(reflectance, 1.0 / reflectance_cos, reflectance);
 		}
 	}
@@ -295,11 +303,13 @@ void fresnel_specular_reflection_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outg
 
 void fresnel_transmission_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& transmittance, Spectrum&)
 {
-	if(incoming == transmit_vector(p.incident_refract_index, p.transmit_refract_index, p.normal, outgoing))
+	Spectrum& incident_refract_index = *TEXTURE_SAMPLE(Spectrum, p.incident_material->refract_index_texture, p.texture_coordinates);
+	Spectrum& transmit_refract_index = *TEXTURE_SAMPLE(Spectrum, p.transmit_material->refract_index_texture, p.texture_coordinates);
+	if(incoming == transmit_vector(incident_refract_index, transmit_refract_index, p.normal, outgoing))
 	{
 		double incident_cos = abs(dot(outgoing, p.normal));
 		double transmit_cos = abs(dot(incoming, p.normal));
-		fresnel_transmittance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, transmit_cos, transmittance);
+		fresnel_transmittance_dielectric(incident_refract_index, transmit_refract_index, incident_cos, transmit_cos, transmittance);
 		spectral_multiply(transmittance, 1.0 / transmit_cos, transmittance);
 	}
 }
@@ -341,18 +351,22 @@ void cook_torrance_reflectance_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoi
 	double cos_mn_out = abs(dot(outgoing, microfacet_normal));
 	double cos_mn_in = abs(dot(incoming, microfacet_normal));
 
-	if(p.material.type == MAT_TYPE_CONDUCTOR) 
+	Spectrum& incident_refract_index = *TEXTURE_SAMPLE(Spectrum, p.incident_material->refract_index_texture, p.texture_coordinates);
+	Spectrum& transmit_refract_index = *TEXTURE_SAMPLE(Spectrum, p.transmit_material->refract_index_texture, p.texture_coordinates);
+	Spectrum& transmit_extinct_index = *TEXTURE_SAMPLE(Spectrum, p.transmit_material->extinct_index_texture, p.texture_coordinates);
+	if(p.surface_material->type == MAT_TYPE_CONDUCTOR)
 	{
-		fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, cos_mn_out, fr);
+		fresnel_reflectance_conductor(incident_refract_index, transmit_refract_index, transmit_extinct_index, cos_mn_out, fr);
 		spectral_multiply(fr, 1.0 / cos_mn_in, fr);
 	}
-	else if(p.material.type == MAT_TYPE_DIELECTRIC)
+	else if(p.surface_material->type == MAT_TYPE_DIELECTRIC)
 	{
-		fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, cos_mn_out, fr);
+		fresnel_reflectance_dielectric(incident_refract_index, transmit_refract_index, cos_mn_out, fr);
 		spectral_multiply(fr, 1.0 / cos_mn_in, fr);
 	}
 
-	double reflectance_coefficient = ggx_distribution(surface_normal, microfacet_normal, p.material.roughness) * geometric_attenuation(incoming, outgoing, surface_normal, microfacet_normal, p.material.roughness);
+	double roughness = *TEXTURE_SAMPLE(double, p.surface_material->roughness_texture, p.texture_coordinates);
+	double reflectance_coefficient = ggx_distribution(surface_normal, microfacet_normal, roughness) * geometric_attenuation(incoming, outgoing, surface_normal, microfacet_normal, roughness);
 	spectral_multiply(fr, reflectance_coefficient, fr);
 	reflectance_coefficient = 1.0/(4.0 * cos_sn_out * cos_sn_in);
 	spectral_multiply(fr, reflectance_coefficient, fr);
@@ -366,14 +380,17 @@ void torrance_sparrow_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spect
 	double incident_cos = abs(cos_th_out);
 	double reflectance_cos = abs(cos_th_in);
 
-	if(p.material.type == MAT_TYPE_CONDUCTOR)
+	Spectrum& incident_refract_index = *TEXTURE_SAMPLE(Spectrum, p.incident_material->refract_index_texture, p.texture_coordinates);
+	Spectrum& transmit_refract_index = *TEXTURE_SAMPLE(Spectrum, p.transmit_material->refract_index_texture, p.texture_coordinates);
+	Spectrum& transmit_extinct_index = *TEXTURE_SAMPLE(Spectrum, p.transmit_material->extinct_index_texture, p.texture_coordinates);
+	if(p.surface_material->type == MAT_TYPE_CONDUCTOR)
 	{
-		fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, incident_cos, fr);
+		fresnel_reflectance_conductor(incident_refract_index, transmit_refract_index, transmit_extinct_index, incident_cos, fr);
 		spectral_multiply(fr, 1.0 / reflectance_cos, fr);
 	}
-	else if(p.material.type == MAT_TYPE_DIELECTRIC)
+	else if(p.surface_material->type == MAT_TYPE_DIELECTRIC)
 	{
-		fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, fr);
+		fresnel_reflectance_dielectric(incident_refract_index, transmit_refract_index, incident_cos, fr);
 		spectral_multiply(fr, 1.0 / reflectance_cos, fr);
 	}
 
@@ -391,14 +408,13 @@ void bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance)
 	set_spectrum_to_zero(reflectance);
 	Spectrum spare_spd;
 	Spectrum bsdf_result;
-	BSDF* material_bsdfs = p.material.bsdfs;
-	for(int i = 0; i < p.material.number_of_bsdfs; ++i)
+	BSDF* material_bsdfs = p.surface_material->bsdfs;
+	for(int i = 0; i < p.surface_material->number_of_bsdfs; ++i)
 	{
 		set_spectrum_to_zero(bsdf_result);
 		set_spectrum_to_zero(spare_spd);
 		material_bsdfs[i].bsdf(p, incoming, outgoing, bsdf_result, spare_spd);
 		spectral_sum(reflectance, bsdf_result, reflectance);
-		//reflectance += material_bsdfs[i].bsdf(p, incoming, outgoing);
 	}
 }
 
@@ -432,7 +448,7 @@ Vec3 sample_cook_torrance_reflection_direction(Surface_Point& p, Vec3 outgoing, 
 	double f = uniform_sample();
 	double g = uniform_sample();
 
-	double a = p.material.roughness;
+	double a = *TEXTURE_SAMPLE(double, p.surface_material->roughness_texture, p.texture_coordinates);
 	double a_sq = a * a;
 #if 0
 	double l = log(1.0 - f);
@@ -459,7 +475,7 @@ Vec3 sample_cook_torrance_reflection_direction(Surface_Point& p, Vec3 outgoing, 
 	
 	Vec3 reflection_direction = reflect_vector(-outgoing, microfacet_normal);
 	//*pdf_value = dot(outgoing, microfacet_normal) * geometric_attenuation(reflection_direction, outgoing, p.normal, microfacet_normal, p.material.roughness) / (dot(outgoing, p.normal) * dot(microfacet_normal, p.normal));
-	double d = ggx_distribution(p.normal, microfacet_normal, p.material.roughness) * mn_sn_dot;
+	double d = ggx_distribution(p.normal, microfacet_normal, a) * mn_sn_dot;
 
 	*pdf_value = d * (1.0/(4.0 * dot(outgoing, microfacet_normal)));
 
@@ -474,7 +490,8 @@ Vec3 sample_torrance_sparrow_direction(Surface_Point& p, Vec3 outgoing, double* 
 	double l = log(1.0 - f);
 	if(1.0 - f <= 0.0) l = 0.0;
 	
-	double tan_th_sq = - p.material.roughness * p.material.roughness * l;
+	double r = *TEXTURE_SAMPLE(double, p.surface_material->roughness_texture, p.texture_coordinates);
+	double tan_th_sq = - r * r * l;
 	double phi = 2.0 * PI * g;
 
 	double cos_th = 1.0 / sqrt(1.0 + tan_th_sq);
@@ -496,7 +513,9 @@ Vec3 sample_specular_direction(Surface_Point& p, Vec3 outgoing, double* pdf_valu
 Vec3 sample_specular_transmission_direction(Surface_Point& p, Vec3 outgoing, double* pdf_value)
 {
 	*pdf_value = 1.0;
-	return transmit_vector(p.incident_refract_index, p.transmit_refract_index, p.normal, outgoing);
+	Spectrum& incident_refract_index = *TEXTURE_SAMPLE(Spectrum, p.incident_material->refract_index_texture, p.texture_coordinates);
+	Spectrum& transmit_refract_index = *TEXTURE_SAMPLE(Spectrum, p.transmit_material->refract_index_texture, p.texture_coordinates);
+	return transmit_vector(incident_refract_index, transmit_refract_index, p.normal, outgoing);
 }
 
 
@@ -505,11 +524,13 @@ Vec3 sample_specular_transmission_direction(Surface_Point& p, Vec3 outgoing, dou
 //	- fresnel_reflectance should return 1.0 with total internal reflection
 Vec3 sample_specular_reflection_or_transmission_direction(Surface_Point& p, Vec3 outgoing, double* pdf_value)
 {
-	double incident_refract_index = spd_value_at_wavelength(p.incident_refract_index, TRANSMISSION_WAVELENGTH);
-	double transmit_refract_index = spd_value_at_wavelength(p.transmit_refract_index, TRANSMISSION_WAVELENGTH);
+	Spectrum& incident_refract_index = *TEXTURE_SAMPLE(Spectrum, p.incident_material->refract_index_texture, p.texture_coordinates);
+	Spectrum& transmit_refract_index = *TEXTURE_SAMPLE(Spectrum, p.transmit_material->refract_index_texture, p.texture_coordinates);
+	double incident_refract_index_d = spd_value_at_wavelength(incident_refract_index, TRANSMISSION_WAVELENGTH);
+	double transmit_refract_index_d = spd_value_at_wavelength(transmit_refract_index, TRANSMISSION_WAVELENGTH);
 	double incident_cos = abs(dot(outgoing, p.normal));
 
-	double reflectance = fresnel_reflectance_dielectric(incident_refract_index, transmit_refract_index, incident_cos);
+	double reflectance = fresnel_reflectance_dielectric(incident_refract_index_d, transmit_refract_index_d, incident_cos);
 
 	double f = uniform_sample();
 
@@ -521,7 +542,7 @@ Vec3 sample_specular_reflection_or_transmission_direction(Surface_Point& p, Vec3
 	}
 	else
 	{
-		sampled_direction = transmit_vector(incident_refract_index, transmit_refract_index, p.normal, outgoing);
+		sampled_direction = transmit_vector(incident_refract_index_d, transmit_refract_index_d, p.normal, outgoing);
 		*pdf_value = 1.0 - reflectance;
 	}
 	
@@ -537,9 +558,12 @@ Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shinin
 	Material plastic = {};
 	//Reflectances
 	plastic.type = MAT_TYPE_DIELECTRIC;
-	plastic.diffuse_spd = diffuse_spd;
-	plastic.glossy_spd = glossy_spd;
-	plastic.shininess = shininess;
+	plastic.diffuse_spd_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	TEXTURE_CLEAR(plastic.diffuse_spd_texture, diffuse_spd);
+	plastic.glossy_spd_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	TEXTURE_CLEAR(plastic.glossy_spd_texture, glossy_spd);
+	plastic.shininess_texture = TEXTURE_CREATE(double, 1, 1);
+	TEXTURE_CLEAR(plastic.shininess_texture, shininess);
 	
 	//BSDFs
 	plastic.number_of_bsdfs = 2;
@@ -565,8 +589,10 @@ Material create_textured_plastic(Texture diffuse_spd_texture, Spectrum glossy_sp
 	Material plastic = {};
 	plastic.type = MAT_TYPE_DIELECTRIC;
 	plastic.diffuse_spd_texture = diffuse_spd_texture;
-	plastic.glossy_spd = glossy_spd;
-	plastic.shininess = shininess;
+	plastic.glossy_spd_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	TEXTURE_CLEAR(plastic.glossy_spd_texture, glossy_spd);
+	plastic.shininess_texture = TEXTURE_CREATE(double, 1, 1);
+	TEXTURE_CLEAR(plastic.shininess_texture, shininess);
 
 	plastic.number_of_bsdfs = 2;
 	BSDF diffuse_reflection = {};
@@ -617,15 +643,18 @@ Material create_conductor(Spectrum refract_index, Spectrum extinct_index, double
 		conductor.bsdfs[0].sample_direction = sample_specular_direction;
 	}
 
-	conductor.refract_index = refract_index;
-	conductor.extinct_index = extinct_index;
+	conductor.refract_index_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	TEXTURE_CLEAR(conductor.refract_index_texture, refract_index);
+	conductor.extinct_index_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	TEXTURE_CLEAR(conductor.extinct_index_texture, extinct_index);
 
-	conductor.roughness = roughness;
+	conductor.roughness_texture = TEXTURE_CREATE(double, 1, 1);
+	TEXTURE_CLEAR(conductor.roughness_texture, roughness);
 
 	return conductor;
 }
 
-Material create_dielectric(Spectrum refract_index)
+Material create_dielectric(Spectrum refract_index) 
 {
 	Material dielectric = {};
 	dielectric.type = MAT_TYPE_DIELECTRIC;
@@ -639,10 +668,15 @@ Material create_dielectric(Spectrum refract_index)
 	dielectric.bsdfs[1].bsdf = glossy_phong_bsdf;
 	dielectric.bsdfs[1].sample_direction = sample_glossy_direction;
 
-	dielectric.glossy_spd = generate_constant_spd(1.0);
-	dielectric.shininess = 16.0;
+	dielectric.glossy_spd_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	Spectrum glossy_spd = generate_constant_spd(1.0);
+	TEXTURE_CLEAR(dielectric.glossy_spd_texture, glossy_spd);
+	dielectric.shininess_texture = TEXTURE_CREATE(double, 1, 1);
+	double shininess = 16.0;
+	TEXTURE_CLEAR(dielectric.shininess_texture, shininess);
 
-	dielectric.refract_index = refract_index;
+	dielectric.refract_index_texture = TEXTURE_CREATE(Spectrum, 1, 1);
+	TEXTURE_CLEAR(dielectric.refract_index_texture, refract_index);
 
 	return dielectric;
 }

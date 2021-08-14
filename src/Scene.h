@@ -71,6 +71,8 @@ struct Scene
 {
 	int number_of_objects;
 	Scene_Object objects[SCENE_OBJECT_MAX];
+
+	Material air_material;
 };
 
 struct Geometry_Intersection_Point

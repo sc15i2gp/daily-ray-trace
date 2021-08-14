@@ -35,18 +35,6 @@ struct Material
 	int number_of_bsdfs;
 	BSDF bsdfs[MAT_BSDF_MAX];
 
-	Spectrum emission_spd;
-
-	//Plastic data
-	Spectrum diffuse_spd;
-	Spectrum glossy_spd;
-	double shininess;
-
-	//Fresnel data
-	Spectrum refract_index;
-	Spectrum extinct_index;
-	double roughness;
-
 	//Textures
 	Texture emission_spd_texture;
 	Texture diffuse_spd_texture;
@@ -60,11 +48,12 @@ struct Material
 struct Surface_Point
 {
 	char* name;
-	Spectrum incident_refract_index;
-	Spectrum transmit_refract_index;
 	Vec3 normal;
 	Vec3 position;
-	Material material;
+	Vec2 texture_coordinates;
+	Material* surface_material;
+	Material* incident_material;
+	Material* transmit_material;
 	bool exists;
 	bool is_emissive;
 };

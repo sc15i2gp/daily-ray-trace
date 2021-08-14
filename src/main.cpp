@@ -100,7 +100,7 @@
 
 //TODO: NOW
 //	- Optimise memory stuff
-//		- Reduce number of calls to memcpy and memset
+//		- Remove need for stack size change in compile, reduce stack memory footprint
 //		- Improve cache performance
 //	- Optimisation/Cleaning + ease of debugging
 //		- Sort out floating point precision issues
@@ -115,6 +115,8 @@
 
 //Reduce time spent copying:
 //	- Majority of time now spent copying material data
+//		- Remove separate spectra for spds and have bsdfs sample 1 pixel size textures
+//		- Make surface point have pointer to material instead of copying
 //	- Don't store any spectra on the stack
 //	- Have pool of spectra which can be accessed
 
