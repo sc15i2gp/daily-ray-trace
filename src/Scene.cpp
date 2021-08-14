@@ -349,7 +349,7 @@ void find_intersection_surface_point(Scene* scene, Ray outgoing, Surface_Point& 
 }
 
 int max_depth = 4; //NOTE: Arbitrarily chosen
-Radiance cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
+void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 {
 	TIMED_FUNCTION;
 	Radiance direct_contribution;
@@ -396,7 +396,6 @@ Radiance cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 		}
 		else break;
 	}
-	return eye_ray_radiance;
 }
 
 Model create_model()
