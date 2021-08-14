@@ -34,8 +34,14 @@ struct Profile
 	Profile_Node* currently_executing_block;
 };
 
+#ifdef PROFILE_TIMINGS
 #define TIMED_FUNCTION Timed_Block t_##__LINE__(__FUNCTION__, __LINE__, __FILE__)
 #define TIMED_BLOCK(name) Timed_Block t_##__LINE__(name, __LINE__, __FILE__)
+#else
+#define TIMED_FUNCTION
+#define TIMED_BLOCK(name)
+#endif
+
 
 void init_profiling();
 void print_profile();
