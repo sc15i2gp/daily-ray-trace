@@ -186,10 +186,12 @@ Geometry_Intersection_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 	return intersection_point;
 }
 
-Radiance direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing)
+void direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing, Radiance& contribution)
 {
 	TIMED_FUNCTION;
-	Radiance contribution = {};
+	Spectrum bsdf_result;
+	set_spectrum_to_zero(bsdf_result);
+	set_spectrum_to_zero(contribution);
 	if(!p.is_emissive)
 	{
 		for(int i = 0; i < scene->number_of_objects; ++i)
@@ -237,13 +239,13 @@ Radiance direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing)
 					double d = abs(dot(incoming, p.normal));
 					double f = attenuation_factor * d / light_pdf;
 
-					contribution += f * bsdf(p, incoming, outgoing.direction) * light.material.emission_spd;
+					bsdf(p, incoming, outgoing.direction, bsdf_result);
+					spectral_multiply(bsdf_result, light.material.emission_spd, bsdf_result);
+					spectral_sum_and_multiply(contribution, bsdf_result, f, contribution);
 				}
 			}
 		}
 	}
-
-	return contribution;
 }
 
 //MIRROR CHANGE: Probability of sampling specular direction depends on material
@@ -347,14 +349,18 @@ void find_intersection_surface_point(Scene* scene, Ray outgoing, Surface_Point& 
 }
 
 int max_depth = 4; //NOTE: Arbitrarily chosen
-Radiance cast_ray(Scene* scene, Ray eye_ray)
+Radiance cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 {
 	TIMED_FUNCTION;
-	Radiance eye_ray_radiance = {};
-	Radiance direct_contribution = {};
+	Radiance direct_contribution;
+	Radiance bsdf_result;
+	set_spectrum_to_zero(direct_contribution);
+	set_spectrum_to_zero(bsdf_result);
 	Ray outgoing = eye_ray;
 	Ray incoming = {};
-	Spectrum f = generate_constant_spd(1.0);
+	Spectrum f;
+	set_spectrum_to_value(f, 1.0);
+
 	double dir_pdf = 0.0;
 	bool consider_emissive = true;
 	Surface_Point p = {};
@@ -366,19 +372,25 @@ Radiance cast_ray(Scene* scene, Ray eye_ray)
 
 		if(p.exists && p.is_emissive && consider_emissive)
 		{
-			eye_ray_radiance += f * p.material.emission_spd;
+			spectral_sum_and_multiply(eye_ray_radiance, f, p.material.emission_spd, eye_ray_radiance);
+			//eye_ray_radiance += f * p.material.emission_spd;
 			break;
 		}
 		else if(p.exists && !p.is_emissive)
 		{
 			outgoing.direction = -outgoing.direction; //Reverse for bsdf computation, needs to start other way round for intersection test
-			eye_ray_radiance += f * direct_light_contribution(scene, p, outgoing);
+			direct_light_contribution(scene, p, outgoing, direct_contribution);
+			spectral_sum_and_multiply(eye_ray_radiance, f, direct_contribution, eye_ray_radiance);
+			//eye_ray_radiance += f * direct_light_contribution(scene, p, outgoing);
 			
 			//Choose new incoming direction
 			incoming.direction = choose_incoming_direction(p, outgoing.direction, &dir_pdf, &consider_emissive);
 			incoming.origin = p.position + 0.001*incoming.direction;
 			//Compute new direction pdf value
-			f *= (abs(dot(p.normal, incoming.direction) * (1.0/dir_pdf))) * bsdf(p, incoming.direction, outgoing.direction);
+			double f_coefficient = abs(dot(p.normal, incoming.direction)) * (1.0/dir_pdf);
+			bsdf(p, incoming.direction, outgoing.direction, bsdf_result);
+			spectral_multiply(f, bsdf_result, f_coefficient, f);
+			//f *= (abs(dot(p.normal, incoming.direction) * (1.0/dir_pdf))) * bsdf(p, incoming.direction, outgoing.direction);
 			
 			outgoing = incoming;
 		}
@@ -600,7 +612,7 @@ void render_image(Texture* render_target)
 		printf("Pass %d/%d\r", pass+1, number_of_render_samples);
 		start_timer(&timer);
 
-		Spectrum pixel_spectrum = {};
+		Spectrum pixel_spectrum;
 		Vec3 pixel_top_left = {};
 		Vec3 sampled_pixel_point = {};
 		Ray eye_ray = {};
@@ -610,6 +622,7 @@ void render_image(Texture* render_target)
 			for(int x = 0; x < image_plane_width_px; ++x)
 			{
 				DEBUG(debug_set_pixel(x, y));
+				set_spectrum_to_zero(pixel_spectrum);
 				pixel_top_left = image_plane_top_left + ((double)x)*pixel_width*right - ((double)y)*pixel_height*up;
 				Vec3 x_pixel_sample = (0.5 * pixel_width + (double)(i%2) * pixel_width) * Vec3{1.0, 0.0, 0.0};
 				Vec3 y_pixel_sample = (0.5 * pixel_height + (double)(i / 2) * pixel_height) * Vec3{0.0, 1.0, 0.0};
@@ -627,9 +640,13 @@ void render_image(Texture* render_target)
 					eye_ray.origin = sampled_pixel_point;
 					eye_ray.direction = normalise(pinhole_position - eye_ray.origin);
 				}
-				pixel_spectrum = cast_ray(&scene, eye_ray);			
+				cast_ray(&scene, eye_ray, pixel_spectrum);
 				Spectrum* target_pixel = TEXTURE_READ(Spectrum, spectrum_buffer, x, y);
-				*target_pixel = ((double)pass * *target_pixel + pixel_spectrum)/(double)(pass+1);
+				double pass_d = (double)pass;
+				double pass_inc_d = (double)(pass+1);
+				spectral_sum_and_multiply(pixel_spectrum, *target_pixel, pass_d, *target_pixel);
+				spectral_multiply(*target_pixel, 1.0/pass_inc_d, *target_pixel);
+				//*target_pixel = ((double)pass * *target_pixel + pixel_spectrum)/(double)(pass+1);
 				RGB8 pixel_colour = rgb64_to_rgb8(spectrum_to_RGB64(*target_pixel));
 				TEXTURE_WRITE(*render_target, x, y, pixel_colour);
 			}

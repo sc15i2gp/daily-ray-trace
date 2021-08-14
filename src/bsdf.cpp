@@ -30,14 +30,12 @@ double fresnel_reflectance_dielectric(double incident_refraction_index, double t
 }
 
 
-Spectrum fresnel_reflectance_dielectric(Spectrum& incident_refract_index, Spectrum& transmit_refract_index, double incident_cos)
+void fresnel_reflectance_dielectric(Spectrum& incident_refract_index, Spectrum& transmit_refract_index, double incident_cos, Spectrum& reflectance)
 {
-	Spectrum reflectance = {};
 	for(int i = 0; i < number_of_samples; ++i)
 	{
 		reflectance.samples[i] = fresnel_reflectance_dielectric(incident_refract_index.samples[i], transmit_refract_index.samples[i], incident_cos);
 	}
-	return reflectance;
 }
 
 double fresnel_transmittance_dielectric(double incident_refraction_index, double transmit_refraction_index, double incident_cos, double transmit_cos)
@@ -68,24 +66,20 @@ double fresnel_reflectance_conductor(double incident_refract_index, double trans
 	return 0.5 * (parallel_reflectance + perpendicular_reflectance);
 }
 
-Spectrum fresnel_reflectance_conductor(Spectrum& incident_refract_index, Spectrum& transmit_refract_index, Spectrum& transmit_extinct_index, double incident_cos)
+void fresnel_reflectance_conductor(Spectrum& incident_refract_index, Spectrum& transmit_refract_index, Spectrum& transmit_extinct_index, double incident_cos, Spectrum& reflectance)
 {
-	Spectrum reflectance = {};
 	for(int i = 0; i < number_of_samples; ++i)
 	{
 		reflectance.samples[i] = fresnel_reflectance_conductor(incident_refract_index.samples[i], transmit_refract_index.samples[i], transmit_extinct_index.samples[i], incident_cos);
 	}
-	return reflectance;
 }
 
-Spectrum fresnel_transmittance_dielectric(Spectrum& incident_refract_index, Spectrum& transmit_refract_index, double incident_cos, double transmit_cos)
+void fresnel_transmittance_dielectric(Spectrum& incident_refract_index, Spectrum& transmit_refract_index, double incident_cos, double transmit_cos, Spectrum& transmittance)
 {
-	Spectrum transmittance = {};
 	for(int i = 0; i < number_of_samples; ++i)
 	{
 		transmittance.samples[i] = fresnel_transmittance_dielectric(incident_refract_index.samples[i], transmit_refract_index.samples[i], incident_cos, transmit_cos);
 	}
-	return transmittance;
 }
 
 //NOTE: The index of refraction chosen is the spectrum's value at 630 nm
@@ -256,83 +250,88 @@ double geometric_attenuation(Vec3 incoming, Vec3 outgoing, Vec3 surface_normal, 
 /*	BSDFs	*/
 
 
-Spectrum diffuse_phong_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing)
+void diffuse_phong_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
-	return p.material.diffuse_spd / PI;
+	spectral_multiply(p.material.diffuse_spd, 1.0/PI, reflectance);
 }
 
-Spectrum glossy_phong_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing)
+void glossy_phong_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
 	Vec3 bisector = (incoming + outgoing)/2.0;
 	double specular_coefficient = pow(d_max(0.0, dot(p.normal, bisector)), p.material.shininess);
-	return specular_coefficient * p.material.glossy_spd;
+	spectral_multiply(p.material.glossy_spd, specular_coefficient, reflectance);
 }
 
-Spectrum perfect_specular_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing)
+void perfect_specular_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
-	if(incoming == reflect_vector(-outgoing, p.normal)) 
+	if(incoming == reflect_vector(-outgoing, p.normal))
 	{
-		return generate_constant_spd(1.0);
+		set_spectrum_to_value(reflectance, 1.0);
 	}
-	else return Spectrum{};
+	else set_spectrum_to_value(reflectance, 0.0);
 }
 
 //TODO: Make it so specular bsdfs don't have to check if incoming is specular reflection vector
-Spectrum fresnel_specular_reflection_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing)
+void fresnel_specular_reflection_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
 	if(incoming == reflect_vector(-outgoing, p.normal))
 	{
 		double incident_cos = abs(dot(outgoing, p.normal));
 		double reflectance_cos = abs(dot(incoming, p.normal));
 
-		if(p.material.type == MAT_TYPE_CONDUCTOR) return fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, incident_cos) / reflectance_cos;
-		else if(p.material.type == MAT_TYPE_DIELECTRIC) return fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos) / reflectance_cos;
+		if(p.material.type == MAT_TYPE_CONDUCTOR) 
+		{
+			fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, incident_cos, reflectance);
+			spectral_multiply(reflectance, 1.0 / reflectance_cos, reflectance);
+		}
+		else if(p.material.type == MAT_TYPE_DIELECTRIC)
+		{
+			fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, reflectance);
+			spectral_multiply(reflectance, 1.0 / reflectance_cos, reflectance);
+		}
 	}
-	return Spectrum{};
 }
 
 
-Spectrum fresnel_transmission_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing)
+void fresnel_transmission_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& transmittance, Spectrum&)
 {
-	Spectrum transmittance = {};
 	if(incoming == transmit_vector(p.incident_refract_index, p.transmit_refract_index, p.normal, outgoing))
 	{
 		double incident_cos = abs(dot(outgoing, p.normal));
 		double transmit_cos = abs(dot(incoming, p.normal));
-		return fresnel_transmittance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, transmit_cos) / transmit_cos;
+		fresnel_transmittance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, transmit_cos, transmittance);
+		spectral_multiply(transmittance, 1.0 / transmit_cos, transmittance);
 	}
-	return transmittance;
 }
 
-Spectrum fresnel_reflection_transmission_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing)
+void fresnel_reflection_transmission_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& f, Spectrum& temp_result)
 {
-	Spectrum f = fresnel_specular_reflection_bsdf(p, incoming, outgoing) + fresnel_transmission_bsdf(p, incoming, outgoing);
-	return f;
+	fresnel_specular_reflection_bsdf(p, incoming, outgoing, f, f);
+	fresnel_transmission_bsdf(p, incoming, outgoing, temp_result, temp_result);
+	spectral_sum(f, temp_result, f);
 }
 
 //MATERIAL BSDFs
-Spectrum plastic_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing)
+void plastic_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum& temp_result)
 {
 	if(dot(p.normal, incoming) > 0.0)
 	{
-		Spectrum diffuse = diffuse_phong_bsdf(p, incoming, outgoing);
-		Spectrum glossy = glossy_phong_bsdf(p, incoming, outgoing);
-		return diffuse + glossy;
+		diffuse_phong_bsdf(p, incoming, outgoing, reflectance, temp_result);
+		glossy_phong_bsdf(p, incoming, outgoing, temp_result, temp_result);
+		spectral_sum(reflectance, temp_result, reflectance);
 	}
-	return Spectrum{};
 }
 
-Spectrum mirror_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing)
+void mirror_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
 	if(dot(p.normal, incoming) > 0.0)
 	{
-		return perfect_specular_bsdf(p, incoming, outgoing);
+		perfect_specular_bsdf(p, incoming, outgoing, reflectance, reflectance);
 	}
-	return Spectrum {};
 }
 
 //Cite: Microfacet models for refraction through rough surfaces
-Spectrum cook_torrance_reflectance_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing)
+void cook_torrance_reflectance_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& fr, Spectrum&)
 {
 	Vec3 microfacet_normal = normalise(outgoing + incoming);
 	Vec3 surface_normal = p.normal;
@@ -342,47 +341,65 @@ Spectrum cook_torrance_reflectance_bsdf(Surface_Point& p, Vec3 incoming, Vec3 ou
 	double cos_mn_out = abs(dot(outgoing, microfacet_normal));
 	double cos_mn_in = abs(dot(incoming, microfacet_normal));
 
-	Spectrum fr = {};
+	if(p.material.type == MAT_TYPE_CONDUCTOR) 
+	{
+		fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, cos_mn_out, fr);
+		spectral_multiply(fr, 1.0 / cos_mn_in, fr);
+	}
+	else if(p.material.type == MAT_TYPE_DIELECTRIC)
+	{
+		fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, cos_mn_out, fr);
+		spectral_multiply(fr, 1.0 / cos_mn_in, fr);
+	}
 
-	if(p.material.type == MAT_TYPE_CONDUCTOR) fr = fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, cos_mn_out) / cos_mn_in;
-	else if(p.material.type == MAT_TYPE_DIELECTRIC) fr = fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, cos_mn_out) / cos_mn_in;
-
-	Spectrum reflectance = ggx_distribution(surface_normal, microfacet_normal, p.material.roughness) * geometric_attenuation(incoming, outgoing, surface_normal, microfacet_normal, p.material.roughness) * fr;
-	reflectance /= (4.0 * cos_sn_out * cos_sn_in);
-
-	return reflectance;
+	double reflectance_coefficient = ggx_distribution(surface_normal, microfacet_normal, p.material.roughness) * geometric_attenuation(incoming, outgoing, surface_normal, microfacet_normal, p.material.roughness);
+	spectral_multiply(fr, reflectance_coefficient, fr);
+	reflectance_coefficient = 1.0/(4.0 * cos_sn_out * cos_sn_in);
+	spectral_multiply(fr, reflectance_coefficient, fr);
 }
 
-Spectrum torrance_sparrow_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing)
+void torrance_sparrow_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& fr, Spectrum&)
 {
 	double cos_th_out = dot(outgoing, p.normal);
 	double cos_th_in = dot(incoming, p.normal);
 
-	Spectrum fr = {};
 	double incident_cos = abs(cos_th_out);
 	double reflectance_cos = abs(cos_th_in);
 
-	if(p.material.type == MAT_TYPE_CONDUCTOR) fr = fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, incident_cos) / reflectance_cos;
-	else if(p.material.type == MAT_TYPE_DIELECTRIC) fr = fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos) / reflectance_cos;
+	if(p.material.type == MAT_TYPE_CONDUCTOR)
+	{
+		fresnel_reflectance_conductor(p.incident_refract_index, p.material.refract_index, p.material.extinct_index, incident_cos, fr);
+		spectral_multiply(fr, 1.0 / reflectance_cos, fr);
+	}
+	else if(p.material.type == MAT_TYPE_DIELECTRIC)
+	{
+		fresnel_reflectance_dielectric(p.incident_refract_index, p.transmit_refract_index, incident_cos, fr);
+		spectral_multiply(fr, 1.0 / reflectance_cos, fr);
+	}
 
 	Vec3 halfway = (outgoing + incoming)/2.0;
-	Spectrum reflectance = microfacet_distribution(p, halfway) * geometric_attenuation(p, incoming, outgoing) * fr;
-	reflectance /= (4.0 * cos_th_in * cos_th_out);
-
-	return reflectance;
+	double reflectance_coefficient = microfacet_distribution(p, halfway) * geometric_attenuation(p, incoming, outgoing);
+	spectral_multiply(fr, reflectance_coefficient, fr);
+	reflectance_coefficient = 1.0/(4.0 * cos_th_in, cos_th_out);
+	spectral_multiply(fr, reflectance_coefficient, fr);
 }
 
 //GENERAL BSDF METHOD
-Spectrum bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing)
+void bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance)
 {
 	TIMED_FUNCTION;
-	Spectrum reflectance = {};
+	set_spectrum_to_zero(reflectance);
+	Spectrum spare_spd;
+	Spectrum bsdf_result;
 	BSDF* material_bsdfs = p.material.bsdfs;
 	for(int i = 0; i < p.material.number_of_bsdfs; ++i)
 	{
-		reflectance += material_bsdfs[i].bsdf(p, incoming, outgoing);
+		set_spectrum_to_zero(bsdf_result);
+		set_spectrum_to_zero(spare_spd);
+		material_bsdfs[i].bsdf(p, incoming, outgoing, bsdf_result, spare_spd);
+		spectral_sum(reflectance, bsdf_result, reflectance);
+		//reflectance += material_bsdfs[i].bsdf(p, incoming, outgoing);
 	}
-	return reflectance;
 }
 
 

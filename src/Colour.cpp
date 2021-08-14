@@ -27,7 +27,7 @@ RGB8 rgb64_to_rgb8(RGB64 rgb64)
 //	- spectrum = double | cast_ray in Scene.cpp
 //	- spectrum_0 = spectrum_1
 
-//	- spectrum_0 = (double_0 * spectrum_0 + spectrum_1)/double_1 | render_image in Scene.cpp
+//	- spectrum_0 = (double_0 * spectrum_0 + spectrum_1) | render_image in Scene.cpp
 //	- spectrum_0 = spectrum_0 + spectrum_1 * spectrum_2 | cast_ray in Scene.cpp
 //	- spectrum_0 = spectrum_0 + double * spectrum_1 * spectrum_2 | direct_light_contribution in Scene.cpp
 
@@ -40,6 +40,16 @@ RGB8 rgb64_to_rgb8(RGB64 rgb64)
 
 //	- spectrum_0 = spectrum_1 + spectrum_2 | plastic_bsdf in bsdf.cpp
 //	- spectrum_0 = spectrum_0 + spectrum_1 | bsdf in bsdf.cpp
+
+//	- spectrum_0 = spectrum_0 + double * spectrum_1
+
+void set_spectrum_to_zero(Spectrum& spd)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		spd.samples[i] = 0.0;
+	}
+}
 
 void set_spectrum_to_value(Spectrum& spd, double d)
 {
@@ -62,6 +72,14 @@ void spectral_sum(Spectrum& spd_0, Spectrum& spd_1, Spectrum& dst_spd)
 	for(int i = 0; i < number_of_samples; ++i)
 	{
 		dst_spd.samples[i] = spd_0.samples[i] + spd_1.samples[i];
+	}
+}
+
+void spectral_multiply(Spectrum& spd_0, Spectrum& spd_1, Spectrum& dst_spd)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		dst_spd.samples[i] = spd_0.samples[i] * spd_1.samples[i];
 	}
 }
 
@@ -89,66 +107,12 @@ void spectral_sum_and_multiply(Spectrum& spd_0, Spectrum& spd_1, Spectrum& spd_2
 	}
 }
 
-inline
-Spectrum operator+(const Spectrum& spd_0, const Spectrum& spd_1)
+void spectral_sum_and_multiply(Spectrum& spd_0, Spectrum& spd_1, double d, Spectrum& dst_spd)
 {
-	Spectrum spd = {};
 	for(int i = 0; i < number_of_samples; ++i)
 	{
-		spd.samples[i] = spd_0.samples[i] + spd_1.samples[i];
+		dst_spd.samples[i] = spd_0.samples[i] + (d * spd_1.samples[i]);
 	}
-	return spd;
-}
-
-inline
-Spectrum operator*(const Spectrum& spd_0, const Spectrum& spd_1)
-{
-	Spectrum spd = {};
-	for(int i = 0; i < number_of_samples; ++i)
-	{
-		spd.samples[i] = spd_0.samples[i] * spd_1.samples[i];
-	}
-	return spd;
-}
-
-inline
-Spectrum operator*(double d, const Spectrum& spd_0)
-{
-	Spectrum spd = {};
-	for(int i = 0; i < number_of_samples; ++i)
-	{
-		spd.samples[i] = d * spd_0.samples[i];
-	}
-	return spd;
-}
-
-inline
-Spectrum operator/(const Spectrum& spd_0, double d)
-{
-	Spectrum spd = {};
-	for(int i = 0; i < number_of_samples; ++i)
-	{
-		spd.samples[i] = spd_0.samples[i] / d;
-	}
-	return spd;
-}
-
-inline
-void operator+=(Spectrum& spd_0, const Spectrum& spd_1)
-{
-	spd_0 = spd_0 + spd_1;
-}
-
-inline
-void operator*=(Spectrum& spd_0, const Spectrum& spd_1)
-{
-	spd_0 = spd_0 * spd_1;
-}
-
-inline
-void operator/=(Spectrum& spd, double d)
-{
-	spd = spd/d;
 }
 
 void normalise(Spectrum& spd)
@@ -369,9 +333,10 @@ Vec3 spectrum_to_xyz(Spectrum spd)
 {
 	//SPD -> XYZ
 	Spectrum spd_xyz[3] = {};
-	spd_xyz[0] = spd * colour_matching_functions[0];
-	spd_xyz[1] = spd * colour_matching_functions[1];
-	spd_xyz[2] = spd * colour_matching_functions[2];
+	for(int i = 0; i < 3; ++i)
+	{
+		spectral_multiply(spd, colour_matching_functions[i], spd_xyz[i]);
+	}
 
 	Vec3 xyz = {};
 	double l = (end_wavelength - start_wavelength)/(double)(number_of_samples);
@@ -429,44 +394,44 @@ Spectrum RGB64_to_spectrum(RGB64 rgb)
 	Spectrum spd = {};
 	if(rgb.R <= rgb.G && rgb.R <= rgb.B)
 	{
-		spd += rgb.R * white_rgb_to_spd;
+		spectral_sum_and_multiply(spd, white_rgb_to_spd, rgb.R, spd);
 		if(rgb.G <= rgb.B)
 		{
-			spd += (rgb.G - rgb.R)*cyan_rgb_to_spd;
-			spd += (rgb.B - rgb.G)*blue_rgb_to_spd;
+			spectral_sum_and_multiply(spd, cyan_rgb_to_spd, rgb.G - rgb.R, spd);
+			spectral_sum_and_multiply(spd, blue_rgb_to_spd, rgb.B - rgb.G, spd);
 		}
 		else
 		{
-			spd += (rgb.B - rgb.R)*cyan_rgb_to_spd;
-			spd += (rgb.G - rgb.B)*green_rgb_to_spd;
+			spectral_sum_and_multiply(spd, cyan_rgb_to_spd, rgb.B - rgb.R, spd);
+			spectral_sum_and_multiply(spd, green_rgb_to_spd, rgb.G - rgb.B, spd);
 		}
 	}
 	else if(rgb.G <= rgb.R && rgb.G <= rgb.B)
 	{
-		spd += rgb.G * white_rgb_to_spd;
+		spectral_sum_and_multiply(spd, white_rgb_to_spd, rgb.G, spd);
 		if(rgb.R <= rgb.B)
 		{
-			spd += (rgb.R - rgb.G)*magenta_rgb_to_spd;
-			spd += (rgb.B - rgb.R)*blue_rgb_to_spd;
+			spectral_sum_and_multiply(spd, magenta_rgb_to_spd, rgb.R - rgb.G, spd);
+			spectral_sum_and_multiply(spd, blue_rgb_to_spd, rgb.B - rgb.R, spd);
 		}
 		else
 		{
-			spd += (rgb.B - rgb.G)*magenta_rgb_to_spd;
-			spd += (rgb.R - rgb.B)*red_rgb_to_spd;
+			spectral_sum_and_multiply(spd, magenta_rgb_to_spd, rgb.B - rgb.G, spd);
+			spectral_sum_and_multiply(spd, red_rgb_to_spd, rgb.R - rgb.B, spd);
 		}
 	}
 	else
 	{
-		spd += rgb.B * white_rgb_to_spd;
+		spectral_sum_and_multiply(spd, white_rgb_to_spd, rgb.B, spd);
 		if(rgb.R <= rgb.G)
 		{
-			spd += (rgb.R - rgb.B)*yellow_rgb_to_spd;
-			spd += (rgb.G - rgb.R)*green_rgb_to_spd;
+			spectral_sum_and_multiply(spd, yellow_rgb_to_spd, rgb.R - rgb.B, spd);
+			spectral_sum_and_multiply(spd,green_rgb_to_spd, rgb.G - rgb.R, spd);
 		}
 		else
 		{
-			spd += (rgb.G - rgb.B)*yellow_rgb_to_spd;
-			spd += (rgb.R - rgb.G)*red_rgb_to_spd;
+			spectral_sum_and_multiply(spd, yellow_rgb_to_spd, rgb.G - rgb.B, spd); 
+			spectral_sum_and_multiply(spd, red_rgb_to_spd, rgb.R - rgb.G, spd); 
 		}
 	}
 
