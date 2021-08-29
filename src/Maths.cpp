@@ -527,8 +527,10 @@ Plane create_plane_from_bounds(Vec3 p, Vec3 u, Vec3 v)
 {
 	Plane plane = {};
 	plane.p = p;
-	plane.u = u;
-	plane.v = v;
+	plane.u_length = length(u);
+	plane.v_length = length(v);
+	plane.u = u/plane.u_length;
+	plane.v = v/plane.v_length;
 	plane.n = normalise(cross(plane.u, plane.v));
 
 	return plane;
@@ -541,6 +543,10 @@ Plane create_plane_from_points(Vec3 p, Vec3 u, Vec3 v)
 	plane.p = p;
 	plane.u = u - p;
 	plane.v = v - p;
+	plane.u_length = length(plane.u);
+	plane.v_length = length(plane.v);
+	plane.u /= plane.u_length;
+	plane.v /= plane.v_length;
 	plane.n = -normalise(cross(plane.u, plane.v));
 
 	return plane;
@@ -730,13 +736,11 @@ bool ray_intersects_plane(Ray ray, Plane p, double* t)
 		*t = desired_solution;
 
 		Vec3 intersection = ray.origin + desired_solution * ray.direction;
-		Vec3 u_norm = normalise(p.u);
-		Vec3 v_norm = normalise(p.v);
-		double i_u = dot(intersection - p.p, u_norm); //How far along u intersection is
-		double i_v = dot(intersection - p.p, v_norm); //How far along v intersection is
+		double i_u = dot(intersection - p.p, p.u); //How far along u intersection is
+		double i_v = dot(intersection - p.p, p.v); //How far along v intersection is
 		
-		bool within_u = i_u >= 0.0 && i_u <= length(p.u);
-		bool within_v = i_v >= 0.0 && i_v <= length(p.v);
+		bool within_u = i_u >= 0.0 && i_u <= p.u_length;
+		bool within_v = i_v >= 0.0 && i_v <= p.v_length;
 		bool intersection_within_bounds = within_u && within_v;
 		return (desired_solution >= 0.0) && intersection_within_bounds;
 	}

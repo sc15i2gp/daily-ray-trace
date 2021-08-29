@@ -130,27 +130,27 @@ Vec2 normalise(Vec2);
 
 /*	Vec3	*/
 
-Vec3 operator+(Vec3, Vec3);
-Vec3 operator-(Vec3, Vec3);
-Vec3 operator-(Vec3);
-Vec3 operator*(Vec3, Vec3);
-Vec3 operator*(double, Vec3);
-Vec3 operator/(Vec3, Vec3);
-Vec3 operator/(Vec3, double);
-void operator+=(Vec3&, Vec3);
-void operator-=(Vec3&, Vec3);
-void operator*=(Vec3&, Vec3);
-void operator*=(Vec3&, double);
-void operator/=(Vec3&, Vec3);
-void operator/=(Vec3&, double);
+inline Vec3 operator+(Vec3, Vec3);
+inline Vec3 operator-(Vec3, Vec3);
+inline Vec3 operator-(Vec3);
+inline Vec3 operator*(Vec3, Vec3);
+inline Vec3 operator*(double, Vec3);
+inline Vec3 operator/(Vec3, Vec3);
+inline Vec3 operator/(Vec3, double);
+inline void operator+=(Vec3&, Vec3);
+inline void operator-=(Vec3&, Vec3);
+inline void operator*=(Vec3&, Vec3);
+inline void operator*=(Vec3&, double);
+inline void operator/=(Vec3&, Vec3);
+inline void operator/=(Vec3&, double);
 
-bool operator==(Vec3, Vec3);
-bool operator!=(Vec3, Vec3);
+inline bool operator==(Vec3, Vec3);
+inline bool operator!=(Vec3, Vec3);
 
-Vec3 cross(Vec3, Vec3);
-Vec3 normalise(Vec3);
-double dot(Vec3, Vec3);
-double length(Vec3);
+inline Vec3 cross(Vec3, Vec3);
+inline Vec3 normalise(Vec3);
+inline double dot(Vec3, Vec3);
+inline double length(Vec3);
 
 /*	Vec4	*/
 
@@ -228,6 +228,8 @@ struct Plane
 	//Boundary vectors are not normalised so that their lengths can be used as boundary lengths
 	Vec3 u; //First boundary vector
 	Vec3 v; //Second boundary vector
+	double u_length;
+	double v_length;
 };
 
 Plane create_plane_from_bounds(Vec3 p, Vec3 u, Vec3 v);
