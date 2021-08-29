@@ -4,22 +4,6 @@ void add_object_to_scene(Scene* scene, Scene_Object object)
 	scene->objects[scene->number_of_objects++] = object;
 }
 
-void add_point_light_to_scene(Scene* scene, Point p, Spectrum emission_spd)
-{
-	Scene_Object point_light = {};
-	Scene_Geometry point_geometry = {};
-	point_geometry.type = GEO_TYPE_POINT;
-	point_geometry.point = p;
-	
-	point_light.geometry = point_geometry;
-	point_light.material.emission_spd_texture = TEXTURE_CREATE(Spectrum, 1, 1);
-	TEXTURE_CLEAR(point_light.material.emission_spd_texture, emission_spd);
-	point_light.light_type = LIGHT_TYPE_POINT;
-	point_light.is_emissive = true;
-
-	add_object_to_scene(scene, point_light);
-}
-
 void add_sphere_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
 {
 	Scene_Object sphere_light = {};
@@ -30,8 +14,7 @@ void add_sphere_light_to_scene(Scene* scene, Sphere s, Spectrum emission_spd)
 	sphere_light.geometry = sphere_geometry;
 	sphere_light.material.emission_spd_texture = TEXTURE_CREATE(Spectrum, 1, 1);
 	TEXTURE_CLEAR(sphere_light.material.emission_spd_texture, emission_spd);
-	sphere_light.light_type = LIGHT_TYPE_AREA;
-	sphere_light.is_emissive = true;
+	sphere_light.material.is_emissive = true;
 
 	add_object_to_scene(scene, sphere_light);
 }
@@ -47,8 +30,7 @@ void add_plane_light_to_scene(Scene* scene, Plane p, Spectrum emission_spd, char
 	plane_light.geometry = plane_geometry;
 	plane_light.material.emission_spd_texture = TEXTURE_CREATE(Spectrum, 1, 1);
 	TEXTURE_CLEAR(plane_light.material.emission_spd_texture, emission_spd);
-	plane_light.light_type = LIGHT_TYPE_AREA;
-	plane_light.is_emissive = true;
+	plane_light.material.is_emissive = true;
 
 	add_object_to_scene(scene, plane_light);
 }
@@ -95,7 +77,7 @@ void add_model_to_scene(Scene* scene, Model m, Material material, char* name)
 	add_object_to_scene(scene, model);
 }
 
-bool ray_intersects_model(Ray ray, Model m, double* t, int* ret_intersecting_triangle_index, double* ret_a, double* ret_b, double* ret_c)
+bool ray_intersects_model(Ray ray, Model m, double* t, int* ret_intersecting_triangle_index, Vec3& ret_vec)
 {
 	double a = 0.0;
 	double b = 0.0;
@@ -126,10 +108,7 @@ bool ray_intersects_model(Ray ray, Model m, double* t, int* ret_intersecting_tri
 			}
 		}
 	}
-	
-	*ret_a = a;
-	*ret_b = b;
-	*ret_c = c;
+	ret_vec = {a, b, c};
 
 	*t = min_distance_to_triangle;
 	*ret_intersecting_triangle_index = intersecting_triangle_index;
@@ -165,7 +144,7 @@ Geometry_Intersection_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 				}
 				case GEO_TYPE_MODEL:
 				{
-					ray_intersects_ith_object = ray_intersects_model(ray, ith_object_geometry->model, &ith_length_along_ray, &intersection_point.model_triangle_index, &intersection_point.bc_a, &intersection_point.bc_b, &intersection_point.bc_c);
+					ray_intersects_ith_object = ray_intersects_model(ray, ith_object_geometry->model, &ith_length_along_ray, &intersection_point.model_triangle_index, intersection_point.barycentric_coordinates);
 					break;
 				}
 			}
@@ -195,11 +174,11 @@ void direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing, Rad
 	Spectrum bsdf_result;
 	set_spectrum_to_zero(bsdf_result);
 	set_spectrum_to_zero(contribution);
-	if(!p.is_emissive)
+	if(!p.surface_material->is_emissive)
 	{
 		for(int i = 0; i < scene->number_of_objects; ++i)
 		{
-			if(scene->objects[i].is_emissive)
+			if(scene->objects[i].material.is_emissive)
 			{
 				double light_pdf = 1.0;
 				Scene_Object& light = scene->objects[i];
@@ -238,9 +217,8 @@ void direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing, Rad
 					double dist = length(incoming);
 					incoming = normalise(incoming);
 
-					double attenuation_factor = (light.light_type == LIGHT_TYPE_POINT) ? 1.0/(4.0 * PI * dist * dist) : 1.0;
 					double d = abs(dot(incoming, p.normal));
-					double f = attenuation_factor * d / light_pdf;
+					double f = d / light_pdf;
 
 					bsdf(p, incoming, outgoing.direction, bsdf_result);
 					Vec2 t = {0.5, 0.5};
@@ -291,7 +269,6 @@ void find_intersection_surface_point(Scene* scene, Ray outgoing, Surface_Point& 
 	TIMED_FUNCTION;
 	Geometry_Intersection_Point gp = find_ray_scene_intersection(scene, outgoing);
 	p.exists = false;
-	p.is_emissive = false;
 	p.name = NULL;
 	if(gp.scene_object >= 0)
 	{
@@ -319,8 +296,8 @@ void find_intersection_surface_point(Scene* scene, Ray outgoing, Surface_Point& 
 			{
 				Model m = geometry->model;
 				int i = gp.model_triangle_index;
-				surface_normal = gp.bc_a * m.vertices[i].normal + gp.bc_b * m.vertices[i+1].normal + gp.bc_c * m.vertices[i+2].normal;
-				texture_coordinates = gp.bc_a * m.vertices[i].texture_coords + gp.bc_b * m.vertices[i+1].texture_coords + gp.bc_c * m.vertices[i+2].texture_coords;
+				surface_normal = gp.barycentric_coordinates.x * m.vertices[i].normal + gp.barycentric_coordinates.y * m.vertices[i+1].normal + gp.barycentric_coordinates.z * m.vertices[i+2].normal;
+				texture_coordinates = gp.barycentric_coordinates.x * m.vertices[i].texture_coords + gp.barycentric_coordinates.y * m.vertices[i+1].texture_coords + gp.barycentric_coordinates.z * m.vertices[i+2].texture_coords;
 				break;
 			}
 		}
@@ -342,7 +319,6 @@ void find_intersection_surface_point(Scene* scene, Ray outgoing, Surface_Point& 
 		p.position = gp.position;
 		p.texture_coordinates = texture_coordinates;
 		p.exists = true;
-		p.is_emissive = object->is_emissive;
 	}
 }
 
@@ -368,13 +344,13 @@ void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 
 		find_intersection_surface_point(scene, outgoing, p);
 
-		if(p.exists && p.is_emissive && consider_emissive)
+		if(p.exists && p.surface_material->is_emissive && consider_emissive)
 		{
 			Spectrum& emission_spd = *TEXTURE_SAMPLE(Spectrum, p.surface_material->emission_spd_texture, p.texture_coordinates);
 			spectral_sum_and_multiply(eye_ray_radiance, f, emission_spd, eye_ray_radiance);
 			break;
 		}
-		else if(p.exists && !p.is_emissive)
+		else if(p.exists && !p.surface_material->is_emissive)
 		{
 			outgoing.direction = -outgoing.direction; //Reverse for bsdf computation, needs to start other way round for intersection test
 			direct_light_contribution(scene, p, outgoing, direct_contribution);
@@ -549,6 +525,22 @@ void load_scene(Scene* scene)
 	add_plane_to_scene(scene, ceiling, white_material, "Ceiling");
 
 	add_model_to_scene(scene, triangle, triangle_material, "Model");
+
+	bool not_sorted = true;
+	while(not_sorted)
+	{
+		not_sorted = false;
+		for(int i = 0; i < scene->number_of_objects-1; ++i)
+		{
+			if(scene->objects[i].geometry.type < scene->objects[i+1].geometry.type)
+			{
+				Scene_Object temp = scene->objects[i];
+				scene->objects[i] = scene->objects[i+1];
+				scene->objects[i+1] = temp;
+				not_sorted = true;
+			}
+		}
+	}
 }
 
 int number_of_render_samples = 4;
@@ -576,10 +568,10 @@ void render_image(Texture* render_target)
 	
 	TEXTURE_CLEAR(spectrum_buffer, clear_spectrum);
 
-	Scene scene = {};
+	Scene* scene = (Scene*)alloc(sizeof(Scene));
 	srand(100000);
 	load_colour_data();
-	load_scene(&scene);
+	load_scene(scene);
 
 	double fov = 90.0;
 	double focal_length = 0.5;
@@ -642,7 +634,7 @@ void render_image(Texture* render_target)
 					eye_ray.origin = sampled_pixel_point;
 					eye_ray.direction = normalise(pinhole_position - eye_ray.origin);
 				}
-				cast_ray(&scene, eye_ray, pixel_spectrum);
+				cast_ray(scene, eye_ray, pixel_spectrum);
 				Spectrum* target_pixel = TEXTURE_READ(Spectrum, spectrum_buffer, x, y);
 				double pass_d = (double)pass;
 				double pass_inc_d = (double)(pass+1);
