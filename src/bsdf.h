@@ -35,6 +35,8 @@ struct Material
 	int number_of_bsdfs;
 	BSDF bsdfs[MAT_BSDF_MAX];
 
+	bool is_emissive;
+
 	//Textures
 	Texture emission_spd_texture;
 	Texture diffuse_spd_texture;
@@ -48,14 +50,13 @@ struct Material
 struct Surface_Point
 {
 	char* name;
+	bool exists;
 	Vec3 normal;
 	Vec3 position;
 	Vec2 texture_coordinates;
 	Material* surface_material;
 	Material* incident_material;
 	Material* transmit_material;
-	bool exists;
-	bool is_emissive;
 };
 
 void bsdf(Surface_Point&, Vec3 incoming, Vec3 outgoing, Spectrum&);
