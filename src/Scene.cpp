@@ -77,7 +77,7 @@ void add_model_to_scene(Scene* scene, Model m, Material material, char* name)
 	add_object_to_scene(scene, model);
 }
 
-bool ray_intersects_model(Ray ray, Model m, double* t, int* ret_intersecting_triangle_index, Vec3& ret_vec)
+bool ray_intersects_model(Ray ray, Model& m, double* t, int* ret_intersecting_triangle_index, Vec3& ret_vec)
 {
 	double a = 0.0;
 	double b = 0.0;
@@ -91,20 +91,23 @@ bool ray_intersects_model(Ray ray, Model m, double* t, int* ret_intersecting_tri
 		if(dot(ray.direction, triangle_normal) != 0.0)
 		{
 			double distance_to_triangle = dot(m.vertices[i].position - ray.origin, triangle_normal)/dot(ray.direction, triangle_normal);
-			Vec3 p = ray.origin + distance_to_triangle * ray.direction;
-
-			double temp_a = sqrt(point_to_line_distance_sq(p, m.vertices[i+1].position, m.vertices[i+2].position)/point_to_line_distance_sq(m.vertices[i].position, m.vertices[i+1].position,m.vertices[i+2].position));
-			double temp_b = sqrt(point_to_line_distance_sq(p, m.vertices[i+2].position, m.vertices[i].position)/point_to_line_distance_sq(m.vertices[i+1].position, m.vertices[i+2].position, m.vertices[i].position));
-			double temp_c = sqrt(point_to_line_distance_sq(p, m.vertices[i].position, m.vertices[i+1].position)/point_to_line_distance_sq(m.vertices[i+2].position, m.vertices[i].position, m.vertices[i+1].position));
-
-			double d = temp_a + temp_b + temp_c;
-			if(d <= 1.00001 && distance_to_triangle < min_distance_to_triangle && distance_to_triangle > 0.0)
+			if(distance_to_triangle < min_distance_to_triangle && distance_to_triangle > 0.0)
 			{
-				intersecting_triangle_index = i;
-				min_distance_to_triangle = distance_to_triangle;
-				a = temp_a;
-				b = temp_b;
-				c = temp_c;
+				Vec3 p = ray.origin + distance_to_triangle * ray.direction;
+
+				double temp_a = sqrt(point_to_line_distance_sq(p, m.vertices[i+1].position, m.vertices[i+2].position)/point_to_line_distance_sq(m.vertices[i].position, m.vertices[i+1].position,m.vertices[i+2].position));
+				double temp_b = sqrt(point_to_line_distance_sq(p, m.vertices[i+2].position, m.vertices[i].position)/point_to_line_distance_sq(m.vertices[i+1].position, m.vertices[i+2].position, m.vertices[i].position));
+				double temp_c = sqrt(point_to_line_distance_sq(p, m.vertices[i].position, m.vertices[i+1].position)/point_to_line_distance_sq(m.vertices[i+2].position, m.vertices[i].position, m.vertices[i+1].position));
+
+				double d = temp_a + temp_b + temp_c;
+				if(d <= 1.00001)
+				{
+					intersecting_triangle_index = i;
+					min_distance_to_triangle = distance_to_triangle;
+					a = temp_a;
+					b = temp_b;
+					c = temp_c;
+				}
 			}
 		}
 	}
@@ -557,6 +560,97 @@ void print_render_profile()
 	printf("Min sample render time: %fms\n", min_sample_render_time);
 }
 
+struct Image_Plane
+{
+	Vec3 top_left;
+	double pixel_width;
+	double pixel_height;
+	int width_px;
+	int height_px;
+};
+
+struct Camera
+{
+	Vec3 forward;
+	Vec3 right;
+	Vec3 up;
+	Vec3 pinhole_position;
+	double focal_depth;
+	double focal_length;
+	double aperture_radius;
+};
+
+struct Sample_Render_Data
+{
+	Scene* scene;
+	Texture* spectrum_buffer;
+	Image_Plane* image_plane;
+	Camera* camera;
+	int pass;
+};
+
+void render_sample(Sample_Render_Data* render_data)
+{
+	Scene* scene = render_data->scene;
+	Texture& spectrum_buffer = *render_data->spectrum_buffer;
+	Image_Plane& image_plane = *render_data->image_plane;
+	Camera& camera = *render_data->camera;
+	int pass = render_data->pass;
+
+	Spectrum pixel_spectrum;
+	Vec3 pixel_top_left = {};
+	Vec3 sampled_pixel_point = {};
+	Ray eye_ray = {};
+
+	int i = pass % 4;
+	for(int y = 0; y < image_plane.height_px; ++y)
+	{
+		for(int x = 0; x < image_plane.width_px; ++x)
+		{
+			DEBUG(debug_set_pixel(x, y));
+			set_spectrum_to_zero(pixel_spectrum);
+			//Sample image plane
+			pixel_top_left = image_plane.top_left + ((double)x)*image_plane.pixel_width*camera.right - ((double)y)*image_plane.pixel_height*camera.up;
+			Vec3 x_pixel_sample = (0.5 * image_plane.pixel_width + (double)(i%2) * image_plane.pixel_width) * Vec3{1.0, 0.0, 0.0};
+			Vec3 y_pixel_sample = (0.5 * image_plane.pixel_height + (double)(i / 2) * image_plane.pixel_height) * Vec3{0.0, 1.0, 0.0};
+			sampled_pixel_point = pixel_top_left + x_pixel_sample + y_pixel_sample;
+
+			//Sample camera lens
+			if(camera.aperture_radius > 0)
+			{
+				Vec3 plane_of_focus_point = sampled_pixel_point + camera.focal_depth * normalise(camera.pinhole_position - sampled_pixel_point);
+				Mat3x3 r = find_rotation_between_vectors(camera.forward, Vec3{0.0, 0.0, 1.0});
+				Vec3 sampled_lens_point = camera.pinhole_position + r * ((camera.focal_length / camera.aperture_radius) * uniform_sample_disc());
+				eye_ray.origin = sampled_lens_point;
+				eye_ray.direction = normalise(plane_of_focus_point - eye_ray.origin);
+			}
+			else
+			{
+				eye_ray.origin = sampled_pixel_point;
+				eye_ray.direction = normalise(camera.pinhole_position - eye_ray.origin);
+			}
+
+			//Sample scene
+			cast_ray(scene, eye_ray, pixel_spectrum);
+
+			//Filter scene sample with pixel buffer contents
+			Spectrum* target_pixel = TEXTURE_READ(Spectrum, spectrum_buffer, x, y);
+			double pass_d = (double)pass;
+			double pass_inc_d = (double)(pass+1);
+			spectral_sum_and_multiply(pixel_spectrum, *target_pixel, pass_d, *target_pixel);
+			spectral_multiply(*target_pixel, 1.0/pass_inc_d, *target_pixel);
+			//*target_pixel = ((double)pass * *target_pixel + pixel_spectrum)/(double)(pass+1);
+		}
+	}
+
+}
+
+DWORD render_sample_task(LPVOID param)
+{
+	render_sample((Sample_Render_Data*)param);
+	return 0;
+}
+
 void render_image(Texture* render_target)
 {
 	TIMED_FUNCTION;
@@ -574,78 +668,45 @@ void render_image(Texture* render_target)
 	load_scene(scene);
 
 	double fov = 90.0;
-	double focal_length = 0.5;
-	double focal_depth = 8.0;
-	double aperture_radius = 0.0;
 
 	Vec3 image_plane_position = {0.0, 0.0, 8.0};
-	Vec3 forward = {0.0, 0.0, -1.0};
-	Vec3 right = {1.0, 0.0, 0.0};
-	Vec3 up = {0.0, 1.0, 0.0};
+	Camera camera;
+	camera.focal_length = 0.5;
+	camera.focal_depth = 8.0;
+	camera.aperture_radius = 0.0;
+	camera.forward = {0.0, 0.0, -1.0};
+	camera.right = {1.0, 0.0, 0.0};
+	camera.up = {0.0, 1.0, 0.0};
 
-	int image_plane_width_px = spectrum_buffer.width;
-	int image_plane_height_px = spectrum_buffer.height;
+	Image_Plane image_plane;
+	image_plane.width_px = spectrum_buffer.width;
+	image_plane.height_px = spectrum_buffer.height;
 
-	double aspect_ratio = (double)(image_plane_width_px)/(double)(image_plane_height_px);
+	double aspect_ratio = (double)(image_plane.width_px)/(double)(image_plane.height_px);
 	
-	double image_plane_aperture_distance = (focal_length * focal_depth) / (focal_length + focal_depth);
+	double image_plane_aperture_distance = (camera.focal_length * camera.focal_depth) / (camera.focal_length + camera.focal_depth);
 	double image_plane_width = 2.0 * image_plane_aperture_distance * tan_deg(fov/2.0);
 	double image_plane_height = image_plane_width / aspect_ratio;
 	
-	double pixel_width = image_plane_width/(double)(image_plane_width_px);
-	double pixel_height = image_plane_height/(double)(image_plane_height_px);
+	image_plane.pixel_width = image_plane_width/(double)(image_plane.width_px);
+	image_plane.pixel_height = image_plane_height/(double)(image_plane.height_px);
 
-	Vec3 image_plane_top_left = image_plane_position - 0.5 * image_plane_width * right + 0.5 * image_plane_height * up;
+	image_plane.top_left = image_plane_position - 0.5 * image_plane_width * camera.right + 0.5 * image_plane_height * camera.up;
 
-	Vec3 pinhole_position = image_plane_position + image_plane_aperture_distance * forward;
+	camera.pinhole_position = image_plane_position + image_plane_aperture_distance * camera.forward;
+
+	Sample_Render_Data render_data;
+	render_data.scene = scene;
+	render_data.spectrum_buffer = &spectrum_buffer;
+	render_data.image_plane = &image_plane;
+	render_data.camera = &camera;
 
 	for(int pass = 0; pass < number_of_render_samples; ++pass)
 	{
-		int i = pass % 4;
-
 		printf("Pass %d/%d\r", pass+1, number_of_render_samples);
+		render_data.pass = pass;
 		start_timer(&timer);
-
-		Spectrum pixel_spectrum;
-		Vec3 pixel_top_left = {};
-		Vec3 sampled_pixel_point = {};
-		Ray eye_ray = {};
-
-		for(int y = 0; y < image_plane_height_px; ++y)
-		{
-			for(int x = 0; x < image_plane_width_px; ++x)
-			{
-				DEBUG(debug_set_pixel(x, y));
-				set_spectrum_to_zero(pixel_spectrum);
-				pixel_top_left = image_plane_top_left + ((double)x)*pixel_width*right - ((double)y)*pixel_height*up;
-				Vec3 x_pixel_sample = (0.5 * pixel_width + (double)(i%2) * pixel_width) * Vec3{1.0, 0.0, 0.0};
-				Vec3 y_pixel_sample = (0.5 * pixel_height + (double)(i / 2) * pixel_height) * Vec3{0.0, 1.0, 0.0};
-				sampled_pixel_point = pixel_top_left + x_pixel_sample + y_pixel_sample;
-				if(aperture_radius > 0)
-				{
-					Vec3 plane_of_focus_point = sampled_pixel_point + focal_depth * normalise(pinhole_position - sampled_pixel_point);
-					Mat3x3 r = find_rotation_between_vectors(forward, Vec3{0.0, 0.0, 1.0});
-					Vec3 sampled_lens_point = pinhole_position + r * ((focal_length / aperture_radius) * uniform_sample_disc());
-					eye_ray.origin = sampled_lens_point;
-					eye_ray.direction = normalise(plane_of_focus_point - eye_ray.origin);
-				}
-				else
-				{
-					eye_ray.origin = sampled_pixel_point;
-					eye_ray.direction = normalise(pinhole_position - eye_ray.origin);
-				}
-				cast_ray(scene, eye_ray, pixel_spectrum);
-				Spectrum* target_pixel = TEXTURE_READ(Spectrum, spectrum_buffer, x, y);
-				double pass_d = (double)pass;
-				double pass_inc_d = (double)(pass+1);
-				spectral_sum_and_multiply(pixel_spectrum, *target_pixel, pass_d, *target_pixel);
-				spectral_multiply(*target_pixel, 1.0/pass_inc_d, *target_pixel);
-				//*target_pixel = ((double)pass * *target_pixel + pixel_spectrum)/(double)(pass+1);
-				RGB8 pixel_colour = rgb64_to_rgb8(spectrum_to_RGB64(*target_pixel));
-				TEXTURE_WRITE(*render_target, x, y, pixel_colour);
-			}
-		}
-
+		render_sample(&render_data);
 		stop_timer(&timer);
 
 		double elapsed = elapsed_time_in_ms(&timer);
@@ -654,6 +715,16 @@ void render_image(Texture* render_target)
 		max_sample_render_time = d_max(max_sample_render_time, elapsed);
 		min_sample_render_time = d_min(min_sample_render_time, elapsed);
 	}
+	for(int y = 0; y < image_plane.height_px; ++y)
+	{
+		for(int x = 0; x < image_plane.width_px; ++x)
+		{
+			Spectrum* spectrum_pixel = TEXTURE_READ(Spectrum, spectrum_buffer, x, y);
+			RGB8 pixel_colour = rgb64_to_rgb8(spectrum_to_RGB64(*spectrum_pixel));
+			TEXTURE_WRITE(*render_target, x, y, pixel_colour);
+		}
+	}
+
 	printf("Render completed\n");
 }
 
