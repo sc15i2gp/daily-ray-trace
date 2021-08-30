@@ -100,31 +100,14 @@
 
 //TODO: NOW
 //	- Multithread
+//	- Improve microarchitecture usage
 //	- Reduce code size
+//	- Differentiate between an actual texture read or a texture access (value vs ptr)
 //	- Review float precision issues
 //	- Fun things to render
 //		- Water in a box
 //		- Frosted glass with earth texture for frostiness
 //		- Torus
-
-RECT window_rect(HWND window)
-{
-	RECT rect = {};
-	GetClientRect(window, &rect);
-	return rect;
-}
-
-int window_width(HWND window)
-{
-	RECT rect = window_rect(window);
-	return rect.right - rect.left;
-}
-
-int window_height(HWND window)
-{
-	RECT rect = window_rect(window);
-	return rect.bottom - rect.top;
-}
 
 void* alloc(int size)
 {
@@ -216,7 +199,7 @@ void output_to_bmp(const char* path, Texture r_buffer)
 
 	bmp_info_header.biSize = sizeof(bmp_info_header);
 	bmp_info_header.biWidth = r_buffer.width;
-	bmp_info_header.biHeight = -r_buffer.height; //NOTE: THIS MAY NEED TO CHANGE IF PROBLEMS PRINTING FILE
+	bmp_info_header.biHeight = r_buffer.height; //NOTE: THIS MAY NEED TO CHANGE IF PROBLEMS PRINTING FILE
 	bmp_info_header.biPlanes = 1;
 	bmp_info_header.biBitCount = 32;
 	bmp_info_header.biCompression = BI_RGB;
@@ -233,26 +216,7 @@ void output_to_bmp(const char* path, Texture r_buffer)
 	dealloc(contents);
 }
 
-void output_to_ppm(const char* path, Texture r_buffer)
-{
-	char* contents = (char*)alloc(MEGABYTES(10));
-
-	int contents_size = sprintf(contents, "P%d\n", 3);
-	contents_size += sprintf(contents + contents_size, "%d %d\n", r_buffer.width, r_buffer.height);
-	contents_size += sprintf(contents + contents_size, "255\n");
-	for(int y = 0; y < r_buffer.height; ++y)
-	{
-		for(int x = 0; x < r_buffer.width; ++x)
-		{
-			RGB8 p = *TEXTURE_READ(RGB8, r_buffer, x, y);
-			contents_size += sprintf(contents + contents_size, "%d %d %d\n", p.R, p.G, p.B);
-		}
-	}
-	
-	write_file_contents(path, contents, contents_size);
-	dealloc(contents);
-}
-
+/*
 void invert_render_buffer(Texture r_buffer)
 {
 	for(int y = 0; y < r_buffer.height/2; ++y)
@@ -279,33 +243,8 @@ void invert_render_buffer(Texture r_buffer)
 		}
 	}
 }
+*/
 
-Texture __window_back_buffer__ = {};
-
-bool running = true;
-
-LRESULT CALLBACK window_event_callback(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
-{
-	LRESULT result = 0;
-	switch(message)
-	{
-		case WM_CLOSE:
-			running = false;
-			break;
-		default:
-			result = DefWindowProc(window, message, wparam, lparam);
-			break;
-	}
-	return result;
-}
-
-DWORD WINAPI render_image_task(LPVOID param)
-{
-	bool* completed_raytrace = (bool*)param;
-	render_image(&__window_back_buffer__);
-	*completed_raytrace = true;
-	return 0;
-}
 
 #define RENDER_TARGET_WIDTH 800
 #define RENDER_TARGET_HEIGHT 600
@@ -316,10 +255,11 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	query_pc_frequency();
 
 	RGB8 clear_colour = {};
+	Texture __window_back_buffer__ = {};
 	TEXTURE_CLEAR(__window_back_buffer__, clear_colour);
 
-	__window_back_buffer__.width = 800;
-	__window_back_buffer__.height = 600;
+	__window_back_buffer__.width = RENDER_TARGET_WIDTH;
+	__window_back_buffer__.height = RENDER_TARGET_HEIGHT;
 
 	int bytes_per_pixel = 4;
 	int back_buffer_size = bytes_per_pixel * __window_back_buffer__.width * __window_back_buffer__.height;
@@ -334,7 +274,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	print_profile();
 
 	printf("Writing back buffer to file\n");
-	invert_render_buffer(__window_back_buffer__);
 	output_to_bmp("output.bmp", __window_back_buffer__);
 
 	return 0;
