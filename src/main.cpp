@@ -99,7 +99,6 @@
 //	- Volumetric transport
 
 //TODO: NOW
-//	- Remove windowing and stretchdibits, only output to pixel buffer and image file
 //	- Multithread
 //	- Reduce code size
 //	- Review float precision issues
@@ -316,43 +315,11 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 {
 	query_pc_frequency();
 
-	HWND window = {};
-	
-	WNDCLASS window_class = {};
-	window_class.style = CS_HREDRAW | CS_VREDRAW;
-	window_class.lpfnWndProc = window_event_callback;
-	window_class.lpszClassName = "RaytraceClass";
-
-	if(!RegisterClass(&window_class))
-	{
-		printf("PROGRAM FAILED: Could not register window class\n");
-		return 1;
-	}
-
-	window = 	CreateWindowEx
-			(
-				0, window_class.lpszClassName, "Raytrace", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT,
-				RENDER_TARGET_WIDTH, RENDER_TARGET_HEIGHT, 0, 0, prev_instance, NULL
-			);
-	if(!window)
-	{
-		printf("PROGRAM FAILED: Could not create window\n");
-		return 2;
-	}
-
 	RGB8 clear_colour = {};
 	TEXTURE_CLEAR(__window_back_buffer__, clear_colour);
 
-	BITMAPINFO __back_buffer_info__ = {};
-	__back_buffer_info__.bmiHeader.biSize = sizeof(__back_buffer_info__.bmiHeader);
-	__back_buffer_info__.bmiHeader.biWidth = window_width(window);
-	__back_buffer_info__.bmiHeader.biHeight = -window_height(window);
-	__back_buffer_info__.bmiHeader.biPlanes = 1;
-	__back_buffer_info__.bmiHeader.biBitCount = 32;
-	__back_buffer_info__.bmiHeader.biCompression = BI_RGB;
-
-	__window_back_buffer__.width = window_width(window);
-	__window_back_buffer__.height = window_height(window);
+	__window_back_buffer__.width = 800;
+	__window_back_buffer__.height = 600;
 
 	int bytes_per_pixel = 4;
 	int back_buffer_size = bytes_per_pixel * __window_back_buffer__.width * __window_back_buffer__.height;
@@ -361,37 +328,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 
 	init_profiling();
 
-	bool completed_raytrace = false;
-	HANDLE raytrace_thread = CreateThread(NULL, 0, render_image_task, &completed_raytrace, 0, NULL);
+	render_image(&__window_back_buffer__);
 
-	DWORD desired_frame_time_in_ms = 32;
-	Timer frame_timer = {};
-	while(running && !completed_raytrace)
-	{
-		start_timer(&frame_timer);
-		MSG message;
-		while(PeekMessage(&message, 0, 0, 0, PM_REMOVE))
-		{
-			TranslateMessage(&message);
-			DispatchMessage(&message);
-		}
-
-		stop_timer(&frame_timer);
-		Sleep(desired_frame_time_in_ms - (DWORD)(elapsed_time_in_ms(&frame_timer)));
-		HDC window_device_context = GetDC(window);
-		StretchDIBits
-		(
-			window_device_context, 
-			0, 0, window_width(window), window_height(window), 
-			__window_back_buffer__.width, __window_back_buffer__.height, -__window_back_buffer__.width, -__window_back_buffer__.height, 
-			__window_back_buffer__.pixels, &__back_buffer_info__,
-			DIB_RGB_COLORS, SRCCOPY
-		);
-		ReleaseDC(window, window_device_context);
-	}
-	
-	TerminateThread(raytrace_thread, 0);
-	
 	print_render_profile();
 	print_profile();
 
@@ -399,6 +337,5 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	invert_render_buffer(__window_back_buffer__);
 	output_to_bmp("output.bmp", __window_back_buffer__);
 
-	CloseHandle(raytrace_thread);
 	return 0;
 }
