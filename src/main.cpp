@@ -99,26 +99,15 @@
 //	- Volumetric transport
 
 //TODO: NOW
-//	- Optimise memory stuff
-//		- Remove need for stack size change in compile, reduce stack memory footprint
-//		- Improve cache performance
-//	- Optimisation/Cleaning + ease of debugging
-//		- Sort out floating point precision issues
-//		- Remove superfluous code 
-//		- Profiling
-//		- Optimise slow methods
-//		- Maybe multithreading
+//	- Change bsdf to bdsf
+//	- Remove windowing and stretchdibits, only output to pixel buffer and image file
+//	- Multithread
+//	- Reduce code size
+//	- Review float precision issues
 //	- Fun things to render
 //		- Water in a box
 //		- Frosted glass with earth texture for frostiness
 //		- Torus
-
-//Reduce time spent copying:
-//	- Majority of time now spent copying material data
-//		- Remove separate spectra for spds and have bsdfs sample 1 pixel size textures
-//		- Make surface point have pointer to material instead of copying
-//	- Don't store any spectra on the stack
-//	- Have pool of spectra which can be accessed
 
 RECT window_rect(HWND window)
 {
@@ -215,6 +204,35 @@ double elapsed_time_in_s(Timer* t)
 double elapsed_time_in_ms(Timer* t)
 {
 	return cycles_to_ms(elapsed_time_in_cycles(t));
+}
+
+void output_to_bmp(const char* path, Texture r_buffer)
+{
+	BITMAPFILEHEADER bmp_file_header = {};
+	BITMAPINFOHEADER bmp_info_header = {};
+
+	int texture_size = r_buffer.width * r_buffer.height * r_buffer.pixel_size;
+	bmp_file_header.bfType = 0x4d42;
+	bmp_file_header.bfSize = sizeof(bmp_file_header) + sizeof(bmp_info_header) + texture_size;
+	bmp_file_header.bfOffBits = bmp_file_header.bfSize - texture_size;
+
+	bmp_info_header.biSize = sizeof(bmp_info_header);
+	bmp_info_header.biWidth = r_buffer.width;
+	bmp_info_header.biHeight = -r_buffer.height; //NOTE: THIS MAY NEED TO CHANGE IF PROBLEMS PRINTING FILE
+	bmp_info_header.biPlanes = 1;
+	bmp_info_header.biBitCount = 32;
+	bmp_info_header.biCompression = BI_RGB;
+
+	char* contents = (char*)alloc(bmp_file_header.bfSize);
+	char* current_contents = contents;
+	memcpy(current_contents, &bmp_file_header, sizeof(bmp_file_header));
+	current_contents += sizeof(bmp_file_header);
+	memcpy(current_contents, &bmp_info_header, sizeof(bmp_info_header));
+	current_contents += sizeof(bmp_info_header);
+	memcpy(current_contents, r_buffer.pixels, texture_size);
+
+	write_file_contents(path, contents, bmp_file_header.bfSize);
+	dealloc(contents);
 }
 
 void output_to_ppm(const char* path, Texture r_buffer)
@@ -347,8 +365,11 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	bool completed_raytrace = false;
 	HANDLE raytrace_thread = CreateThread(NULL, 0, render_image_task, &completed_raytrace, 0, NULL);
 
+	DWORD desired_frame_time_in_ms = 32;
+	Timer frame_timer = {};
 	while(running && !completed_raytrace)
 	{
+		start_timer(&frame_timer);
 		MSG message;
 		while(PeekMessage(&message, 0, 0, 0, PM_REMOVE))
 		{
@@ -356,6 +377,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 			DispatchMessage(&message);
 		}
 
+		stop_timer(&frame_timer);
+		Sleep(desired_frame_time_in_ms - (DWORD)(elapsed_time_in_ms(&frame_timer)));
 		HDC window_device_context = GetDC(window);
 		StretchDIBits
 		(
@@ -375,7 +398,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 
 	printf("Writing back buffer to file\n");
 	invert_render_buffer(__window_back_buffer__);
-	output_to_ppm("output.ppm", __window_back_buffer__);
+	output_to_bmp("output.bmp", __window_back_buffer__);
 
 	CloseHandle(raytrace_thread);
 	return 0;
