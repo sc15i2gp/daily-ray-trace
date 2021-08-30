@@ -171,8 +171,8 @@ Geometry_Intersection_Point find_ray_scene_intersection(Scene* scene, Ray ray)
 void direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing, Radiance& contribution)
 {
 	TIMED_FUNCTION;
-	Spectrum bsdf_result;
-	set_spectrum_to_zero(bsdf_result);
+	Spectrum bdsf_result;
+	set_spectrum_to_zero(bdsf_result);
 	set_spectrum_to_zero(contribution);
 	if(!p.surface_material->is_emissive)
 	{
@@ -220,11 +220,11 @@ void direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing, Rad
 					double d = abs(dot(incoming, p.normal));
 					double f = d / light_pdf;
 
-					bsdf(p, incoming, outgoing.direction, bsdf_result);
+					bdsf(p, incoming, outgoing.direction, bdsf_result);
 					Vec2 t = {0.5, 0.5};
 					Spectrum& emission_spd = *TEXTURE_SAMPLE(Spectrum, light.material.emission_spd_texture, t);
-					spectral_multiply(bsdf_result, emission_spd, bsdf_result);
-					spectral_sum_and_multiply(contribution, bsdf_result, f, contribution);
+					spectral_multiply(bdsf_result, emission_spd, bdsf_result);
+					spectral_sum_and_multiply(contribution, bdsf_result, f, contribution);
 				}
 			}
 		}
@@ -236,18 +236,18 @@ Vec3 choose_incoming_direction(Surface_Point& p, Vec3 outgoing, double* pdf_valu
 {
 	TIMED_FUNCTION;
 	double r = uniform_sample();
-	double n = (double)p.surface_material->number_of_bsdfs;
-	int chosen_bsdf = (int)floor(r * n);
-	BSDF_TYPE chosen_bsdf_type = p.surface_material->bsdfs[chosen_bsdf].type;
-	*consider_emissive = chosen_bsdf_type & BSDF_TYPE_SPECULAR;
-	Vec3 direction = p.surface_material->bsdfs[chosen_bsdf].sample_direction(p, outgoing, pdf_value);
+	double n = (double)p.surface_material->number_of_bdsfs;
+	int chosen_bdsf = (int)floor(r * n);
+	BDSF_TYPE chosen_bdsf_type = p.surface_material->bdsfs[chosen_bdsf].type;
+	*consider_emissive = chosen_bdsf_type & BDSF_TYPE_SPECULAR;
+	Vec3 direction = p.surface_material->bdsfs[chosen_bdsf].sample_direction(p, outgoing, pdf_value);
 
-	//Sum probabilities for BSDFs with same distributions (that aren't specular)
-	for(int i = 0; i < p.surface_material->number_of_bsdfs; ++i)
+	//Sum probabilities for BDSFs with same distributions (that aren't specular)
+	for(int i = 0; i < p.surface_material->number_of_bdsfs; ++i)
 	{
-		if(i != chosen_bsdf && chosen_bsdf_type != BSDF_TYPE_SPECULAR && p.surface_material->bsdfs[i].type == chosen_bsdf_type)
+		if(i != chosen_bdsf && chosen_bdsf_type != BDSF_TYPE_SPECULAR && p.surface_material->bdsfs[i].type == chosen_bdsf_type)
 		{
-			*pdf_value += p.surface_material->bsdfs[i].pdf(p, outgoing, direction);
+			*pdf_value += p.surface_material->bdsfs[i].pdf(p, outgoing, direction);
 		}
 	}
 	*pdf_value /= n;
@@ -327,9 +327,9 @@ void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 {
 	TIMED_FUNCTION;
 	Radiance direct_contribution;
-	Radiance bsdf_result;
+	Radiance bdsf_result;
 	set_spectrum_to_zero(direct_contribution);
-	set_spectrum_to_zero(bsdf_result);
+	set_spectrum_to_zero(bdsf_result);
 	Ray outgoing = eye_ray;
 	Ray incoming = {};
 	Spectrum f;
@@ -352,7 +352,7 @@ void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 		}
 		else if(p.exists && !p.surface_material->is_emissive)
 		{
-			outgoing.direction = -outgoing.direction; //Reverse for bsdf computation, needs to start other way round for intersection test
+			outgoing.direction = -outgoing.direction; //Reverse for bdsf computation, needs to start other way round for intersection test
 			direct_light_contribution(scene, p, outgoing, direct_contribution);
 			spectral_sum_and_multiply(eye_ray_radiance, f, direct_contribution, eye_ray_radiance);
 			
@@ -362,8 +362,8 @@ void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 
 			//Compute new direction pdf value
 			double f_coefficient = abs(dot(p.normal, incoming.direction)) * (1.0/dir_pdf);
-			bsdf(p, incoming.direction, outgoing.direction, bsdf_result);
-			spectral_multiply(f, bsdf_result, f_coefficient, f);
+			bdsf(p, incoming.direction, outgoing.direction, bdsf_result);
+			spectral_multiply(f, bdsf_result, f_coefficient, f);
 			
 			outgoing = incoming;
 		}

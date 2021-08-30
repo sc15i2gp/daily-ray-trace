@@ -99,7 +99,6 @@
 //	- Volumetric transport
 
 //TODO: NOW
-//	- Change bsdf to bdsf
 //	- Remove windowing and stretchdibits, only output to pixel buffer and image file
 //	- Multithread
 //	- Reduce code size

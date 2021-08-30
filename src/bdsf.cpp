@@ -249,16 +249,16 @@ double geometric_attenuation(Vec3 incoming, Vec3 outgoing, Vec3 surface_normal, 
 }
 
 
-/*	BSDFs	*/
+/*	BDSFs	*/
 
 
-void diffuse_phong_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
+void diffuse_phong_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
 	Spectrum* diffuse_spd = TEXTURE_SAMPLE(Spectrum, p.surface_material->diffuse_spd_texture, p.texture_coordinates);
 	spectral_multiply(*diffuse_spd, 1.0/PI, reflectance);
 }
 
-void glossy_phong_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
+void glossy_phong_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
 	Vec3 bisector = (incoming + outgoing)/2.0;
 	double* shininess = TEXTURE_SAMPLE(double, p.surface_material->shininess_texture, p.texture_coordinates);
@@ -267,7 +267,7 @@ void glossy_phong_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum&
 	spectral_multiply(*glossy_spd, specular_coefficient, reflectance);
 }
 
-void perfect_specular_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
+void perfect_specular_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
 	if(incoming == reflect_vector(-outgoing, p.normal))
 	{
@@ -276,8 +276,8 @@ void perfect_specular_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spect
 	else set_spectrum_to_value(reflectance, 0.0);
 }
 
-//TODO: Make it so specular bsdfs don't have to check if incoming is specular reflection vector
-void fresnel_specular_reflection_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
+//TODO: Make it so specular bdsfs don't have to check if incoming is specular reflection vector
+void fresnel_specular_reflection_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
 	if(incoming == reflect_vector(-outgoing, p.normal))
 	{
@@ -301,7 +301,7 @@ void fresnel_specular_reflection_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outg
 }
 
 
-void fresnel_transmission_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& transmittance, Spectrum&)
+void fresnel_transmission_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& transmittance, Spectrum&)
 {
 	Spectrum& incident_refract_index = *TEXTURE_SAMPLE(Spectrum, p.incident_material->refract_index_texture, p.texture_coordinates);
 	Spectrum& transmit_refract_index = *TEXTURE_SAMPLE(Spectrum, p.transmit_material->refract_index_texture, p.texture_coordinates);
@@ -314,34 +314,34 @@ void fresnel_transmission_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, S
 	}
 }
 
-void fresnel_reflection_transmission_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& f, Spectrum& temp_result)
+void fresnel_reflection_transmission_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& f, Spectrum& temp_result)
 {
-	fresnel_specular_reflection_bsdf(p, incoming, outgoing, f, f);
-	fresnel_transmission_bsdf(p, incoming, outgoing, temp_result, temp_result);
+	fresnel_specular_reflection_bdsf(p, incoming, outgoing, f, f);
+	fresnel_transmission_bdsf(p, incoming, outgoing, temp_result, temp_result);
 	spectral_sum(f, temp_result, f);
 }
 
-//MATERIAL BSDFs
-void plastic_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum& temp_result)
+//MATERIAL BDSFs
+void plastic_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum& temp_result)
 {
 	if(dot(p.normal, incoming) > 0.0)
 	{
-		diffuse_phong_bsdf(p, incoming, outgoing, reflectance, temp_result);
-		glossy_phong_bsdf(p, incoming, outgoing, temp_result, temp_result);
+		diffuse_phong_bdsf(p, incoming, outgoing, reflectance, temp_result);
+		glossy_phong_bdsf(p, incoming, outgoing, temp_result, temp_result);
 		spectral_sum(reflectance, temp_result, reflectance);
 	}
 }
 
-void mirror_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
+void mirror_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
 	if(dot(p.normal, incoming) > 0.0)
 	{
-		perfect_specular_bsdf(p, incoming, outgoing, reflectance, reflectance);
+		perfect_specular_bdsf(p, incoming, outgoing, reflectance, reflectance);
 	}
 }
 
 //Cite: Microfacet models for refraction through rough surfaces
-void cook_torrance_reflectance_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& fr, Spectrum&)
+void cook_torrance_reflectance_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& fr, Spectrum&)
 {
 	Vec3 microfacet_normal = normalise(outgoing + incoming);
 	Vec3 surface_normal = p.normal;
@@ -372,7 +372,7 @@ void cook_torrance_reflectance_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoi
 	spectral_multiply(fr, reflectance_coefficient, fr);
 }
 
-void torrance_sparrow_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& fr, Spectrum&)
+void torrance_sparrow_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& fr, Spectrum&)
 {
 	double cos_th_out = dot(outgoing, p.normal);
 	double cos_th_in = dot(incoming, p.normal);
@@ -401,20 +401,20 @@ void torrance_sparrow_bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spect
 	spectral_multiply(fr, reflectance_coefficient, fr);
 }
 
-//GENERAL BSDF METHOD
-void bsdf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance)
+//GENERAL BDSF METHOD
+void bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance)
 {
 	TIMED_FUNCTION;
 	set_spectrum_to_zero(reflectance);
 	Spectrum spare_spd;
-	Spectrum bsdf_result;
-	BSDF* material_bsdfs = p.surface_material->bsdfs;
-	for(int i = 0; i < p.surface_material->number_of_bsdfs; ++i)
+	Spectrum bdsf_result;
+	BDSF* material_bdsfs = p.surface_material->bdsfs;
+	for(int i = 0; i < p.surface_material->number_of_bdsfs; ++i)
 	{
-		set_spectrum_to_zero(bsdf_result);
+		set_spectrum_to_zero(bdsf_result);
 		set_spectrum_to_zero(spare_spd);
-		material_bsdfs[i].bsdf(p, incoming, outgoing, bsdf_result, spare_spd);
-		spectral_sum(reflectance, bsdf_result, reflectance);
+		material_bdsfs[i].bdsf(p, incoming, outgoing, bdsf_result, spare_spd);
+		spectral_sum(reflectance, bdsf_result, reflectance);
 	}
 }
 
@@ -565,21 +565,21 @@ Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shinin
 	plastic.shininess_texture = TEXTURE_CREATE(double, 1, 1);
 	TEXTURE_CLEAR(plastic.shininess_texture, shininess);
 	
-	//BSDFs
-	plastic.number_of_bsdfs = 2;
-	BSDF diffuse_reflection = {};
-	diffuse_reflection.type = BSDF_TYPE_DIFFUSE;
+	//BDSFs
+	plastic.number_of_bdsfs = 2;
+	BDSF diffuse_reflection = {};
+	diffuse_reflection.type = BDSF_TYPE_DIFFUSE;
 	diffuse_reflection.pdf = diffuse_pdf;
-	diffuse_reflection.bsdf = diffuse_phong_bsdf;
+	diffuse_reflection.bdsf = diffuse_phong_bdsf;
 	diffuse_reflection.sample_direction = sample_diffuse_direction;
 
-	BSDF glossy_reflection = {};
-	glossy_reflection.type = BSDF_TYPE_DIFFUSE;
+	BDSF glossy_reflection = {};
+	glossy_reflection.type = BDSF_TYPE_DIFFUSE;
 	glossy_reflection.pdf = diffuse_pdf;
-	glossy_reflection.bsdf = glossy_phong_bsdf;
+	glossy_reflection.bdsf = glossy_phong_bdsf;
 	glossy_reflection.sample_direction = sample_glossy_direction;
-	plastic.bsdfs[0] = diffuse_reflection;
-	plastic.bsdfs[1] = glossy_reflection;
+	plastic.bdsfs[0] = diffuse_reflection;
+	plastic.bdsfs[1] = glossy_reflection;
 
 	return plastic;
 }
@@ -594,20 +594,20 @@ Material create_textured_plastic(Texture diffuse_spd_texture, Spectrum glossy_sp
 	plastic.shininess_texture = TEXTURE_CREATE(double, 1, 1);
 	TEXTURE_CLEAR(plastic.shininess_texture, shininess);
 
-	plastic.number_of_bsdfs = 2;
-	BSDF diffuse_reflection = {};
-	diffuse_reflection.type = BSDF_TYPE_DIFFUSE;
+	plastic.number_of_bdsfs = 2;
+	BDSF diffuse_reflection = {};
+	diffuse_reflection.type = BDSF_TYPE_DIFFUSE;
 	diffuse_reflection.pdf = diffuse_pdf;
-	diffuse_reflection.bsdf = diffuse_phong_bsdf;
+	diffuse_reflection.bdsf = diffuse_phong_bdsf;
 	diffuse_reflection.sample_direction = sample_diffuse_direction;
 
-	BSDF glossy_reflection = {};
-	glossy_reflection.type = BSDF_TYPE_DIFFUSE;
+	BDSF glossy_reflection = {};
+	glossy_reflection.type = BDSF_TYPE_DIFFUSE;
 	glossy_reflection.pdf = diffuse_pdf;
-	glossy_reflection.bsdf = glossy_phong_bsdf;
+	glossy_reflection.bdsf = glossy_phong_bdsf;
 	glossy_reflection.sample_direction = sample_glossy_direction;
-	plastic.bsdfs[0] = diffuse_reflection;
-	plastic.bsdfs[1] = glossy_reflection;
+	plastic.bdsfs[0] = diffuse_reflection;
+	plastic.bdsfs[1] = glossy_reflection;
 
 	return plastic;
 }
@@ -616,10 +616,10 @@ Material create_mirror()
 {
 	Material mirror = {};
 	mirror.type = MAT_TYPE_CONDUCTOR;
-	mirror.number_of_bsdfs = 1;
-	mirror.bsdfs[0].type = BSDF_TYPE_SPECULAR;
-	mirror.bsdfs[0].bsdf = perfect_specular_bsdf;
-	mirror.bsdfs[0].sample_direction = sample_specular_direction;
+	mirror.number_of_bdsfs = 1;
+	mirror.bdsfs[0].type = BDSF_TYPE_SPECULAR;
+	mirror.bdsfs[0].bdsf = perfect_specular_bdsf;
+	mirror.bdsfs[0].sample_direction = sample_specular_direction;
 
 	return mirror;
 }
@@ -628,19 +628,19 @@ Material create_conductor(Spectrum refract_index, Spectrum extinct_index, double
 {
 	Material conductor = {};
 	conductor.type = MAT_TYPE_CONDUCTOR;
-	conductor.number_of_bsdfs = 1;
+	conductor.number_of_bdsfs = 1;
 
 	if(roughness >= 0.001)
 	{
-		conductor.bsdfs[0].type = BSDF_TYPE_SPECULAR;
-		conductor.bsdfs[0].bsdf = cook_torrance_reflectance_bsdf;
-		conductor.bsdfs[0].sample_direction = sample_cook_torrance_reflection_direction;
+		conductor.bdsfs[0].type = BDSF_TYPE_SPECULAR;
+		conductor.bdsfs[0].bdsf = cook_torrance_reflectance_bdsf;
+		conductor.bdsfs[0].sample_direction = sample_cook_torrance_reflection_direction;
 	}
 	else
 	{
-		conductor.bsdfs[0].type = BSDF_TYPE_SPECULAR;
-		conductor.bsdfs[0].bsdf = fresnel_specular_reflection_bsdf;
-		conductor.bsdfs[0].sample_direction = sample_specular_direction;
+		conductor.bdsfs[0].type = BDSF_TYPE_SPECULAR;
+		conductor.bdsfs[0].bdsf = fresnel_specular_reflection_bdsf;
+		conductor.bdsfs[0].sample_direction = sample_specular_direction;
 	}
 
 	conductor.refract_index_texture = TEXTURE_CREATE(Spectrum, 1, 1);
@@ -658,15 +658,15 @@ Material create_dielectric(Spectrum refract_index)
 {
 	Material dielectric = {};
 	dielectric.type = MAT_TYPE_DIELECTRIC;
-	dielectric.number_of_bsdfs = 1;
-	dielectric.bsdfs[0].type = BSDF_TYPE_SPECULAR;
-	dielectric.bsdfs[0].bsdf = fresnel_reflection_transmission_bsdf;
-	dielectric.bsdfs[0].sample_direction = sample_specular_reflection_or_transmission_direction;
+	dielectric.number_of_bdsfs = 1;
+	dielectric.bdsfs[0].type = BDSF_TYPE_SPECULAR;
+	dielectric.bdsfs[0].bdsf = fresnel_reflection_transmission_bdsf;
+	dielectric.bdsfs[0].sample_direction = sample_specular_reflection_or_transmission_direction;
 
-	dielectric.bsdfs[1].type = BSDF_TYPE_DIFFUSE;
-	dielectric.bsdfs[1].pdf = diffuse_pdf;
-	dielectric.bsdfs[1].bsdf = glossy_phong_bsdf;
-	dielectric.bsdfs[1].sample_direction = sample_glossy_direction;
+	dielectric.bdsfs[1].type = BDSF_TYPE_DIFFUSE;
+	dielectric.bdsfs[1].pdf = diffuse_pdf;
+	dielectric.bdsfs[1].bdsf = glossy_phong_bdsf;
+	dielectric.bdsfs[1].sample_direction = sample_glossy_direction;
 
 	dielectric.glossy_spd_texture = TEXTURE_CREATE(Spectrum, 1, 1);
 	Spectrum glossy_spd = generate_constant_spd(1.0);

@@ -3,17 +3,17 @@ typedef void (*REFLECTION_MODEL_FUNCTION)(Surface_Point&, Vec3, Vec3, Spectrum&,
 typedef double (*DISTRIBUTION_FUNCTION)(Surface_Point&, Vec3, Vec3);
 typedef Vec3 (*INDIRECT_SAMPLE_FUNCTION)(Surface_Point&, Vec3, double*);
 
-enum BSDF_TYPE
+enum BDSF_TYPE
 {
-	BSDF_TYPE_DIFFUSE = 1 << 0,
-	BSDF_TYPE_SPECULAR = 1 << 1
+	BDSF_TYPE_DIFFUSE = 1 << 0,
+	BDSF_TYPE_SPECULAR = 1 << 1
 };
 
-struct BSDF
+struct BDSF
 {
-	BSDF_TYPE type;
+	BDSF_TYPE type;
 	//Computes proportion of light reflected at given point with given incident and reflection directions
-	REFLECTION_MODEL_FUNCTION bsdf;
+	REFLECTION_MODEL_FUNCTION bdsf;
 	//Returns probability of sampled direction
 	DISTRIBUTION_FUNCTION pdf;
 	//Samples a random direction at a given point with a given reflection direction
@@ -28,12 +28,12 @@ enum Material_Type
 	MAT_TYPE_CONDUCTOR
 };
 
-#define MAT_BSDF_MAX 8
+#define MAT_BDSF_MAX 8
 struct Material
 {
 	Material_Type type;
-	int number_of_bsdfs;
-	BSDF bsdfs[MAT_BSDF_MAX];
+	int number_of_bdsfs;
+	BDSF bdsfs[MAT_BDSF_MAX];
 
 	bool is_emissive;
 
@@ -59,7 +59,7 @@ struct Surface_Point
 	Material* transmit_material;
 };
 
-void bsdf(Surface_Point&, Vec3 incoming, Vec3 outgoing, Spectrum&);
+void bdsf(Surface_Point&, Vec3 incoming, Vec3 outgoing, Spectrum&);
 Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shininess);
 Material create_textured_plastic(Texture diffuse_spd_texture, Spectrum glossy_spd, double shininess);
 Material create_mirror();
