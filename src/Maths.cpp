@@ -293,6 +293,15 @@ Vec3 normalise(Vec3 v)
 	return v/length(v);
 }
 
+double point_to_line_distance_sq(Vec3 p, Vec3 l_0, Vec3 l_1)
+{
+	TIMED_FUNCTION;
+	Vec3 normalised_line = normalise(l_0 - l_1);
+	Vec3 q = l_1 + (dot(p - l_1, normalised_line))*normalised_line;
+	double distance = dot(p - q, p - q);
+	return distance;
+}
+
 /*	Vec4	*/
 
 Vec4 operator+(Vec4 v, Vec4 w)
@@ -746,13 +755,4 @@ bool ray_intersects_plane(Ray ray, Plane p, double* t)
 	}
 	else return false;
 
-}
-
-double point_to_line_distance_sq(Vec3 p, Vec3 l_0, Vec3 l_1)
-{
-	TIMED_FUNCTION;
-	Vec3 normalised_line = normalise(l_0 - l_1);
-	Vec3 q = l_1 + (dot(p - l_1, normalised_line))*normalised_line;
-	double distance = dot(p - q, p - q);
-	return distance;
 }
