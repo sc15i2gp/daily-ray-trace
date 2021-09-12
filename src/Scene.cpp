@@ -546,7 +546,7 @@ void load_scene(Scene* scene)
 	}
 }
 
-int number_of_render_samples = 4;
+int number_of_render_samples = 8192;
 double total_render_time = 0.0;
 double average_sample_render_time = 0.0;
 double max_sample_render_time = 0.0;
@@ -587,6 +587,7 @@ struct Sample_Render_Data
 	Image_Plane* image_plane;
 	Camera* camera;
 	int pass;
+	int thread_id;
 };
 
 void render_sample(Sample_Render_Data* render_data)
@@ -603,50 +604,50 @@ void render_sample(Sample_Render_Data* render_data)
 	Ray eye_ray = {};
 
 	int i = pass % 4;
-	for(int y = 0; y < image_plane.height_px; ++y)
+	for(int pixel = render_data->thread_id; pixel < spectrum_buffer.width * spectrum_buffer.height; pixel += 4)
 	{
-		for(int x = 0; x < image_plane.width_px; ++x)
+		int y = pixel / spectrum_buffer.width;
+		int x = pixel % spectrum_buffer.width;
+		DEBUG(debug_set_pixel(x, y));
+		set_spectrum_to_zero(pixel_spectrum);
+		//Sample image plane
+		pixel_top_left = image_plane.top_left + ((double)x)*image_plane.pixel_width*camera.right - ((double)y)*image_plane.pixel_height*camera.up;
+		Vec3 x_pixel_sample = (0.5 * image_plane.pixel_width + (double)(i%2) * image_plane.pixel_width) * Vec3{1.0, 0.0, 0.0};
+		Vec3 y_pixel_sample = (0.5 * image_plane.pixel_height + (double)(i / 2) * image_plane.pixel_height) * Vec3{0.0, 1.0, 0.0};
+		sampled_pixel_point = pixel_top_left + x_pixel_sample + y_pixel_sample;
+
+		//Sample camera lens
+		if(camera.aperture_radius > 0)
 		{
-			DEBUG(debug_set_pixel(x, y));
-			set_spectrum_to_zero(pixel_spectrum);
-			//Sample image plane
-			pixel_top_left = image_plane.top_left + ((double)x)*image_plane.pixel_width*camera.right - ((double)y)*image_plane.pixel_height*camera.up;
-			Vec3 x_pixel_sample = (0.5 * image_plane.pixel_width + (double)(i%2) * image_plane.pixel_width) * Vec3{1.0, 0.0, 0.0};
-			Vec3 y_pixel_sample = (0.5 * image_plane.pixel_height + (double)(i / 2) * image_plane.pixel_height) * Vec3{0.0, 1.0, 0.0};
-			sampled_pixel_point = pixel_top_left + x_pixel_sample + y_pixel_sample;
-
-			//Sample camera lens
-			if(camera.aperture_radius > 0)
-			{
-				Vec3 plane_of_focus_point = sampled_pixel_point + camera.focal_depth * normalise(camera.pinhole_position - sampled_pixel_point);
-				Mat3x3 r = find_rotation_between_vectors(camera.forward, Vec3{0.0, 0.0, 1.0});
-				Vec3 sampled_lens_point = camera.pinhole_position + r * ((camera.focal_length / camera.aperture_radius) * uniform_sample_disc());
-				eye_ray.origin = sampled_lens_point;
-				eye_ray.direction = normalise(plane_of_focus_point - eye_ray.origin);
-			}
-			else
-			{
-				eye_ray.origin = sampled_pixel_point;
-				eye_ray.direction = normalise(camera.pinhole_position - eye_ray.origin);
-			}
-
-			//Sample scene
-			cast_ray(scene, eye_ray, pixel_spectrum);
-
-			//Filter scene sample with pixel buffer contents
-			Spectrum* target_pixel = TEXTURE_READ(Spectrum, spectrum_buffer, x, y);
-			double pass_d = (double)pass;
-			double pass_inc_d = (double)(pass+1);
-			spectral_sum_and_multiply(pixel_spectrum, *target_pixel, pass_d, *target_pixel);
-			spectral_multiply(*target_pixel, 1.0/pass_inc_d, *target_pixel);
-			//*target_pixel = ((double)pass * *target_pixel + pixel_spectrum)/(double)(pass+1);
+			Vec3 plane_of_focus_point = sampled_pixel_point + camera.focal_depth * normalise(camera.pinhole_position - sampled_pixel_point);
+			Mat3x3 r = find_rotation_between_vectors(camera.forward, Vec3{0.0, 0.0, 1.0});
+			Vec3 sampled_lens_point = camera.pinhole_position + r * ((camera.focal_length / camera.aperture_radius) * uniform_sample_disc());
+			eye_ray.origin = sampled_lens_point;
+			eye_ray.direction = normalise(plane_of_focus_point - eye_ray.origin);
 		}
+		else
+		{
+			eye_ray.origin = sampled_pixel_point;
+			eye_ray.direction = normalise(camera.pinhole_position - eye_ray.origin);
+		}
+
+		//Sample scene
+		cast_ray(scene, eye_ray, pixel_spectrum);
+
+		//Filter scene sample with pixel buffer contents
+		Spectrum* target_pixel = TEXTURE_READ(Spectrum, spectrum_buffer, x, y);
+		double pass_d = (double)pass;
+		double pass_inc_d = (double)(pass+1);
+		spectral_sum_and_multiply(pixel_spectrum, *target_pixel, pass_d, *target_pixel);
+		spectral_multiply(*target_pixel, 1.0/pass_inc_d, *target_pixel);
+		//*target_pixel = ((double)pass * *target_pixel + pixel_spectrum)/(double)(pass+1);
 	}
 
 }
 
 DWORD render_sample_task(LPVOID param)
 {
+	srand(get_pc_time());
 	render_sample((Sample_Render_Data*)param);
 	return 0;
 }
@@ -695,18 +696,36 @@ void render_image(Texture* render_target)
 
 	camera.pinhole_position = image_plane_position + image_plane_aperture_distance * camera.forward;
 
-	Sample_Render_Data render_data;
-	render_data.scene = scene;
-	render_data.spectrum_buffer = &spectrum_buffer;
-	render_data.image_plane = &image_plane;
-	render_data.camera = &camera;
+	Sample_Render_Data render_data[4];
+	for(int i = 0; i < 4; ++i)
+	{
+		render_data[i].scene = scene;
+		render_data[i].spectrum_buffer = &spectrum_buffer;
+		render_data[i].image_plane = &image_plane;
+		render_data[i].camera = &camera;
+		render_data[i].thread_id = i;
+	}
 
+	HANDLE thread_handles[3];
 	for(int pass = 0; pass < number_of_render_samples; ++pass)
 	{
 		printf("Pass %d/%d\r", pass+1, number_of_render_samples);
-		render_data.pass = pass;
+		for(int i = 0; i < 4; ++i)
+		{
+			render_data[i].pass = pass;
+		}
 		start_timer(&timer);
-		render_sample(&render_data);
+#if 0
+		render_sample_task(&render_data[0]);
+		render_sample_task(&render_data[1]);
+		render_sample_task(&render_data[2]);
+		render_sample_task(&render_data[3]);
+#else		
+		CreateThread(NULL, 0, render_sample_task, &render_data[1], 0, NULL);
+		CreateThread(NULL, 0, render_sample_task, &render_data[2], 0, NULL);
+		CreateThread(NULL, 0, render_sample_task, &render_data[3], 0, NULL);
+		render_sample(&render_data[0]);
+#endif		
 		stop_timer(&timer);
 
 		double elapsed = elapsed_time_in_ms(&timer);

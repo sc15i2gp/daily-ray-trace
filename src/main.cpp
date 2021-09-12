@@ -30,6 +30,8 @@
 //		- (SOLVED) Was caused by floating point precision error
 //	- Had difficulty debugging when looking for problems causing black pixels
 //		- Turns out I'd forgotten that the lens model changed which flips the image output buffer
+//	- Going multithreaded caused incorrect image
+//		- (POSSIBLE CAUSE) RNG sequences always the same and rand is not thread safe
 
 //NOTES: Parameters I've wanted to change/view but had to rebuild for:
 //	- Emission/reflectance spectra
@@ -60,7 +62,6 @@
 //	- Consider using explicitly sized types
 //	- Maybe use vec4 for everything (to make matrix operations slightly easier and 4 numbers easier to optimise than 3)
 //	- Kirschoff's law for non-black body sources
-//	- Better RNG
 //	- Remove CSTDLIB
 //		- Implement printf/sprintf/etc.
 //		- Implement maths functions (trig, pow, ln etc.)
@@ -68,24 +69,12 @@
 //	- Bidirectional methods
 
 //TODO: Necessary
-//	- Textures
-//		- Colour/image
-//		- Normal map/bump map/displacement map
-//		- Frosted glass roughness
-//	- Move platform code to platform file
-//	- Optimise
-//		- Reduce amount of code
-//		- Profiling
-//		- Write faster code
-//	- Quality of life
+//	- Quality of life/Code problems
 //		- Output time taken in seconds, minutes, hours etc.
-//		- Resizing screen and how rendering should be handled/updated etc.
 //		- Functionality for producing comparison images (e.g. sampling strategies)
-//		- Output to jpg/bmp/png
 //		- Try and get rid of reliance on plane normal direction (hard to use else)
-//		- Invesitgate use of unity build
 //		- Note failure points/error cases and handle
-//		- Direct build output files (that aren't exe) to a particular location
+//		- Clean up project directory
 //		- Add error handling to platform functions
 //		- Add citations in code for origin of algorithm/technique/bsdf etc.
 //	- Scene editing
@@ -93,17 +82,16 @@
 //		- UI for camera control, raytrace control, parameterisation etc.
 //		- Maybe screen shows progress of raytrace
 //	- Subsurface scattering
-//	- Allow objects within transmission media (will not work correctly as of yet)
-//	- Generic triangulation rendering
-//	- Skybox/infinite light/infinite geometry (such as infinite ground plane)
-//	- Volumetric transport
 
 //TODO: NOW
-//	- Multithread
 //	- Improve microarchitecture usage
 //	- Reduce code size
 //	- Differentiate between an actual texture read or a texture access (value vs ptr)
 //	- Review float precision issues
+//	- Move platform code to platform file
+//	- Allow objects within transmission media (will not work correctly as of yet)
+//	- Skybox/infinite light/infinite geometry (such as infinite ground plane)
+//	- Volumetric transport
 //	- Fun things to render
 //		- Water in a box
 //		- Frosted glass with earth texture for frostiness
@@ -143,6 +131,14 @@ void write_file_contents(const char* path, char* contents, int contents_size)
 }
 
 double pc_frequency = 0.0; //In counts/s
+
+unsigned int get_pc_time()
+{
+	LARGE_INTEGER time;
+	QueryPerformanceCounter(&time);
+	unsigned int pc_time = (unsigned int)time.QuadPart;
+	return pc_time;
+}
 
 void query_pc_frequency()
 {

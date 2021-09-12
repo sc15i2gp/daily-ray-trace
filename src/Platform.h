@@ -20,6 +20,7 @@ struct Timer
 	LARGE_INTEGER stop_time;
 };
 
+unsigned int get_pc_time();
 void query_pc_frequency();
 void start_timer(Timer*);
 void stop_timer(Timer*);
