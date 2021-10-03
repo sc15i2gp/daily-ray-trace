@@ -84,11 +84,22 @@
 //	- Subsurface scattering
 
 //TODO: NOW
-//	- Improve microarchitecture usage
-//	- Reduce code size
+//	- Optimise
+//		- Do spectral calculations together and keep spectra, bsdfs contigiously in memory
+//		- Improve microarchitecture usage
+//		- Reduce code size
+//		- Reduce memory footprint
+//		- Review float precision issues
+//		- Move platform code to platform file
+//		- Try using switch/ifs instead of bdsf function ptr
+//		- Switch between spectral and RGB
+//		- Switch between double and float
+//	- Clean up project directory structure
+//	- Make program more robust
+//		- Make sure camera works from all orientations
 //	- Differentiate between an actual texture read or a texture access (value vs ptr)
-//	- Review float precision issues
-//	- Move platform code to platform file
+//		- Bilinear interpolation
+//	- Actual random subdivision and filters on image plane to reduce aliasing
 //	- Allow objects within transmission media (will not work correctly as of yet)
 //	- Skybox/infinite light/infinite geometry (such as infinite ground plane)
 //	- Volumetric transport

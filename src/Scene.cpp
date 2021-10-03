@@ -546,7 +546,7 @@ void load_scene(Scene* scene)
 	}
 }
 
-int number_of_render_samples = 8192;
+int number_of_render_samples = 16;
 double total_render_time = 0.0;
 double average_sample_render_time = 0.0;
 double max_sample_render_time = 0.0;
