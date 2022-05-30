@@ -235,14 +235,13 @@ void direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing, Rad
 }
 
 //MIRROR CHANGE: Probability of sampling specular direction depends on material
-Vec3 choose_incoming_direction(Surface_Point& p, Vec3 outgoing, double* pdf_value, bool* consider_emissive)
+Vec3 choose_incoming_direction(Surface_Point& p, Vec3 outgoing, double* pdf_value)
 {
 	TIMED_FUNCTION;
 	double r = uniform_sample();
 	double n = (double)p.surface_material->number_of_bdsfs;
 	int chosen_bdsf = (int)floor(r * n);
 	BDSF_TYPE chosen_bdsf_type = p.surface_material->bdsfs[chosen_bdsf].type;
-	*consider_emissive = chosen_bdsf_type & BDSF_TYPE_SPECULAR;
 	Vec3 direction = p.surface_material->bdsfs[chosen_bdsf].sample_direction(p, outgoing, pdf_value);
 
 	//Sum probabilities for BDSFs with same distributions (that aren't specular)
@@ -339,7 +338,6 @@ void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 	set_spectrum_to_value(f, 1.0);
 
 	double dir_pdf = 0.0;
-	bool consider_emissive = true;
 	Surface_Point p = {};
 	for(int depth = 0; depth < max_depth; ++depth)
 	{
@@ -347,7 +345,7 @@ void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 
 		find_intersection_surface_point(scene, outgoing, p);
 
-		if(p.exists && p.surface_material->is_emissive && consider_emissive)
+		if(p.exists && p.surface_material->is_emissive)
 		{
 			Spectrum& emission_spd = *TEXTURE_SAMPLE(Spectrum, p.surface_material->emission_spd_texture, p.texture_coordinates);
 			spectral_sum_and_multiply(eye_ray_radiance, f, emission_spd, eye_ray_radiance);
@@ -360,7 +358,7 @@ void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 			spectral_sum_and_multiply(eye_ray_radiance, f, direct_contribution, eye_ray_radiance);
 			
 			//Choose new incoming direction
-			incoming.direction = choose_incoming_direction(p, outgoing.direction, &dir_pdf, &consider_emissive);
+			incoming.direction = choose_incoming_direction(p, outgoing.direction, &dir_pdf);
 			incoming.origin = p.position + 0.001*incoming.direction;
 
 			//Compute new direction pdf value
@@ -546,7 +544,7 @@ void load_scene(Scene* scene)
 	}
 }
 
-int number_of_render_samples = 16;
+int number_of_render_samples = 128;
 double total_render_time = 0.0;
 double average_sample_render_time = 0.0;
 double max_sample_render_time = 0.0;
@@ -709,7 +707,7 @@ void render_image(Texture* render_target)
 	HANDLE thread_handles[3];
 	for(int pass = 0; pass < number_of_render_samples; ++pass)
 	{
-		printf("Pass %d/%d\r", pass+1, number_of_render_samples);
+		printf("Pass %d/%d\n", pass+1, number_of_render_samples);
 		for(int i = 0; i < 4; ++i)
 		{
 			render_data[i].pass = pass;

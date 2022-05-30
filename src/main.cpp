@@ -1,11 +1,5 @@
 #include "daily_ray_trace.h"
 
-//CODE STANDARDS:
-//	- No templates (they kinda suck and are hard to use)
-//	- Keep to C features as much as possible, except for:
-//		- Operator overloading
-//		- Constructors (for profiling)
-
 //NOTES on bugs and problems:
 //	- Incorrect colour in indirect lighting tint near cornell box walls
 //		- I'm fairly sure it's a problem with the bsdf function
@@ -33,80 +27,100 @@
 //	- Going multithreaded caused incorrect image
 //		- (POSSIBLE CAUSE) RNG sequences always the same and rand is not thread safe
 
-//NOTES: Parameters I've wanted to change/view but had to rebuild for:
-//	- Emission/reflectance spectra
-//	- Number of render samples to take
-//	- Different sampling strategies
-//		- Uniform vs cosine weighted hemisphere sampling
-//	- Material parameters
-//		- Gloss shininess
-//	- Scene objects
-//		- Generally: positions, spectra, light types etc.
-//	- Image plane
-//		- Position
-
-//TODO: LONGTERM
-//	- Dispersion
-//	- Change reference white + find more precise spectra (maybe parameterise)
-//	- Animation
-//	- CSG
-
-//TODO: Alternative methods
-//	- Trowbridge-Reitz distribution for microfacets
-//	- Oren-Nayar for diffuse materials
-//	- Ward BSDF for microfacets
-//	- Fourier BSDFs
-//	- Investigate different SPD representations
-//	- Different camera models/lenses (fisheye etc.)
-//	- Different RGB -> SPD method: "Physically Meaningful Rendering using Tristimulus Colours"
-//	- Consider using explicitly sized types
-//	- Maybe use vec4 for everything (to make matrix operations slightly easier and 4 numbers easier to optimise than 3)
-//	- Kirschoff's law for non-black body sources
-//	- Remove CSTDLIB
-//		- Implement printf/sprintf/etc.
-//		- Implement maths functions (trig, pow, ln etc.)
-//		- Numeric limits (e.g. DBL_MAX)
-//	- Bidirectional methods
-
-//TODO: Necessary
-//	- Quality of life/Code problems
-//		- Output time taken in seconds, minutes, hours etc.
-//		- Functionality for producing comparison images (e.g. sampling strategies)
+//TODO:
+//	- Features
+//		- Objects inside other objects (transmission media)
+//		- Volumetric transport
+//		- Not fixed depth, biased statistical method
+//		- Scene file, not hard coded
+//			- Geometry
+//			- Material BDSFs
+//			- Spectra
+//		- Bump maps
+//		- Subsurface scattering
+//		- Skybox
+//		- More (maybe improved) geometry
+//			- Torus
+//			- CSG
+//		- Support for 3d models
+//		- Alternate spd representations
+//			- RGB vs spectrum
+//			- Basis (or other) functions
+//		- Multiple platforms
+//			- Windows
+//			- Linux
+// 	- Testing and quality
+//		- Regressions
+//		- Prevent bugs
+//		- Edge cases
+//			- Make sure camera works from all orientations
+//		- Comparison and analysis (such as variance, convergence etc.)
+//		- Performance
+//			- Code performance
+//			- Algorithm performance (reduce variance)
+//		- Floating point stuff
+//			- Precision
+//			- Double vs float
+//		- Program robustness
+//		- Clean up project directory (maybe consider dev + release sort of structure)
+//		- Improve texture access interface
+//		- Improve RGB -> SPD (and vice versa) methods
+//			- "Physically Meaningful Rendering using Tristimulus Colours"
+//		- Robust RNG
+//		- Betture texture sampling
+//		- Better sampling of image plane (subdivision strategies, filter function etc.)
+//		- Parameterise reference spectra
 //		- Try and get rid of reliance on plane normal direction (hard to use else)
-//		- Note failure points/error cases and handle
-//		- Clean up project directory
-//		- Add error handling to platform functions
-//		- Add citations in code for origin of algorithm/technique/bsdf etc.
-//	- Scene editing
-//		- OpenGL for rendering scene preview and UI
-//		- UI for camera control, raytrace control, parameterisation etc.
-//		- Maybe screen shows progress of raytrace
-//	- Subsurface scattering
-
-//TODO: NOW
+//		- Alt methods:
+//			- Trowbridge-Reitz distribution for microfacets
+//			- Oren-Nayar for diffuse materials
+//			- Ward BSDF for microfacets
+//			- Fourier BSDFs
+//			- Investigate different SPD representations
+//			- Different camera models/lenses (fisheye etc.)
+//			- Bidirectional methods
+//		- Improve program output
+//		- Parameterise number of render samples to take
+//		- Paper and code citations
+//		- Multiple platforms
+//		- Remove cstdlib
 //	- Optimise
-//		- Do spectral calculations together and keep spectra, bsdfs contigiously in memory
-//		- Improve microarchitecture usage
+//		- Better and more disciplined memory layout
 //		- Reduce code size
 //		- Reduce memory footprint
-//		- Review float precision issues
-//		- Move platform code to platform file
-//		- Try using switch/ifs instead of bdsf function ptr
-//		- Switch between spectral and RGB
-//		- Switch between double and float
-//	- Clean up project directory structure
-//	- Make program more robust
-//		- Make sure camera works from all orientations
-//	- Differentiate between an actual texture read or a texture access (value vs ptr)
-//		- Bilinear interpolation
-//	- Actual random subdivision and filters on image plane to reduce aliasing
-//	- Allow objects within transmission media (will not work correctly as of yet)
-//	- Skybox/infinite light/infinite geometry (such as infinite ground plane)
-//	- Volumetric transport
+//		- Do similar things together (e.g. spectral calculations, geometric calculations)
+//		- Improve integration algorithm (reduce variance, biased statistical method to reduce depth of path in scene)
 //	- Fun things to render
 //		- Water in a box
 //		- Frosted glass with earth texture for frostiness
 //		- Torus
+//		- Cylinder with two shadows: One showing a circle, one a square
+//		- Light bulb with filament
+//		- Spotlight
+
+//DOING:
+// - Get program working as baseline for further development
+//		- Get profiling working
+//		- Get debugging working
+//		- Remove multithreading for now
+//		- Figure out why debug build sample numbers aren't increasing
+// - Clean up project directory structure
+// - Remove/alter hard coded parameters
+//		- Scene
+//		- Number of samples to take
+//		- Number of samples in spectra
+// - Bone up on maths
+//		- Light transport
+//		- Monte Carlo integration
+//		- Signal processing
+// - Remove fixed depth casting
+// - Transmission media
+//		- Nested solids
+//		- Volumetric transport
+//		- Subsurface scattering
+// - Reduce memory footprint
+//		- Use file streaming and small amount of mem in cache
+// - Sort out float precision issue
 
 void* alloc(int size)
 {
