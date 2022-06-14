@@ -567,6 +567,7 @@ struct Camera
 void render_image(Texture* render_target, int number_of_render_samples)
 {
 	TIMED_FUNCTION;
+	int number_of_render_samples = 32;
 	double total_render_time = 0.0;
 	double average_sample_render_time = 0.0;
 	double max_sample_render_time = 0.0;

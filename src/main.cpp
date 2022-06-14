@@ -99,16 +99,20 @@
 //		- Spotlight
 
 //DOING:
-// - Get program working as baseline for further development
-//		- Get profiling working
-//		- Get debugging working
-//		- Remove multithreading for now
-//		- Figure out why debug build sample numbers aren't increasing
-// - Clean up project directory structure
-// - Remove/alter hard coded parameters
-//		- Scene
-//		- Number of samples to take
-//		- Number of samples in spectra
+// - Cleanup
+// 	- Reduce amount of code
+// 	- Get working debug build (done, just don't run debug build in console otherwise can't compile debug build)
+// 	- Verify working profile build (done)
+// 	- Reduce memory footprint by using disk space for images
+// 	- Structure program memory
+// 	- Split raytracing algorithm into the path trace and the spectral calculations
+// 	- Remove hard coded parameters
+// 		- Scene
+// 		- Number of render samples
+// 		- Spectrum sizes
+// 	- Clean up directory structure
+// 	- Multiple input scenes
+// 	- Handle paths robustly
 // - Bone up on maths
 //		- Light transport
 //		- Monte Carlo integration
@@ -121,6 +125,21 @@
 // - Reduce memory footprint
 //		- Use file streaming and small amount of mem in cache
 // - Sort out float precision issue
+
+//Program:
+// - Input
+// 	- Scene (file)
+// 	- Render target (resolution/dimensions, file location)
+// 	- Number of samples to take (command)
+// 	- Reference white (file/scene)
+// 	- Colour matching functions (file/scene?)
+// 	- Spectral representation (command?)
+// 		- Wavelength
+// 			- Involves reference white and CMFs
+// 		- RGB
+// 		- Number of wavelengths represented
+// - Output
+// 	- Rendered image
 
 void* alloc(int size)
 {
@@ -273,11 +292,8 @@ void invert_render_buffer(Texture r_buffer)
 #define __USE_MINGW_ANSI_STDIO 1
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd_line)
 {
-	query_pc_frequency();
-
 	RGB8 clear_colour = {};
 	Texture __window_back_buffer__ = {};
-	TEXTURE_CLEAR(__window_back_buffer__, clear_colour);
 
 	__window_back_buffer__.width = RENDER_TARGET_WIDTH;
 	__window_back_buffer__.height = RENDER_TARGET_HEIGHT;
@@ -287,15 +303,15 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	__window_back_buffer__.pixels = (uint8_t*)alloc(back_buffer_size);
 	__window_back_buffer__.pixel_size = sizeof(uint32_t);
 
+	query_pc_frequency();
 	init_profiling();
+ 
+	render_image(&__window_back_buffer__, 4);
 
-	render_image(&__window_back_buffer__);
-
-	print_render_profile();
 	print_profile();
 
 	printf("Writing back buffer to file\n");
-	output_to_bmp("output.bmp", __window_back_buffer__);
+	output_to_bmp("output/output.bmp", __window_back_buffer__);
 
 	return 0;
 }
