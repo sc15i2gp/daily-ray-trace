@@ -286,14 +286,14 @@ Spectrum load_spd(const char* spd_path)
 
 void load_colour_matching_functions()
 {
-	colour_matching_functions[0] = load_spd("cmf_x.csv");
-	colour_matching_functions[1] = load_spd("cmf_y.csv");
-	colour_matching_functions[2] = load_spd("cmf_z.csv");
+	colour_matching_functions[0] = load_spd("spectra/cmf_x.csv");
+	colour_matching_functions[1] = load_spd("spectra/cmf_y.csv");
+	colour_matching_functions[2] = load_spd("spectra/cmf_z.csv");
 }
 
 void load_d65_illuminant()
 {
-	reference_white = load_spd("d65.csv");
+	reference_white = load_spd("spectra/d65.csv");
 	//normalise(reference_white);
 	for(int i = 0; i < number_of_samples; ++i) reference_white.samples[i] /= 100.0L;
 }
@@ -306,13 +306,13 @@ void load_e_illuminant()
 
 void load_rgb_to_spd_functions()
 {
-	white_rgb_to_spd = load_spd("white_rgb_to_spd.csv");
-	cyan_rgb_to_spd = load_spd("cyan_rgb_to_spd.csv");
-	magenta_rgb_to_spd = load_spd("magenta_rgb_to_spd.csv");
-	yellow_rgb_to_spd = load_spd("yellow_rgb_to_spd.csv");
-	red_rgb_to_spd = load_spd("red_rgb_to_spd.csv");
-	green_rgb_to_spd = load_spd("green_rgb_to_spd.csv");
-	blue_rgb_to_spd = load_spd("blue_rgb_to_spd.csv");
+	white_rgb_to_spd = load_spd("spectra/white_rgb_to_spd.csv");
+	cyan_rgb_to_spd = load_spd("spectra/cyan_rgb_to_spd.csv");
+	magenta_rgb_to_spd = load_spd("spectra/magenta_rgb_to_spd.csv");
+	yellow_rgb_to_spd = load_spd("spectra/yellow_rgb_to_spd.csv");
+	red_rgb_to_spd = load_spd("spectra/red_rgb_to_spd.csv");
+	green_rgb_to_spd = load_spd("spectra/green_rgb_to_spd.csv");
+	blue_rgb_to_spd = load_spd("spectra/blue_rgb_to_spd.csv");
 }
 
 void load_colour_data()

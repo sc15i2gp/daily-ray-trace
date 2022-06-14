@@ -462,10 +462,10 @@ void load_scene(Scene* scene)
 	Material blue_material = create_plastic(blue_diffuse_spd, blue_glossy_spd, 32.0);
 	Material sphere_material = create_plastic(sphere_diffuse_spd, sphere_glossy_spd, 50.0);
 	Material mirror = create_mirror();
-	Spectrum gold_refract_index = load_spd("au_spec_n.csv");
-	Spectrum gold_extinct_index = load_spd("au_spec_k.csv");
+	Spectrum gold_refract_index = load_spd("spectra/au_spec_n.csv");
+	Spectrum gold_extinct_index = load_spd("spectra/au_spec_k.csv");
 	Material gold = create_conductor(gold_refract_index, gold_extinct_index, 0.344);
-	Spectrum glass_refract_index = load_spd("glass.csv");
+	Spectrum glass_refract_index = load_spd("spectra/glass.csv");
 	Material glass = create_dielectric(glass_refract_index);
 
 
