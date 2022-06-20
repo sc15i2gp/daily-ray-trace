@@ -188,11 +188,6 @@ void direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing, Rad
 				Vec3 light_point = {};
 				switch(light.geometry.type)
 				{
-					case GEO_TYPE_POINT: 
-					{
-						light_pdf = 1.0;
-						light_point = light.geometry.point.position;
-					}
 					case GEO_TYPE_SPHERE: 
 					{
 						light_point = uniform_sample_sphere_subtended(light.geometry.sphere, p.position, &light_pdf);
@@ -322,6 +317,41 @@ void find_intersection_surface_point(Scene* scene, Ray outgoing, Surface_Point& 
 		p.exists = true;
 	}
 }
+
+void ddd(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
+{
+	//Path calculations
+	//Given a point on the film's surface
+	//current_point = film point
+	//next_point = whatever
+	//bool is_there_next_point = true
+	//depth = 0
+	//scene path = Scene points[]
+	//While is_there_next_point and the max depth hasn't been reached
+	//	for(i = 0; depth != 0 && i < num light sources; ++i)
+	//		sample point on light source[i]'s surface
+	//		if the light point is visible from the current point
+	//			add light point to current point's contributing sources
+	//	Sample point's bdsf for next direction
+	//	Sample scene for next point
+	//	add current point to scene path
+	//	Set current point to next point
+	//	is_there_next_point = next point != light source && next point != escaped scene
+	//	++ depth
+	//If the next point is on a light source or escapes the scene
+	//	Add the next point to the current point's light source contributions
+	
+	
+	//Spectral calculations
+	//f = spectral 1.0
+	//For each point in the scene path:
+	//	Compute f
+	//		f *= abs(dot(prev point normal, in dir)) * bdsf(prev point, prev point in dir, in dir)
+	//	Compute direct lighting contribution to eye ray radiance
+	//		For each light contributing:
+	//			eye_ray_radiance += abs(dot(point normal, light dir)) * (1.0 / ligh dir pdf) * f * bdsf(point, in dir, light dir) * emission spd
+}
+
 
 void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 {

@@ -38,13 +38,13 @@ struct Material
 	bool is_emissive;
 
 	//Textures
-	Texture emission_spd_texture;
-	Texture diffuse_spd_texture;
-	Texture glossy_spd_texture;
-	Texture shininess_texture;
-	Texture refract_index_texture;
-	Texture extinct_index_texture;
-	Texture roughness_texture;
+	Texture emission_spd_texture; //Spectral, can vary over surface
+	Texture diffuse_spd_texture; //Spectral, can vary over surface
+	Texture glossy_spd_texture; //Spectral, can vary over surface
+	Texture refract_index_texture; //v
+	Texture extinct_index_texture; //Is spectral but isn't treated as such
+	Texture shininess_texture; //Same as roughness
+	Texture roughness_texture; //Never spectral, value is a statistical measure of roughness
 };
 
 struct Surface_Point

@@ -99,6 +99,17 @@
 //		- Spotlight
 
 //DOING:
+// - Right now
+// 	- Change algorithm to do path then spectral computations
+// 		- Change bdsf interface + function
+// 			- Surface points need to change what they hold
+// 			- Reference to some spectral buffer for immediate storage
+// 			- Remove texture sampling with new material implementation
+// 		- Separate scene geometry and materials
+// 		- Fundamental change to materials
+// 			- Scene materials, which hold references to textures or single spectra
+// 			- bdsf material, which hold references to spectra sampled from the scene (ie after texture sampling)
+// 	- Reduce memory footprint
 // - Cleanup
 // 	- Reduce amount of code
 // 	- Get working debug build (done, just don't run debug build in console otherwise can't compile debug build)
@@ -113,6 +124,7 @@
 // 	- Clean up directory structure
 // 	- Multiple input scenes
 // 	- Handle paths robustly
+// 		- No hard coded max path depth
 // - Bone up on maths
 //		- Light transport
 //		- Monte Carlo integration
@@ -124,6 +136,7 @@
 //		- Subsurface scattering
 // - Reduce memory footprint
 //		- Use file streaming and small amount of mem in cache
+// - Sort out index spectra (only uses 630nm rn)
 // - Sort out float precision issue
 
 //Program:

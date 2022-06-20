@@ -34,7 +34,6 @@ struct Scene_Geometry
 	Geometry_Type type;
 	union
 	{
-		Point point;
 		Sphere sphere;
 		Plane plane;
 		Model model;
