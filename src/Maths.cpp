@@ -755,3 +755,55 @@ bool ray_intersects_plane(Ray ray, Plane p, double* t)
 	else return false;
 
 }
+
+double NEW_ray_intersects_sphere(Ray ray, Sphere s)
+{
+	//Sphere: Radius^2 = dot(P-Center, P-Center), where P is point on surface of sphere
+	//Ray: R = R_origin + t(R_direction)
+	//Derived quadratic equation from two equations above
+	
+	//a, b, c coefficients in quadratic, solved using quadratic formula
+	Vec3 s_center_to_r_origin = ray.origin - s.center;
+	double a = 1.0;
+	double b = 2.0 * dot(ray.direction, s_center_to_r_origin);
+	double c = dot(s_center_to_r_origin, s_center_to_r_origin) - s.radius*s.radius;
+
+	double discriminant = b*b - 4.0 * a * c;
+
+	if(discriminant >= 0.0)
+	{//If a solution exists
+		double desired_solution = 0.0;
+		if(discriminant == 0.0) desired_solution = -b/(2.0*a);
+		else
+		{//2 solutions exist
+			double solution_0 = -(b + sqrt(discriminant))/2.0*a;
+			double solution_1 = -(b - sqrt(discriminant))/2.0*a;
+			//Choose smallest positive solution
+			if(solution_1 < 0.0) desired_solution = solution_0;
+			else if(solution_0 < 0.0) desired_solution = solution_1;
+			else desired_solution = (solution_0 < solution_1) ? solution_0 : solution_1;
+		}
+
+		return desired_solution;
+	}
+	else return DBL_MAX;
+
+}
+
+double NEW_ray_intersects_plane(Ray ray, Plane p)
+{
+	if(dot(ray.direction, p.n) != 0.0)
+	{
+		double desired_solution = dot(p.p - ray.origin, p.n)/dot(ray.direction, p.n);
+
+		Vec3 intersection = ray.origin + desired_solution * ray.direction;
+		double i_u = dot(intersection - p.p, p.u); //How far along u intersection is
+		double i_v = dot(intersection - p.p, p.v); //How far along v intersection is
+		
+		bool within_u = i_u >= 0.0 && i_u <= p.u_length;
+		bool within_v = i_v >= 0.0 && i_v <= p.v_length;
+		bool intersection_within_bounds = within_u && within_v;
+		if(intersection_within_bounds) return desired_solution;
+	}
+	return DBL_MAX;
+}

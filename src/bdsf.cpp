@@ -251,7 +251,6 @@ double geometric_attenuation(Vec3 incoming, Vec3 outgoing, Vec3 surface_normal, 
 
 /*	BDSFs	*/
 
-
 void diffuse_phong_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
 	Spectrum* diffuse_spd = TEXTURE_SAMPLE(Spectrum, p.surface_material->diffuse_spd_texture, p.texture_coordinates);
@@ -276,7 +275,6 @@ void perfect_specular_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spect
 	else set_spectrum_to_value(reflectance, 0.0);
 }
 
-//TODO: Make it so specular bdsfs don't have to check if incoming is specular reflection vector
 void fresnel_specular_reflection_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
 	if(incoming == reflect_vector(-outgoing, p.normal))
@@ -299,7 +297,6 @@ void fresnel_specular_reflection_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outg
 		}
 	}
 }
-
 
 void fresnel_transmission_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& transmittance, Spectrum&)
 {
@@ -680,3 +677,385 @@ Material create_dielectric(Spectrum refract_index)
 
 	return dielectric;
 }
+
+// NEW_bdsf utility functions
+/*
+double NEW_microfacet_distribution(double roughness, Vec3 n, Vec3 v)
+{
+	double cos_th_sq = dot(n, v) * dot(n, v);
+	double sin_th_sq = 1.0 - cos_th_sq;
+	double sin_th = sqrt(sin_th_sq);
+	double tan_th_sq = sin_th_sq / cos_th_sq;
+	double cos_ph = (sin_th == 0.0) ? 1.0 : clamp(v.x / sin_th, -1.0, 1.0);
+	double sin_ph = (sin_th == 0.0) ? 0.0 : clamp(v.y / sin_th, -1.0, 1.0);
+	double cos_ph_sq = cos_ph * cos_ph;
+	double sin_ph_sq = sin_ph * sin_ph;
+
+	double r = roughness;
+	double r_sq = r * r;
+	double d = exp(-tan_th_sq / r_sq) / (PI * r_sq * cos_th_sq * cos_th_sq);
+
+	return d;
+}
+
+double NEW_lambda(double roughness, Vec3 n, Vec3 v)
+{
+	double cos_th = dot(n, v);
+	double sin_th = sqrt(1.0 - cos_th * cos_th);
+	double abs_tan_th = abs(sin_th/cos_th);
+	double cos_ph = (sin_th == 0.0) ? 1.0 : clamp(v.x / sin_th, -1.0, 1.0);
+	double sin_ph = (sin_th == 0.0) ? 0.0 : clamp(v.y / sin_th, -1.0, 1.0);
+	double cos_ph_sq = cos_ph * cos_ph;
+	double sin_ph_sq = sin_ph * sin_ph;
+
+	double r = roughness;
+	double r_sq = r * r; 
+	double alpha = sqrt(cos_ph_sq * r_sq + sin_ph_sq * r_sq); //alpha = sqrt(2) * sigma
+	double a = 1.0 / (alpha * abs_tan_th);
+	
+	if(a >= 1.6) return 1.0;
+
+	double d = (1.0 - 1.259*a + 0.396*a*a) / (3.535*a + 2.181*a*a);
+	return d;
+}
+
+double NEW_geometric_attenuation(double roughness, Vec3 incoming, Vec3 outgoing, Vec3 normal)
+{
+	return 1.0 / (1.0 + NEW_lambda(roughness, outgoing, normal) + NEW_lambda(roughness, incoming, normal));
+}
+
+double NEW_geometric_attenuation(double roughness, Vec3 v, Vec3 normal)
+{
+	return 1.0/ (1.0 + NEW_lambda(roughness, v, normal));
+}
+
+void NEW_fresnel_reflectance_conductor(Spectrum* incident_refract_index, Spectrum* transmit_refract_index, Spectrum* transmit_extinct_index, double incident_cos, Spectrum* reflectance)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		double relative_refract_index = transmit_refract_index->samples[i] / incident_refract_index->samples[i];
+		double relative_extinct_index = transmit_extinct_index->samples[i] / incident_refract_index->samples[i];
+
+		double incident_cos_sq = incident_cos * incident_cos;
+		double incident_sin_sq = 1.0 - incident_cos_sq;
+		double relative_refract_index_sq = relative_refract_index * relative_refract_index;
+		double relative_extinct_index_sq = relative_extinct_index * relative_extinct_index;
+		double r = relative_refract_index_sq - relative_extinct_index_sq - incident_sin_sq;
+		double a_sq_plus_b_sq = sqrt(r * r + 4.0 * relative_refract_index_sq * relative_extinct_index_sq);
+		double a = sqrt(0.5 * (a_sq_plus_b_sq + r));
+		double s = a_sq_plus_b_sq + incident_cos_sq;
+		double t = 2.0 * a * incident_cos;
+		double u = incident_cos_sq * a_sq_plus_b_sq + incident_sin_sq * incident_sin_sq;
+		double v = t * incident_sin_sq;
+		double parallel_reflectance = (s - t) / (s + t);
+		double perpendicular_reflectance = parallel_reflectance * (u - v) / (u + v);
+
+		reflectance->samples[i] = 0.5 * (parallel_reflectance + perpendicular_reflectance);
+	}
+}
+
+void NEW_fresnel_reflectance_dielectric(Spectrum* incident_refract_index, Spectrum* transmit_refract_index, double incident_cos, Spectrum* reflectance)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		double relative_refract_index = incident_refract_index->samples[i] / transmit_refract_index->samples[i];
+		double incident_sin_sq = d_max(0.0, 1.0 - incident_cos * incident_cos);
+		double transmit_sin_sq = relative_refract_index * relative_refract_index * incident_sin_sq;
+		//Total internal reflection
+		if(transmit_sin_sq >= 1.0) reflectance->samples[i] = 1.0;
+		else
+		{
+			double transmit_cos = sqrt(d_max(0.0, 1.0 - transmit_sin_sq * transmit_sin_sq));
+			reflectance->samples[i] = NEW_fresnel_reflectance_dielectric(incident_refract_index->samples[i], transmit_refract_index->samples[i], incident_cos, transmit_cos);
+		}
+	}
+}
+
+void NEW_fresnel_transmittance_dielectric(Spectrum* incident_refract_index, Spectrum* transmit_refract_index, double incident_cos, double transmit_cos, Spectrum* transmittance)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		transmittance->samples[i] = 1.0 - NEW_fresnel_reflectance_dielectric(incident_refract_index->samples[i], transmit_refract_index->samples[i], incident_cos, transmit_cos);
+	}
+}
+*/
+// NEW_bdsfs
+
+void NEW_const_1_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr)
+{
+	set_spectrum_to_value(*fr, 1.0);
+}
+
+void NEW_specular_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* reflectance)
+{
+	if(in_direction == reflect_vector(-out_direction, p->normal)) set_spectrum_to_value(*reflectance, 1.0);
+	else set_spectrum_to_value(*reflectance, 0.0);
+}
+
+void NEW_diffuse_phong_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* reflectance)
+{
+	spectral_multiply(*p->diffuse_spd, 1.0/PI, *reflectance);
+}
+
+void NEW_glossy_phong_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* reflectance)
+{
+	Vec3 bisector = (in_direction + out_direction)/2.0;
+	double shininess = p->shininess;
+	double specular_coefficient = pow(d_max(0.0, dot(p->normal, bisector)), p->shininess);
+	spectral_multiply(*p->glossy_spd, specular_coefficient, *reflectance);
+}
+
+/*
+void NEW_torrance_sparrow_conductor_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* fr)
+{
+	double cos_th_out = dot(out_direction, p->normal);
+	double cos_th_in = dot(in_direction, p->normal);
+
+	double incident_cos = abs(cos_th_out);
+	double reflectance_cos = abs(cos_th_in);
+
+	NEW_fresnel_reflectance_conductor(p->incident_refract_index_spd, p->transmit_refract_index_spd, p->transmit_extinct_index_spd, incident_cos, fr);
+	spectral_multiply(*fr, 1.0 / reflectance_cos, *fr);
+
+	Vec3 halfway = (out_direction + in_direction)/2.0;
+	double reflectance_coefficient = NEW_microfacet_distribution(p->roughness, p->normal, halfway) * NEW_geometric_attenuation(p->roughness, in_direction, out_direction);
+	spectral_multiply(*fr, reflectance_coefficient, *fr);
+	reflectance_coefficient = 1.0/(4.0 * cos_th_in, cos_th_out);
+	spectral_multiply(*fr, reflectance_coefficient, *fr);
+}
+
+void NEW_torrance_sparrow_dielectric_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* fr)
+{
+	double cos_th_out = dot(out_direction, p->normal);
+	double cos_th_in = dot(in_direction, p->normal);
+
+	double incident_cos = abs(cos_th_out);
+	double reflectance_cos = abs(cos_th_in);
+
+	NEW_fresnel_reflectance_dielectric(p->incident_refract_index_spd, p->transmit_refract_index_spd, incident_cos, fr);
+	spectral_multiply(*fr, 1.0 / reflectance_cos, *fr);
+
+	Vec3 halfway = (out_direction + in_direction)/2.0;
+	double reflectance_coefficient = NEW_microfacet_distribution(p->roughness, p->normal, halfway) * NEW_geometric_attenuation(p->roughness, in_direction, out_direction);
+	spectral_multiply(*fr, reflectance_coefficient, *fr);
+	reflectance_coefficient = 1.0/(4.0 * cos_th_in, cos_th_out);
+	spectral_multiply(*fr, reflectance_coefficient, *fr);
+}
+
+void NEW_cook_torrance_conductor_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* fr)
+{
+	Vec3 microfacet_normal = normalise(outdirection + in_direction);
+	Vec3 surface_normal = p->normal;
+	double cos_sn_out = abs(dot(out_direction, surface_normal));
+	double cos_sn_in = abs(dot(out_direction, surface_normal));
+
+	double cos_mn_out = abs(dot(out_direction, microfacet_normal));
+	double cos_mn_in = abs(dot(in_direction, microfacet_normal));
+
+	NEW_fresnel_reflectance_conductor(p->incident_refract_index_spd, p->transmit_refract_index_spd, p->transmit_extinct_index_spd, cos_mn_out, fr);
+
+	spectral_multiply(*fr, 1.0 / cos_mn_in, *fr);
+
+	double reflectance_coefficient = ggx_distribution(surface_normal, microfacet_normal, p->roughness) * NEW_geometric_attenuation(in_direction, out_direction, surface_normal, microfacet_normal, p->roughness);
+	spectral_multiply(*fr, reflectance_coefficient, *fr);
+	reflectance_coefficient = 1.0/(4.0 * cos_sn_out * cos_sn_in);
+	spectral_multiply(*fr, reflectance_coefficient, *fr);
+}
+
+void NEW_cook_torrance_dielectric_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* fr)
+{
+	Vec3 microfacet_normal = normalise(outdirection + in_direction);
+	Vec3 surface_normal = p->normal;
+	double cos_sn_out = abs(dot(out_direction, surface_normal));
+	double cos_sn_in = abs(dot(out_direction, surface_normal));
+
+	double cos_mn_out = abs(dot(out_direction, microfacet_normal));
+	double cos_mn_in = abs(dot(in_direction, microfacet_normal));
+
+	NEW_fresnel_reflectance_dielectric(p->incident_refract_index_spd, p->transmit_refract_index_spd, cos_mn_out, fr);
+	spectral_multiply(*fr, 1.0 / cos_mn_in, *fr);
+
+	double reflectance_coefficient = ggx_distribution(surface_normal, microfacet_normal, p->roughness) * NEW_geometric_attenuation(in_direction, out_direction, surface_normal, microfacet_normal, p->roughness);
+	spectral_multiply(*fr, reflectance_coefficient, *fr);
+	reflectance_coefficient = 1.0/(4.0 * cos_sn_out * cos_sn_in);
+	spectral_multiply(*fr, reflectance_coefficient, *fr);
+}
+
+void NEW_fresnel_specular_transmittance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* transmittance)
+{
+	if(in_direction == transmit_vector(p->incident_refract_index, p->transmit_refract_index, p->normal, out_direction))
+	{
+		double incident_cos = abs(dot(out_direction, p->normal));
+		double transmit_cos = abs(dot(in_direction, p->normal));
+		NEW_fresnel_transmittance_dielectric(p->incident_refract_index_spd, p->transmit_refract_index_spd, incident_cos, transmit_cos, transmittance);
+		spectral_multiply(*transmittance, 1.0 / transmit_cos, *transmittance);
+	}
+	else set_spectrum_to_value(*transmittance, 0.0);
+}
+
+//TODO: Make it so specular bdsfs don't have to check if incoming is specular reflection vector
+void NEW_fresnel_conductor_specular_reflectance()
+{
+	if(incoming == reflect_vector(-out_direction, p->normal))
+	{
+		double incident_cos = abs(dot(out_direction, p->normal));
+		double reflectance_cos = abs(dot(in_direction, p->normal));
+		NEW_fresnel_reflectance_conductor(p->incident_refract_index_spd, p->transmit_refract_index_spd, p->transmit_extinct_index_spd, incident_cos, reflectance);
+		spectral_multiply(*reflectance, 1.0 / reflectance_cos, *reflectance);
+	}
+	else set_spectrum_to_value(*reflectance, 0.0);
+}
+
+void NEW_fresnel_dielectric_specular_reflectance()
+{
+	if(incoming == reflect_vector(-out_direction, p->normal))
+	{
+		double incident_cos = abs(dot(out_direction, p->normal));
+		double reflectance_cos = abs(dot(in_direction, p->normal));
+		NEW_fresnel_reflectance_dielectric(p->incident_refract_index_spd, p->transmit_refract_index_spd, incident_cos, reflectance);
+		spectral_multiply(*reflectance, 1.0 / reflectance_cos, *reflectance);
+	}
+	else set_spectrum_to_value(*reflectance, 0.0);
+}
+*/
+
+// NEW_bdsf direction sampling
+
+Vec3 NEW_sample_camera_lens_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+{
+	*pdf = 1.0; //TODO: Figure out what this really should be
+	Vec3 plane_of_focus_point = p->position + p->camera->focal_depth * normalise(p->camera->pinhole_position - p->position);
+	Mat3x3 r = find_rotation_between_vectors(p->camera->film_normal, Vec3{0.0, 0.0, 1.0});
+	Vec3 sampled_lens_point = p->camera->pinhole_position + r * ((p->camera->focal_length / p->camera->aperture_radius) * uniform_sample_disc());
+	return normalise(p->camera->pinhole_position - p->position);
+}
+
+Vec3 NEW_sample_camera_pinhole_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+{
+	*pdf = 1.0;
+	return normalise(p->camera->pinhole_position - p->position);
+}
+
+Vec3 NEW_sample_diffuse_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+{
+	return cos_weighted_sample_hemisphere(p->normal, pdf);
+}
+
+Vec3 NEW_sample_glossy_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+{
+	return NEW_sample_diffuse_direction(p, in_direction, pdf);
+}
+
+//TODO: Vec3 NEW_sample_glossy_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+
+Vec3 NEW_sample_specular_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+{
+	*pdf = 1.0;
+	return reflect_vector(-in_direction, p->normal);
+}
+
+/*
+Vec3 NEW_sample_cook_torrance_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+{
+	double f = uniform_sample();
+	double g = uniform_sample();
+
+	double a = p.roughness;
+	double a_sq = a * a;
+#if 0
+	double l = log(1.0 - f);
+	if(1.0 - f <= 0.0) l = 0.0;
+
+	double tan_th_mn_sq = -a_sq * l;
+#else
+	double tan_th_mn = (a * sqrt(f)) / sqrt(1.0 - f);
+	double tan_th_mn_sq = tan_th_mn * tan_th_mn;
+#endif
+	double cos_th_mn = 1.0 / sqrt(1.0 + tan_th_mn_sq);
+	double sin_th_mn = sqrt(1.0 - cos_th_mn * cos_th_mn);
+	double phi_mn = 2.0 * PI * g;
+
+	Vec3 microfacet_normal = {sin_th_mn * cos(phi_mn), sin_th_mn * sin(phi_mn), cos_th_mn};
+	Mat3x3 r = find_rotation_between_vectors(Vec3{0.0, 0.0, 1.0}, p->normal);
+	microfacet_normal = r * microfacet_normal;
+	double mn_sn_dot = dot(microfacet_normal, p->normal);
+	if(mn_sn_dot < 0.0) 
+	{
+		microfacet_normal = -microfacet_normal;
+		mn_sn_dot = -mn_sn_dot;
+	}
+	
+	Vec3 reflection_direction = reflect_vector(-in_direction, microfacet_normal);
+	//*pdf_value = dot(outgoing, microfacet_normal) * geometric_attenuation(reflection_direction, outgoing, p.normal, microfacet_normal, p.material.roughness) / (dot(outgoing, p.normal) * dot(microfacet_normal, p.normal));
+	double d = ggx_distribution(p->normal, microfacet_normal, a) * mn_sn_dot;
+
+	*pdf = d * (1.0/(4.0 * dot(in_direction, microfacet_normal)));
+
+	return reflection_direction;
+}
+
+Vec3 NEW_sample_torrance_sparrow_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+{
+	double f = uniform_sample();
+	double g = uniform_sample();
+
+	double l = log(1.0 - f);
+	if(1.0 - f <= 0.0) l = 0.0;
+	
+	double p->roughness;
+	double tan_th_sq = - r * r * l;
+	double phi = 2.0 * PI * g;
+
+	double cos_th = 1.0 / sqrt(1.0 + tan_th_sq);
+	double sin_th = sqrt(1.0 - cos_th * cos_th);
+	
+	Vec3 halfway = {sin_th * cos(phi), sin_th * sin(phi), cos_th};
+	if(dot(halfway, p->normal) < 0.0) halfway = -halfway;
+	*pdf = NEW_microfacet_distribution(p->roughness, p->normal, halfway) * NEW_geometric_attenutation(p->roughness, in_direction, p->normal) * abs(dot(in_direction, halfway)) / abs(dot(in_direction, p->normal));
+
+	return reflect_vector(-in_direction, halfway);
+}
+
+Vec3 NEW_transmit_vector(double incident_refract_index, double transmit_refract_index, Vec3 n, Vec3 in)
+{
+	//Handles entering and leaving medium
+	if(dot(in, n) < 0.0) normal = -normal;
+	
+	//Parallel and perpendicular to p.normal
+	Vec3 transmit_perpendicular_component = (incident_refract_index/transmit_refract_index) * (dot(in, n)*n -in);
+	Vec3 transmit_parallel_component = -sqrt(1.0 - dot(transmit_perpendicular_component, transmit_perpendicular_component))*n;
+	
+	Vec3 transmit_direction = transmit_perpendicular_component + transmit_parallel_component;
+	return transmit_direction;
+}
+
+//TODO: Make transmission wavelength randomly chosen
+#define TRANSMISSION_WAVELENGTH 630
+Vec3 NEW_sample_specular_transmission_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+{
+	*pdf = 1.0;
+	return NEW_transmit_vector(p->incident_refract_index_spd.samples[TRANSMISSION_WAVELENGTH], p->transmit_refract_index.samples[TRANSMISSION_WAVELENGTH], p->normal, in_direction);
+}
+
+//TODO: Total internal reflection
+//TODO: Fix this function
+//	- fresnel_reflectance should return 1.0 with total internal reflection
+Vec3 NEW_sample_specular_or_transmission_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+{
+	double incident_cos = abs(dot(in_direction, p->normal));
+	double reflectance = NEW_fresnel_reflectance_dielectric(p->incident_refract_index_spd.samples[TRANSMISSION_WAVELENGTH], p->transmit_refract_index_spd.samples[TRANSMISSION_WAVELENGTH], incident_cos);
+	double f = uniform_sample();
+	Vec3 sampled_direction = {};
+	if(f < reflectance)
+	{
+		sampled_direction = reflect_vector(-in_direction, p.normal);
+		*pdf = reflectance;
+	}
+	else
+	{
+		sampled_direction = NEW_transmit_vector(p->incident_refract_index_spd.samples[TRANSMISSION_WAVELENGTH], p->transmit_refract_index_spd.samples[TRANSMISSION_WAVELENGTH], p->normal, in_direction);
+		*pdf = 1.0 - reflectance;
+	}
+	return sampled_direction;
+}
+*/

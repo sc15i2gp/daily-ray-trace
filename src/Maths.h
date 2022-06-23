@@ -241,3 +241,6 @@ bool ray_intersects_sphere(Ray, Sphere, double* t);
 bool ray_intersects_plane(Ray ray, Plane, double* t);
 
 double point_to_line_distance_sq(Vec3 p, Vec3 l_0, Vec3 l_1);
+
+double NEW_ray_intersects_sphere(Ray, Sphere);
+double NEW_ray_intersects_plane(Ray, Plane);

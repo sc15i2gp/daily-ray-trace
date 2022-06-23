@@ -100,31 +100,50 @@
 
 //DOING:
 // - Right now
-// 	- Change algorithm to do path then spectral computations
-// 		- Change bdsf interface + function
-// 			- Surface points need to change what they hold
-// 			- Reference to some spectral buffer for immediate storage
-// 			- Remove texture sampling with new material implementation
-// 		- Separate scene geometry and materials
-// 		- Fundamental change to materials
-// 			- Scene materials, which hold references to textures or single spectra
-// 			- bdsf material, which hold references to spectra sampled from the scene (ie after texture sampling)
-// 	- Reduce memory footprint
+// 	- WIP ray cast algorithm and general cleanup
+// 		- Ignore models for now (mem requirements unclear)
+// 		- Assume air is the 0th material in the scene materials
+// 		- NOTE: refraction can be supported fairly easily
+// 			- randomly choose a wavelength to take the refractive index of
+// 		- load scene
+// 		- need to make sure code mathematically correct
+// 		- need to make code compilable
+// 		- need to fix code
 // - Cleanup
-// 	- Reduce amount of code
-// 	- Get working debug build (done, just don't run debug build in console otherwise can't compile debug build)
-// 	- Verify working profile build (done)
-// 	- Reduce memory footprint by using disk space for images
-// 	- Structure program memory
-// 	- Split raytracing algorithm into the path trace and the spectral calculations
+// 	- Change bdsfs to have reflectance and direction sampling more separate
+// 	- Clean up bdsf code
+// 	- Colour code
+// 		- Remove spectra references in Colour
+// 		- Do a general cleanup to make it faster, neater and more sensible
+// 	- Move RGB8 to platform
+// 	- Fully remove old texture, profiling and debug info code
+// 	- Make geometries position independent(?)
 // 	- Remove hard coded parameters
 // 		- Scene
 // 		- Number of render samples
 // 		- Spectrum sizes
 // 	- Clean up directory structure
-// 	- Multiple input scenes
-// 	- Handle paths robustly
-// 		- No hard coded max path depth
+// 	- File streaming
+// 	- Readd models
+// 	- Readd textures
+// 	- Regression testing and robustness
+// 		- Multiple scenes
+// 		- Multiple cameras
+// 		- Multiple const spectra
+// 		- Multiple spectra sizes
+// 		- Multiple render targets
+// 		- Multiple render sample numbers
+// 		- Profiling
+// 		- Mem usage
+// 	- Platform layer improvement
+// 		- Handle paths robustly
+// 			- No hard coded max path depth
+// 			- Bias computation
+// 		- Memory allocation
+// 		- Render target stuf
+// 		- Logging/printf
+// 	- Better RNG
+// 	- Readd textures and better file handling
 // - Bone up on maths
 //		- Light transport
 //		- Monte Carlo integration
@@ -134,8 +153,6 @@
 //		- Nested solids
 //		- Volumetric transport
 //		- Subsurface scattering
-// - Reduce memory footprint
-//		- Use file streaming and small amount of mem in cache
 // - Sort out index spectra (only uses 630nm rn)
 // - Sort out float precision issue
 
@@ -164,6 +181,11 @@ void* alloc(int size)
 void dealloc(void* ptr)
 {
 	VirtualFree(ptr, 0, MEM_RELEASE);
+}
+
+void zero_mem(void* ptr, long unsigned int size)
+{
+	ZeroMemory(ptr, size);
 }
 
 char* read_file_contents(const char* path)
@@ -240,19 +262,19 @@ double elapsed_time_in_ms(Timer* t)
 	return cycles_to_ms(elapsed_time_in_cycles(t));
 }
 
-void output_to_bmp(const char* path, Texture r_buffer)
+void output_to_bmp(const char* path, int image_width, int image_height, RGB8* image)
 {
 	BITMAPFILEHEADER bmp_file_header = {};
 	BITMAPINFOHEADER bmp_info_header = {};
 
-	int texture_size = r_buffer.width * r_buffer.height * r_buffer.pixel_size;
+	int texture_size = image_width * image_height * 4;
 	bmp_file_header.bfType = 0x4d42;
 	bmp_file_header.bfSize = sizeof(bmp_file_header) + sizeof(bmp_info_header) + texture_size;
 	bmp_file_header.bfOffBits = bmp_file_header.bfSize - texture_size;
 
 	bmp_info_header.biSize = sizeof(bmp_info_header);
-	bmp_info_header.biWidth = r_buffer.width;
-	bmp_info_header.biHeight = r_buffer.height; //NOTE: THIS MAY NEED TO CHANGE IF PROBLEMS PRINTING FILE
+	bmp_info_header.biWidth = image_width;
+	bmp_info_header.biHeight = image_height; //NOTE: THIS MAY NEED TO CHANGE IF PROBLEMS PRINTING FILE
 	bmp_info_header.biPlanes = 1;
 	bmp_info_header.biBitCount = 32;
 	bmp_info_header.biCompression = BI_RGB;
@@ -263,68 +285,29 @@ void output_to_bmp(const char* path, Texture r_buffer)
 	current_contents += sizeof(bmp_file_header);
 	memcpy(current_contents, &bmp_info_header, sizeof(bmp_info_header));
 	current_contents += sizeof(bmp_info_header);
-	memcpy(current_contents, r_buffer.pixels, texture_size);
+	memcpy(current_contents, image, texture_size);
 
 	write_file_contents(path, contents, bmp_file_header.bfSize);
 	dealloc(contents);
+
 }
 
-/*
-void invert_render_buffer(Texture r_buffer)
-{
-	for(int y = 0; y < r_buffer.height/2; ++y)
-	{
-		for(int x = 0; x < r_buffer.width; ++x)
-		{
-			uint32_t* p_0 = TEXTURE_READ(uint32_t, r_buffer, x,  y);
-			uint32_t* p_1 = TEXTURE_READ(uint32_t, r_buffer, x, r_buffer.height - 1 - y);
-			uint32_t p_temp = *p_0;
-			*p_0 = *p_1;
-			*p_1 = p_temp;
-		}
-	}
-
-	for(int y = 0; y < r_buffer.height; ++y)
-	{
-		for(int x = 0; x < r_buffer.width/2; ++x)
-		{
-			uint32_t* p_0 = TEXTURE_READ(uint32_t, r_buffer, x, y);
-			uint32_t* p_1 = TEXTURE_READ(uint32_t, r_buffer, r_buffer.width - 1 - x, y);
-			uint32_t p_temp = *p_0;
-			*p_0 = *p_1;
-			*p_1 = p_temp;
-		}
-	}
-}
-*/
-
-
+#define __USE_MINGW_ANSI_STDIO 1
 #define RENDER_TARGET_WIDTH 800
 #define RENDER_TARGET_HEIGHT 600
 
-#define __USE_MINGW_ANSI_STDIO 1
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd_line)
 {
-	RGB8 clear_colour = {};
-	Texture __window_back_buffer__ = {};
-
-	__window_back_buffer__.width = RENDER_TARGET_WIDTH;
-	__window_back_buffer__.height = RENDER_TARGET_HEIGHT;
-
-	int bytes_per_pixel = 4;
-	int back_buffer_size = bytes_per_pixel * __window_back_buffer__.width * __window_back_buffer__.height;
-	__window_back_buffer__.pixels = (uint8_t*)alloc(back_buffer_size);
-	__window_back_buffer__.pixel_size = sizeof(uint32_t);
-
 	query_pc_frequency();
-	init_profiling();
- 
-	render_image(&__window_back_buffer__, 4);
+	int number_of_pixels = RENDER_TARGET_WIDTH * RENDER_TARGET_HEIGHT;
+	RGB64* target_buffer = (RGB64*)alloc(number_of_pixels * sizeof(RGB64));
+	RGB8* final_image = (RGB8*)alloc(number_of_pixels * sizeof(RGB8));
 
-	print_profile();
-
-	printf("Writing back buffer to file\n");
-	output_to_bmp("output/output.bmp", __window_back_buffer__);
-
+	NEW_render_image(target_buffer, RENDER_TARGET_WIDTH, RENDER_TARGET_HEIGHT, 1);
+	for(int i = 0; i < number_of_pixels; ++i)
+	{
+		final_image[i] = rgb64_to_rgb8(target_buffer[i]);
+	}
+	output_to_bmp("output/output.bmp", RENDER_TARGET_WIDTH, RENDER_TARGET_HEIGHT, final_image);
 	return 0;
 }

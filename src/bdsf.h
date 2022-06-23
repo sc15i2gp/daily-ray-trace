@@ -1,7 +1,15 @@
+
+enum Material_Type
+{
+	MAT_TYPE_NONE = 0,
+	MAT_TYPE_DIELECTRIC,
+	MAT_TYPE_CONDUCTOR
+};
+
 struct Surface_Point; //Forward decl
 typedef void (*REFLECTION_MODEL_FUNCTION)(Surface_Point&, Vec3, Vec3, Spectrum&, Spectrum&);
-typedef double (*DISTRIBUTION_FUNCTION)(Surface_Point&, Vec3, Vec3);
 typedef Vec3 (*INDIRECT_SAMPLE_FUNCTION)(Surface_Point&, Vec3, double*);
+typedef double (*DISTRIBUTION_FUNCTION)(Surface_Point&, Vec3, Vec3);
 
 enum BDSF_TYPE
 {
@@ -21,12 +29,6 @@ struct BDSF
 	INDIRECT_SAMPLE_FUNCTION sample_direction;
 };
 
-enum Material_Type
-{
-	MAT_TYPE_NONE = 0,
-	MAT_TYPE_DIELECTRIC,
-	MAT_TYPE_CONDUCTOR
-};
 
 #define MAT_BDSF_MAX 8
 struct Material
@@ -41,10 +43,10 @@ struct Material
 	Texture emission_spd_texture; //Spectral, can vary over surface
 	Texture diffuse_spd_texture; //Spectral, can vary over surface
 	Texture glossy_spd_texture; //Spectral, can vary over surface
-	Texture refract_index_texture; //v
-	Texture extinct_index_texture; //Is spectral but isn't treated as such
+	Texture refract_index_texture; //v, doesn't vary over surface
+	Texture extinct_index_texture; //Is spectral but isn't treated as such, doesn't vary over surface
 	Texture shininess_texture; //Same as roughness
-	Texture roughness_texture; //Never spectral, value is a statistical measure of roughness
+	Texture roughness_texture; //Never spectral, value is a statistical measure of roughness, can vary over surface
 };
 
 struct Surface_Point
@@ -65,3 +67,38 @@ Material create_textured_plastic(Texture diffuse_spd_texture, Spectrum glossy_sp
 Material create_mirror();
 Material create_conductor(Spectrum refract_index, Spectrum extinct_index, double roughness);
 Material create_dielectric(Spectrum refract_index);
+
+struct NEW_Surface_Point;
+typedef void (*NEW_REFLECTANCE_FUNCTION)(NEW_Surface_Point*, Vec3, Vec3, Spectrum*);
+typedef Vec3 (*NEW_DIRECTION_SAMPLE_FUNCTION)(NEW_Surface_Point*, Vec3, double* pdf);
+
+struct NEW_BDSF
+{
+	NEW_REFLECTANCE_FUNCTION reflectance;
+	NEW_DIRECTION_SAMPLE_FUNCTION sample_direction;
+};
+
+struct NEW_Camera; //Forward decl
+struct NEW_Surface_Point
+{
+	Vec3 position;
+	Vec3 normal;
+	double shininess;
+	double roughness;
+	NEW_Camera* camera;
+	Spectrum* incident_refract_index_spd;
+	Spectrum* incident_extinct_index_spd;
+	Spectrum* transmit_refract_index_spd;
+	Spectrum* transmit_extinct_index_spd;
+	Spectrum* glossy_spd;
+	Spectrum* diffuse_spd;
+};
+
+Vec3 NEW_sample_camera_lens_direction(NEW_Surface_Point*, Vec3, double*);
+Vec3 NEW_sample_camera_pinhole_direction(NEW_Surface_Point*, Vec3, double*);
+Vec3 NEW_sample_diffuse_direction(NEW_Surface_Point*, Vec3, double*);
+Vec3 NEW_sample_glossy_direction(NEW_Surface_Point*, Vec3, double*);
+
+void NEW_const_1_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr);
+void NEW_diffuse_phong_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr);
+void NEW_glossy_phong_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr);

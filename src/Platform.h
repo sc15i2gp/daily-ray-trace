@@ -10,6 +10,7 @@ int window_height(HWND);
 
 void* alloc(int);
 void dealloc(void*);
+void zero_mem(void*, long unsigned int);
 
 char* read_file_contents(const char* path);
 void write_file_contents(const char* path, char* contents, int contents_size);

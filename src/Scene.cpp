@@ -191,10 +191,12 @@ void direct_light_contribution(Scene* scene, Surface_Point& p, Ray outgoing, Rad
 					case GEO_TYPE_SPHERE: 
 					{
 						light_point = uniform_sample_sphere_subtended(light.geometry.sphere, p.position, &light_pdf);
+						break;
 					}
 					case GEO_TYPE_PLANE: 
 					{
 						light_point = uniform_sample_plane(light.geometry.plane, &light_pdf);
+						break;
 					}
 				}
 				
@@ -318,41 +320,6 @@ void find_intersection_surface_point(Scene* scene, Ray outgoing, Surface_Point& 
 	}
 }
 
-void ddd(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
-{
-	//Path calculations
-	//Given a point on the film's surface
-	//current_point = film point
-	//next_point = whatever
-	//bool is_there_next_point = true
-	//depth = 0
-	//scene path = Scene points[]
-	//While is_there_next_point and the max depth hasn't been reached
-	//	for(i = 0; depth != 0 && i < num light sources; ++i)
-	//		sample point on light source[i]'s surface
-	//		if the light point is visible from the current point
-	//			add light point to current point's contributing sources
-	//	Sample point's bdsf for next direction
-	//	Sample scene for next point
-	//	add current point to scene path
-	//	Set current point to next point
-	//	is_there_next_point = next point != light source && next point != escaped scene
-	//	++ depth
-	//If the next point is on a light source or escapes the scene
-	//	Add the next point to the current point's light source contributions
-	
-	
-	//Spectral calculations
-	//f = spectral 1.0
-	//For each point in the scene path:
-	//	Compute f
-	//		f *= abs(dot(prev point normal, in dir)) * bdsf(prev point, prev point in dir, in dir)
-	//	Compute direct lighting contribution to eye ray radiance
-	//		For each light contributing:
-	//			eye_ray_radiance += abs(dot(point normal, light dir)) * (1.0 / ligh dir pdf) * f * bdsf(point, in dir, light dir) * emission spd
-}
-
-
 void cast_ray(Scene* scene, Ray eye_ray, Radiance& eye_ray_radiance)
 {
 int max_depth = 4; //NOTE: Arbitrarily chosen
@@ -366,10 +333,10 @@ int max_depth = 4; //NOTE: Arbitrarily chosen
 	Spectrum f;
 	set_spectrum_to_value(f, 1.0);
 
-	double dir_pdf = 0.0;
 	Surface_Point p = {};
 	for(int depth = 0; depth < max_depth; ++depth)
 	{
+		double dir_pdf = 0.0;
 		DEBUG(debug_set_current_eye_radiance(eye_ray_radiance);)
 
 		find_intersection_surface_point(scene, outgoing, p);
@@ -573,27 +540,6 @@ void load_scene(Scene* scene)
 	}
 }
 
-struct Camera
-{
-	//Orientation
-	Vec3 forward;
-	Vec3 right;
-	Vec3 up;
-	
-	//Lens
-	Vec3 pinhole_position;
-	double focal_depth;
-	double focal_length;
-	double aperture_radius;
-	
-	//Film
-	Vec3 film_top_left;
-	double film_pixel_width; //Width of a pixel on the image plane
-	double film_pixel_height; //Height of a pixel on the image plane
-	int film_width_px; //Width of film in pixels
-	int film_height_px; //Height of film in pixels
-};
-
 void render_image(Texture* render_target, int number_of_render_samples)
 {
 	TIMED_FUNCTION;
@@ -718,3 +664,823 @@ void render_image(Texture* render_target, int number_of_render_samples)
 	printf("Min sample render time: %fms\n", min_sample_render_time);
 }
 
+void NEW_sample_geometry(NEW_Scene_Geometry* geometry, Vec3 origin, NEW_Geometry_Sample* geometry_sample)
+{
+	switch(geometry->type)
+	{
+		case GEO_TYPE_SPHERE: geometry_sample->position = uniform_sample_sphere_subtended(*geometry->sphere, origin, &geometry_sample->pdf); break;
+		case GEO_TYPE_PLANE: geometry_sample->position = uniform_sample_plane(*geometry->plane, &geometry_sample->pdf); break;
+		//TODO: case GEO_TYPE_MODEL
+	}
+}
+
+Vec3 NEW_find_ray_scene_intersection_point(NEW_Scene* scene, Ray ray, int* ret_intersecting_object = NULL)
+{
+	double min_length_along_ray = DBL_MAX;
+	double length_along_ray = DBL_MAX;
+	Vec3 min_intersection_along_ray = {DBL_MAX, DBL_MAX, DBL_MAX};
+	int intersecting_object = -1;
+	
+	for(int i = 0; i < scene->number_of_geometries; ++i)
+	{
+		NEW_Scene_Geometry* geometry = scene->object_geometries[i];
+		switch(geometry->type)
+		{
+			case GEO_TYPE_SPHERE: length_along_ray = NEW_ray_intersects_sphere(ray, *geometry->sphere); break;
+			case GEO_TYPE_PLANE: length_along_ray = NEW_ray_intersects_plane(ray, *geometry->plane); break;
+			//TODO: case GEO_TYPE_MODEL
+		}
+		if(length_along_ray > 0.0 && length_along_ray < min_length_along_ray)
+		{
+			min_length_along_ray = length_along_ray;
+			min_intersection_along_ray = ray.origin + min_length_along_ray * ray.direction;
+			intersecting_object = i;
+		}
+	}
+	if(ret_intersecting_object) *ret_intersecting_object = intersecting_object;
+
+	return min_intersection_along_ray;
+}
+
+void NEW_find_ray_scene_intersection(NEW_Scene* scene, Ray ray, NEW_Scene_Point* intersection_point)
+{
+	int intersection_object;
+	intersection_point->position = NEW_find_ray_scene_intersection_point(scene, ray, &intersection_object);
+	intersection_point->object = intersection_object;
+	if(intersection_object >= 0)
+	{
+		intersection_point->in_ray = ray;
+		intersection_point->in_ray.direction = -intersection_point->in_ray.direction;
+
+		switch(scene->object_geometries[intersection_object]->type)
+		{
+			case GEO_TYPE_SPHERE:
+			{
+				intersection_point->normal = normalise(intersection_point->position - scene->object_geometries[intersection_object]->sphere->center);
+				break;
+			}
+			case GEO_TYPE_PLANE:
+			{
+				intersection_point->normal = scene->object_geometries[intersection_object]->plane->n;
+				break;
+			}
+		}
+		intersection_point->roughness = scene->object_materials[intersection_object]->roughness;
+		//Set incident and transmission materials
+		//For now, if entering an object air is the incident material, otherwise the object's
+		double in_dot = dot(ray.direction, intersection_point->normal);
+		intersection_point->incident_material = (in_dot < 0.0) ? &scene->air_material : scene->object_materials[intersection_object];
+		intersection_point->transmit_material = (in_dot < 0.0) ? scene->object_materials[intersection_object] : &scene->air_material;
+		intersection_point->material = scene->object_materials[intersection_object];
+	}
+	else
+	{
+		intersection_point->material = &scene->null_material;
+	}
+}
+
+int NEW_sample_scene_path(NEW_Scene* scene, Vec3 film_point, NEW_Scene_Point* scene_path, int max_depth)
+{
+	int depth = 0;
+	bool is_there_next_point = true;
+	NEW_Scene_Point* current_point = &scene_path[0];
+	NEW_Scene_Point* next_point = &scene_path[1];
+	current_point->position = film_point;
+	current_point->normal = scene->camera.film_normal;
+	current_point->in_ray.direction = {1.0, 1.0, 0.0};
+	current_point->in_ray.origin = {};
+	current_point->material = &scene->film_material;
+	current_point->incident_material = &scene->film_material;
+	current_point->transmit_material = &scene->film_material;
+
+	NEW_Surface_Point surface_point = {};
+
+	while(is_there_next_point && depth <= max_depth)
+	{
+		//Sample incoming light rays
+		for(int i = 0; depth != 0 && i < scene->number_of_light_sources; ++i)
+		{
+			NEW_Geometry_Sample* light_sample = &current_point->light_contributions[current_point->number_of_light_contributions];
+			NEW_sample_geometry(scene->light_source_geometries[i], current_point->position, light_sample);
+			light_sample->object = i;
+			
+			Ray shadow_ray = {};
+			shadow_ray.direction = normalise(light_sample->position - current_point->position);
+			shadow_ray.origin = current_point->position + 0.0009765625*shadow_ray.direction;
+			
+			//Test if an object in the scene obscures the shadow ray
+			int shadow_test_object;
+			Vec3 shadow_test_point = NEW_find_ray_scene_intersection_point(scene, shadow_ray, &shadow_test_object);
+			bool light_point_visible = true;
+			if(shadow_test_object >= 0)
+			{
+				Vec3 shadow_test_ray = shadow_test_point - current_point->position;
+				double shadow_test_ray_length_sq = dot(shadow_test_ray, shadow_test_ray);
+				Vec3 light_test_ray = light_sample->position - current_point->position;
+				double light_test_ray_length_sq = dot(light_test_ray, light_test_ray);
+				light_point_visible = !(shadow_test_ray_length_sq - light_test_ray_length_sq < 0.0);
+			}
+
+			if(light_point_visible) ++current_point->number_of_light_contributions;
+		}
+
+		//Sample next direction in the scene path
+		double r = uniform_sample();
+		double n = (double)current_point->material->number_of_bdsfs;
+		int sampled_bdsf = (int)floor(r * n);
+
+		surface_point.position = current_point->position;
+		surface_point.normal = current_point->normal;
+		surface_point.roughness = current_point->roughness;
+		surface_point.incident_refract_index_spd = &current_point->incident_material->refract_index_spd;
+		surface_point.transmit_refract_index_spd = &current_point->transmit_material->refract_index_spd;
+		surface_point.incident_extinct_index_spd = &current_point->incident_material->extinct_index_spd;
+		surface_point.transmit_extinct_index_spd = &current_point->transmit_material->extinct_index_spd;
+		surface_point.camera = &scene->camera;
+
+		current_point->out_ray.direction = current_point->material->bdsfs[sampled_bdsf].sample_direction(&surface_point, current_point->in_ray.direction, &current_point->pdf);
+		current_point->out_ray.origin = current_point->position + 0.0009765625*current_point->out_ray.direction;
+		NEW_find_ray_scene_intersection(scene, current_point->out_ray, next_point);
+		++depth;
+
+		//Store and iterate points
+		current_point = next_point;
+		is_there_next_point = !next_point->material->is_emissive && next_point->object != -1;
+		++next_point;
+	}
+	--depth;
+	if(!is_there_next_point && depth <= max_depth) scene_path[depth].light_contributions[scene_path[depth].number_of_light_contributions++] = *((NEW_Geometry_Sample*)(&current_point->position));
+	
+	return depth;
+}
+
+void NEW_RGB64_to_spectrum(RGB64 c, Spectrum* dst, NEW_Spectrum_Buffer* spectrum_buffer)
+{
+	NEW_RGB64_to_spectrum(c, dst, &spectrum_buffer->spectra[0], 
+			&spectrum_buffer->spectra[1], &spectrum_buffer->spectra[2], &spectrum_buffer->spectra[3], 
+			&spectrum_buffer->spectra[4], &spectrum_buffer->spectra[5], &spectrum_buffer->spectra[6]);
+}
+
+void NEW_load_scene(NEW_Scene* scene, NEW_Spectrum_Buffer* spectrum_buffer)
+{
+	NEW_load_spd("spectra/white_rgb_to_spd.csv", &spectrum_buffer->spectra[0]);
+	NEW_load_spd("spectra/red_rgb_to_spd.csv", &spectrum_buffer->spectra[1]);
+	NEW_load_spd("spectra/blue_rgb_to_spd.csv", &spectrum_buffer->spectra[2]);
+	NEW_load_spd("spectra/green_rgb_to_spd.csv", &spectrum_buffer->spectra[3]);
+	NEW_load_spd("spectra/cyan_rgb_to_spd.csv", &spectrum_buffer->spectra[4]);
+	NEW_load_spd("spectra/magenta_rgb_to_spd.csv", &spectrum_buffer->spectra[5]);
+	NEW_load_spd("spectra/yellow_rgb_to_spd.csv", &spectrum_buffer->spectra[6]);
+
+	//Geometries
+	double h = 3.0;
+	scene->planes[0] = create_plane_from_points(Vec3{-h, h, -h}, Vec3{h, h, -h}, Vec3{-h, -h, -h}); //back wall
+	scene->planes[1] = create_plane_from_points(Vec3{-h, h, h}, Vec3{-h, h, -h}, Vec3{-h, -h, h}); //left wall
+	scene->planes[2] = create_plane_from_points(Vec3{h, h, -h}, Vec3{h, h, h}, Vec3{h, -h, -h}); //right wall
+	scene->planes[3] = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h}); //floor
+	scene->planes[4] = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});  //ceiling
+	scene->planes[5] = create_plane_from_points(Vec3{-0.5, 2.9, 0.5}, Vec3{0.5, 2.9, 0.5}, Vec3{-0.5, 2.9, -0.5}); //Light
+
+	scene->number_of_geometries = 6;
+	scene->geometries[0].type = GEO_TYPE_PLANE;
+	scene->geometries[0].plane = &scene->planes[0];
+	scene->geometries[1].type = GEO_TYPE_PLANE;
+	scene->geometries[1].plane = &scene->planes[1];
+	scene->geometries[2].type = GEO_TYPE_PLANE;
+	scene->geometries[2].plane = &scene->planes[2];
+	scene->geometries[3].type = GEO_TYPE_PLANE;
+	scene->geometries[3].plane = &scene->planes[3];
+	scene->geometries[4].type = GEO_TYPE_PLANE;
+	scene->geometries[4].plane = &scene->planes[4];
+	scene->geometries[5].type = GEO_TYPE_PLANE;
+	scene->geometries[5].plane = &scene->planes[5];
+
+	//Materials
+	scene->number_of_materials = 5;
+	//back wall (blue)
+	scene->materials[0] = {};
+	scene->materials[0].shininess = 32.0;
+	NEW_RGB64_to_spectrum(RGB64{0.2, 0.2, 0.8}, &scene->materials[0].diffuse_spd, spectrum_buffer);
+	NEW_RGB64_to_spectrum(RGB64{0.8, 0.8, 0.9}, &scene->materials[0].glossy_spd, spectrum_buffer);
+	scene->materials[0].number_of_bdsfs = 2;
+	scene->materials[0].bdsfs[0].reflectance = NEW_diffuse_phong_reflectance;
+	scene->materials[0].bdsfs[0].sample_direction = NEW_sample_diffuse_direction;
+	scene->materials[0].bdsfs[1].reflectance = NEW_glossy_phong_reflectance;
+	scene->materials[0].bdsfs[1].sample_direction = NEW_sample_glossy_direction;
+
+	//left wall (green)
+	scene->materials[1] = {};
+	scene->materials[1].shininess = 32.0;
+	NEW_RGB64_to_spectrum(RGB64{0.1, 0.35, 0.1}, &scene->materials[1].diffuse_spd, spectrum_buffer);
+	NEW_RGB64_to_spectrum(RGB64{0.45, 0.55, 0.45}, &scene->materials[1].glossy_spd, spectrum_buffer);
+	scene->materials[1].number_of_bdsfs = 2;
+	scene->materials[1].bdsfs[0].reflectance = NEW_diffuse_phong_reflectance;
+	scene->materials[1].bdsfs[0].sample_direction = NEW_sample_diffuse_direction;
+	scene->materials[1].bdsfs[1].reflectance = NEW_glossy_phong_reflectance;
+	scene->materials[1].bdsfs[1].sample_direction = NEW_sample_glossy_direction;
+	
+	//right wall (red)
+	scene->materials[2] = {};
+	scene->materials[2].shininess = 32.0;
+	NEW_RGB64_to_spectrum(RGB64{0.5, 0.0, 0.0}, &scene->materials[2].diffuse_spd, spectrum_buffer);
+	NEW_RGB64_to_spectrum(RGB64{0.7, 0.6, 0.6}, &scene->materials[2].glossy_spd, spectrum_buffer);
+	scene->materials[2].number_of_bdsfs = 2;
+	scene->materials[2].bdsfs[0].reflectance = NEW_diffuse_phong_reflectance;
+	scene->materials[2].bdsfs[0].sample_direction = NEW_sample_diffuse_direction;
+	scene->materials[2].bdsfs[1].reflectance = NEW_glossy_phong_reflectance;
+	scene->materials[2].bdsfs[1].sample_direction = NEW_sample_glossy_direction;
+
+	//floor + ceiling (white)
+	scene->materials[3] = {};
+	scene->materials[3].shininess = 32.0;
+	NEW_RGB64_to_spectrum(RGB64{0.55, 0.55, 0.55}, &scene->materials[3].diffuse_spd, spectrum_buffer);
+	NEW_RGB64_to_spectrum(RGB64{0.7, 0.7, 0.7}, &scene->materials[3].glossy_spd, spectrum_buffer);
+	scene->materials[3].number_of_bdsfs = 2;
+	scene->materials[3].bdsfs[0].reflectance = NEW_diffuse_phong_reflectance;
+	scene->materials[3].bdsfs[0].sample_direction = NEW_sample_diffuse_direction;
+	scene->materials[3].bdsfs[1].reflectance = NEW_glossy_phong_reflectance;
+	scene->materials[3].bdsfs[1].sample_direction = NEW_sample_glossy_direction;
+
+	//light
+	scene->materials[4] = {};
+	scene->materials[4].is_emissive = true;
+	NEW_set_spectrum_to_value(&scene->materials[4].emission_spd, 1.0);
+
+	//Set scene objects and light sources
+	scene->number_of_objects = 6;
+
+	//back wall
+	scene->object_geometries[0] = &scene->geometries[0];
+	scene->object_materials[0] = &scene->materials[0];
+
+	//left wall
+	scene->object_geometries[1] = &scene->geometries[1];
+	scene->object_materials[1] = &scene->materials[1];
+	
+	//right wall
+	scene->object_geometries[2] = &scene->geometries[2];
+	scene->object_materials[2] = &scene->materials[2];
+	
+	//floor and ceiling
+	scene->object_geometries[3] = &scene->geometries[3];
+	scene->object_geometries[4] = &scene->geometries[4];
+	scene->object_materials[3] = &scene->materials[3];
+	scene->object_materials[4] = &scene->materials[3];
+
+	//Light
+	scene->object_geometries[5] = &scene->geometries[5];
+	scene->object_materials[5] = &scene->materials[4];
+	scene->number_of_light_sources = 1;
+	scene->light_source_geometries[0] = &scene->geometries[5];
+	scene->light_source_materials[0] = &scene->materials[4];
+
+	//Load camera data
+	scene->camera_position = {0.0, 0.0, 8.0};
+	scene->camera_fov = 90.0;
+	scene->camera_up = {0.0, 1.0, 0.0};
+	scene->camera_right = {1.0, 0.0, 0.0};
+	scene->camera.film_normal = {0.0, 0.0, -1.0};	
+	scene->camera.focal_depth = 8.0;
+	scene->camera.focal_length = 0.5;
+	scene->camera.aperture_radius = 0.0; //NOTE: change for lens
+
+	//film material
+	scene->film_material = {};
+	scene->film_material.number_of_bdsfs = 1;
+	scene->film_material.bdsfs[0].sample_direction = (scene->camera.aperture_radius > 0.0) ? NEW_sample_camera_lens_direction : NEW_sample_camera_pinhole_direction;
+	scene->film_material.bdsfs[0].reflectance = NEW_const_1_reflectance;
+}
+
+void NEW_render_image(RGB64* render_target, int render_target_width, int render_target_height, int number_of_render_samples)
+{
+	int number_of_pixels = render_target_width * render_target_height;
+	int max_path_depth = 4;
+
+	//Load scene data
+	srand(100000);
+	NEW_Spectrum_Buffer* spectrum_buffer = (NEW_Spectrum_Buffer*)alloc(sizeof(NEW_Spectrum_Buffer));
+	Spectrum* spectral_render_target = (Spectrum*)alloc(number_of_pixels * sizeof(Spectrum));
+	NEW_Scene* scene = (NEW_Scene*)alloc(sizeof(NEW_Scene));
+	int scene_path_size = (max_path_depth + 1)*sizeof(NEW_Scene_Point);
+	NEW_Scene_Point* scene_path = (NEW_Scene_Point*)alloc(scene_path_size);
+	NEW_load_scene(scene, spectrum_buffer);
+
+	//Compute camera data
+	double aspect_ratio = (double)(render_target_width) / (double)(render_target_height);
+	double image_plane_aperture_distance = (scene->camera.focal_length * scene->camera.focal_depth) / (scene->camera.focal_length + scene->camera.focal_depth);
+	double image_plane_width = 2.0 * image_plane_aperture_distance * tan_deg(scene->camera_fov/2.0);
+	double image_plane_height = image_plane_width / aspect_ratio;
+	Vec3 film_top_left = scene->camera_position - 0.5 * image_plane_width * scene->camera_right + 0.5 * image_plane_height * scene->camera_up;
+	double pixel_width = image_plane_width/(double)(render_target_width);
+	double pixel_height = image_plane_height/(double)(render_target_height);
+
+	scene->camera.pinhole_position = scene->camera_position + image_plane_aperture_distance * scene->camera.film_normal;
+
+	//Render image
+	for(int pass = 0; pass < number_of_render_samples; ++pass)
+	{
+		for(int pixel = 0; pixel < number_of_pixels; ++pixel)
+		{
+			int x = pixel % render_target_width;
+			int y = pixel / render_target_width;
+
+			//Sample (center) point on the pixel
+			Vec3 pixel_top_left = film_top_left + ((double)x)*pixel_width*scene->camera_right - ((double)y)*pixel_height*scene->camera_up;
+			Vec3 pixel_sample = Vec3{0.5*pixel_width, 0.5*pixel_height, 0.0};
+			Vec3 sampled_pixel_point = pixel_top_left + pixel_sample; 
+
+			//Cast ray to get scene path
+			zero_mem(scene_path, scene_path_size);
+			int path_depth = NEW_sample_scene_path(scene, sampled_pixel_point, scene_path, max_path_depth);
+
+			//Compute path radiance
+			double first_point_depth = length(scene_path[1].position - scene->camera.pinhole_position)/12.0;	
+
+			NEW_set_spectrum_to_value(&spectral_render_target[pixel], first_point_depth);
+		}
+	}
+
+	//Convert spectral image to RGB64
+	NEW_set_spectrum_to_value(&spectrum_buffer->spectra[0], 1.0);
+	NEW_load_spd("spectra/cmf_x.csv", &spectrum_buffer->spectra[1]);
+	NEW_load_spd("spectra/cmf_y.csv", &spectrum_buffer->spectra[2]);
+	NEW_load_spd("spectra/cmf_z.csv", &spectrum_buffer->spectra[3]);
+	for(int i = 0; i < number_of_pixels; ++i)
+	{
+		render_target[i] = NEW_spectrum_to_RGB64(&spectral_render_target[i], &spectrum_buffer->spectra[0], &spectrum_buffer->spectra[1], &spectrum_buffer->spectra[4]);
+	}
+}
+
+/*
+void NEW_bdsf(NEW_Surface_Point* p, NEW_BDSF* bdsfs, int number_of_bdsfs, Vec3 incoming, Vec3 outgoing, Spectrum* reflectance, Spectrum* bdsf_result)
+{
+	//assume reflectance is 0
+	
+	for(int i = 0; i < number_of_bdsfs; ++i)
+	{
+		//so long as bdsf functions do not have any initial assumptions about contents of the result spectrum
+		//	then bdsf result spectrum does not need to be set to zero each iteration
+		bdsfs[i].reflectance(p, incoming, outgoing, bdsf_result);
+		spectral_sum(*reflectance, bdsf_result, *reflectance);
+	}
+}
+
+void NEW_sample_geometry(NEW_Scene_Geometry* geometry, Vec3 origin, NEW_Geometry_Sample* geometry_sample)
+{
+	switch(geometry->type)
+	{
+		case GEO_TYPE_SPHERE: geometry_sample->position = uniform_sample_sphere_subtended(*geometry->sphere, origin, &geometry_sample->pdf); break;
+		case GEO_TYPE_PLANE: geometry_sample->position = uniform_sample_plane(*geometry->plane, &geometry_sample->pdf); break;
+		//TODO: case GEO_TYPE_MODEL
+	}
+}
+
+Vec3 NEW_find_ray_scene_intersection_point(NEW_Scene* scene, Ray ray, int* ret_intersecting_object, int* ret_triangle_index)
+{
+	double min_length_along_ray = DBL_MAX;
+	double length_along_ray = DBL_MAX;
+	Vec3 min_intersection_along_ray = {DBL_MAX, DBL_MAX, DBL_MAX};
+	int intersecting_object = -1;
+	int triangle_index = -1;
+	for(int i = 0; i < scene->number_of_geometries; ++i)
+	{
+		NEW_Scene_Geometry* geometry = scene->object_geometries + i;
+		switch(geometry->type)
+		{
+			case GEO_TYPE_SPHERE: length_along_ray = NEW_ray_intersects_sphere(ray, geometry->sphere); break;
+			case GEO_TYPE_PLANE: length_along_ray = NEW_ray_intersects_plane(ray, geometry->plane); break;
+			//TODO case GEO_TYPE_MODEL: length_along_ray = NEW_ray_intersects_model(ray, geometry->model); break;
+		}
+		if(length_along_ray < min_length_along_ray)
+		{
+			min_length_along_ray = length_along_ray;
+			min_intersection_along_ray = ray.origin + min_length_along_ray * ray.direction;
+			intersecting_object = i;
+		}
+	}
+	if(ret_intersecting_object) *ret_intersecting_object = intersecting_object;
+	if(ret_triangle_index) *ret_triangle_index = triangle_index;
+	return min_intersection_along_ray;
+}
+
+void NEW_find_ray_scene_intersection(NEW_Scene* scene, Ray ray, NEW_Scene_Point* intersection_point)
+{
+	int intersection_object;
+	//Sample the scene for the intersection point
+	intersection_point->position = NEW_find_ray_scene_intersection_point(scene, ray, &intersection_object);
+
+	//Set in ray
+	intersection_point->in_ray = ray;
+	intersection_point->in_ray.direction = -intersection_point->in_ray.direction;
+	
+	//Set barycentric coordinates 
+	//Set normal (will need texture sample for bump maps)
+	switch(scene->object_geometries[intersection_object].type)
+	{
+		case GEO_TYPE_SPHERE:
+		{
+			intersection_point->normal = normalise(intersection_point->position - scene->object_geometries[intersection_object]->sphere->center);
+			break;
+		}	
+		case GEO_TYPE_PLANE:
+		{
+			intersection_point->normal =  scene->object_geometries[intersection_object]->plane->n;
+			break;
+		}
+		//case GEO_TYPE_MODEL:
+	}
+
+	//Set roughness (will need texture sample)
+	intersection_point->roughness = scene->object_materials[intersection_object]->roughness;
+	//Set incident and transmit materials
+	//for now, if entering an object air is the incident material, otherwise object's
+	double in_dot = dot(ray.direction, intersection_point->normal);
+	intersection_point->incident_material = (in_dot < 0.0) ? &scene->materials[0] : scene->object_materials[intersection_object];
+	intersection_point->transmit_material = (in_dot < 0.0) ? scene->object_materials[intersection_object] : &scene->materials[0];
+	intersection_point->material = scene->object_materials[intersection_object];
+
+	//Set object
+	intersection_point->object = intersection_object;
+
+	//Set is_light_point
+	intersection_point->is_light_source = scene->is_object_light_source[intersection_object];
+}
+
+int NEW_sample_scene_path(NEW_Scene* scene, Vec3 film_point, Vec3 film_normal, NEW_DIRECTION_SAMPLE_FUNCTION film_sample_function, NEW_Scene_Path_Point* scene_path, int max_depth)
+{
+	//Assume path memory is zeroed
+	//Path calculations
+	int depth = 0;
+	bool is_there_next_point = true;
+	NEW_Surface_Point surface_p = {};
+	NEW_Scene_Point* current_point = scene_path;
+	NEW_Scene_Point* next_point = scene_path + 1;
+	current_point->position = film_point;
+	current_point->normal = film_normal;
+	current_point->in_ray = {1.0, 1.0};
+	current_point->bdsfs[0].sample_direction = film_sample_function;
+	while(is_there_next_point && depth <= max_depth)
+	{
+		for(int i = 0; depth != 0 && i < scene->number_of_light_sources; ++i)
+		{
+			double light_pdf = 0.0;
+			//Sample current light's geometry for a potential light contribution
+			NEW_Geometry_Sample* light_sample = &current_point->light_contributions[current_point->number_of_light_contributions];
+			NEW_sample_geometry(&scene->light_source_geometries[i], &light_pdf, light_sample);
+			light_sample->object = i;
+
+			//Draw the ray between the light point and the current point
+			Ray shadow_ray = {};
+			shadow_ray.direction = normalise(light_sample->position - current_point->position);
+			shadow_ray.origin = current_point->position + 0.0009765625*shadow_ray.direction;
+
+			//Test if there is an object between the current point and the light point
+			Vec3 shadow_test_point = NEW_find_ray_scene_intersection_point(scene, shadow_ray);
+			double shadow_ray_length = length(shadow_test_point.position - current_point->position);
+			double ray_length = length(light_sample->position - current_point->position);
+			double ray_length_difference = shadow_ray_length - ray_length;
+			bool light_point_visible = !(ray_length_difference < 0.0);
+
+			//If there isn't an object obscuring the light point, add the light point to the current point's light contributions
+			if(light_point_visible) current_point->number_of_light_contributions++;
+		}
+
+		//Choose a bdsf to sample the next direction from the current point's bdsf list
+		double r = uniform_sample();
+		double n = (double)bdsf_list.size;
+		int sampled_bdsf = (int)floor(r * n);
+
+		//Sample the bdsf for the next direction and set current point's out ray
+		surface_p.normal = current_point->normal;
+		surface_p.roughness = current_point->roughness;
+		surface_p.incident_refract_index = current_point->incident_refract_index;
+		surface_p.transmit_refract_index = current_point->transmit_refract_index;
+		surface_p.camera = scene->camera;
+		current_point->out_ray.direction = current_point->bdsfs[chosen_bdsf].sample_direction(&surface_p, in_direction, &p.pdf);
+		current_point->out_ray.origin = current_point->position + 0.0009765625*current_point->out_ray.direction;
+
+		//Sample the scene with the next direction to find the next intersection point
+		NEW_find_ray_scene_intersection(scene, current_point->out_ray, next_point);
+		//Add the current point to the scene path
+		++depth;
+		//Iterate the current point to the next point
+		current_point = next_point;
+
+		is_there_next_point = !next_point->is_light_source && next_point->object != -1;
+	}
+	--depth;
+	//If the path tracing ended because it hit a light source (or escaped the scene)
+	if(!is_there_next_point && depth <= max_depth) scene[depth].light_contributions[current_point.number_of_light_contributions++] = *((NEW_Geometry_Sample*)(&current_point));
+
+	return depth;
+}
+
+void NEW_load_surface_and_emission_materials(NEW_Scene* scene, NEW_Scene_Point* p, NEW_Surface_Point* surface_point, NEW_Spectrum_Buffer* spectrum_buffer)
+{
+	//NOTE: When texture support is readded, this will be one of the places where it will need to happen
+	//Load into spectrum buffer (could involve texture sampling):
+	//	- Scene point's surface material spds
+	//		- Incident + transmit extinct + refract indices
+	//		- Glossy and diffuse spds
+	//	- For each light contribution
+	//		- Light point's emission spd
+	
+	copy_spectrum(&p->incident_material->refract_index_spd, &spectrum_buffer->spectra[4]);
+	copy_spectrum(&p->incident_material->extinct_index_spd, &spectrum_buffer->spectra[5]);
+	copy_spectrum(&p->transmit_material->refract_index_spd, &spectrum_buffer->spectra[6]);
+	copy_spectrum(&p->transmit_material->extinct_index_spd, &spectrum_buffer->spectra[7]);
+	copy_spectrum(&p->material->glossy_spd, &spectrum_buffer->spectra[8]);
+	copy_spectrum(&p->material->diffuse_spd, &spectrum_buffer->spectra[9]);
+
+	for(int i = 0; i < p->number_of_light_contributions; ++i)
+	{
+		copy_spectrum(&scene->light_source_materials[p->light_contributions[i].object]->emission_spd, spectrum_buffer->spectra[10+i]);
+	}
+	
+	
+	//Set surface point
+	surface_point->normal = scene_point->normal;
+	surface_point->incident_refract_index_spd = &spectrum_buffer->spectra[4];
+	surface_point->incident_extinct_index_spd = &spectrum_buffer->spectra[5];
+	surface_point->transmit_refract_index_spd = &spectrum_buffer->spectra[6];
+	surface_point->transmit_extinct_index_spd = &spectrum_buffer->spectra[7];
+	surface_point->glossy_spd = &spectrum_buffer->spectra[8];
+	surface_point->diffuse_spd = &spectrum_buffer->spectra[9];
+	surface_point->roughness = p->material->roughness;
+	surface_point->shininess = p->material->shininess;
+}
+
+void NEW_compute_path_radiance(NEW_Scene* scene, NEW_Spectrum_Buffer* spectrum_buffer, NEW_Scene_Point* scene_path, int depth)
+{
+	Spectrum* eye_ray_radiance = spectrum_buffer->spectra;
+	Spectrum* f = &spectrum_buffer->spectra[1];
+	Spectrum* bdsf_result = &spectrum_buffer->spectra[2];
+	Spectrum* reflectance = &spectrum_buffer->spectra[3];
+	Spectrum* initial_emission_spd = &spectrum_buffer[4 + 6]; //+6 for surface point's spectra
+	set_spectrum_to_value(*f, 1.0);
+
+	NEW_Surface_Point prev_surface_point = {};
+	NEW_Scene_Point prev_scene_point_buffer = {};
+	NEW_Surface_Point surface_point = {};
+
+	New_Scene_Point* prev_scene_point = &surface_point;
+	prev_surface_point->normal = {1.0, 1.0};
+	prev_scene_point->number_of_bdsfs = 1;
+	prev_scene_point->bdsfs[0].reflectance = &NEW_const_1_bdsf;
+	prev_scene_point->number_of_bdsfs = 1;
+	prev_scene_point->pdf = 1.0;
+
+	for(int i = 0; i < depth; ++i)
+	{//For each point in the scene path
+		//Load surface point and emission spectra of point's contributing light sources
+		NEW_Scene_Point* scene_point = &scene_path[i];
+		NEW_load_surface_and_emission_materials(scene, scene_point, surface_point, spectrum_buffer);
+
+		//Find coefficient for lambert's law and pdf
+		double pdf = prev_scene_point->pdf/(double)(prev_scene_point->number_of_bdsfs);
+		double theta = abs(dot(prev_scene_point->normal, prev_scene_point->out_ray.direction));
+		//Compute previous point's bdsf and compute new f value
+		NEW_bdsf(prev_surface_point, prev_scene_point->bdsfs, prev_scene_point->number_of_bdsfs, prev_scene_point->in_direction, prev_scene_point->out_direction, reflectance, bdsf_result);
+		spectral_multiply(f, bdsf_result, theta/pdf, f);
+
+		for(int j = 0; j < scene_point.number_of_light_contributions; ++j)
+		{
+			Spectrum* emission_spd = initial_emission_spd + j;
+			NEW_Geometry_Sample* light = &scene_point.light_contributions[j];
+			Vec3 light_direction = normalise(light->position - scene_point->position);
+			//do bdsf of current point, in direction and light direction
+			NEW_bdsf(surface_point, scene_point->bdsfs, scene_point->number_of_bdsfs, scene_point->in_ray.direction, light_direction, reflectance, bdsf_result);
+			//Find lambert cosine of light direction to scene point surface
+			double light_theta = abs(dot(light_direction, scene_point->normal));
+			//Multiply light point's emission spd with bdsf result and cosine
+			spectral_multiply(emission_spd, bdsf_result, light_theta/light->pdf, emission_spd);
+			//Eye ray radiance = eye_ray_radiance + light_theta * previous spd result
+			spectral_sum_and_multiply(eye_ray_radiance, light_theta, emission_spd, eye_ray_radiance);
+		}
+	}
+}
+
+void NEW_RGB64_to_spectrum(RGB64 c, NEW_Spectrum_Buffer* spectrum_buffer)
+{
+	NEW_RGB64_to_spectrum(c, &spectrum_buffer.spectra[0], 
+			&spectrum_buffer.spectra[1], &spectrum_buffer.spectra[2], &spectrum_buffer.spectra[3], 
+			&spectrum_buffer.spectra[4], &spectrum_buffer.spectra[5], &spectrum_buffer.spectra[6]);
+}
+
+void NEW_load_scene(NEW_Scene* scene, NEW_Spectrum_Buffer* spectrum_buffer)
+{
+	//Load "rgb-to" spds
+	Spectrum* white_rgb_to_spd = &spectrum_buffer.spectra[0];
+	Spectrum* red_rgb_to_spd = &spectrum_buffer.spectra[1];
+	Spectrum* blue_rgb_to_spd = &spectrum_buffer.spectra[2];
+	Spectrum* green_rgb_to_spd = &spectrum_buffer.spectra[3];
+	Spectrum* cyan_rgb_to_spd = &spectrum_buffer.spectra[4];
+	Spectrum* magenta_rgb_to_spd = &spectrum_buffer.spectra[5];
+	Spectrum* yellow_rgb_to_spd = &spectrum_buffer.spectra[6];
+	NEW_load_spd("spectra/white_rgb_to_spd.csv", white_rgb_to_spd);
+	NEW_load_spd("spectra/red_rgb_to_spd.csv", red_rgb_to_spd);
+	NEW_load_spd("spectra/blue_rgb_to_spd.csv", blue_rgb_to_spd);
+	NEW_load_spd("spectra/green_rgb_to_spd.csv", green_rgb_to_spd);
+	NEW_load_spd("spectra/cyan_rgb_to_spd.csv", cyan_rgb_to_spd);
+	NEW_load_spd("spectra/magenta_rbg_to_spd.csv", magenta_rgb_to_spd);
+	NEW_load_spd("spectra/yellow_rgb_to_spd.csv", yellow_rgb_to_spd);
+
+	//Load geometries
+	//Load spheres geometries
+	scene->spheres[0] = Sphere{{0.0, 1.0, -1.0}, 1.0}; //Glass sphere
+	scene->spheres[1] = Sphere{{-2.0, -2.2, -0.5}, 0.75}; //Gold sphere
+	scene->spheres[2] = Sphere{{2.0, -1.0, -2.0}, 1.0}; //Plastic sphere
+	//Load planes geometries
+	double h = 3.0;
+	scene->planes[0] = create_plane_from_points(Vec3{-h, h, -h}, Vec3{h, h, -h}, Vec3{-h, -h, -h}); //back wall
+	scene->planes[1] = create_plane_from_points(Vec3{-h, h, h}, Vec3{-h, h, -h}, Vec3{-h, -h, h}); //left wall
+	scene->planes[2] = create_plane_from_points(Vec3{h, h, -h}, Vec3{h, h, h}, Vec3{h, -h, -h}); //right wall
+	scene->planes[3] = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h}); //floor
+	scene->planes[4] = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});  //ceiling
+	scene->planes[5] = create_plane_from_points(Vec3{-0.5, 2.9, 0.5}, Vec3{0.5, 2.9, 0.5}, Vec3{-0.5, 2.9, -0.5}); //Light
+
+	scene->geometries[0] = {GEO_TYPE_SPHERE, &scene->spheres[0]}; //Glass sphere
+	scene->geometries[1] = {GEO_TYPE_SPHERE, &scene->spheres[1]}; //Gold sphere
+	scene->geometries[2] = {GEO_TYPE_SPHERE, &scene->spheres[2]}; //Plastic sphere
+	scene->geometries[3] = {GEO_TYPE_PLANE, &scene->planes[0]}; //back wall
+	scene->geometries[4] = {GEO_TYPE_PLANE, &scene->planes[1]}; //left wall
+	scene->geometries[5] = {GEO_TYPE_PLANE, &scene->planes[2]}; //right wall
+	scene->geometries[6] = {GEO_TYPE_PLANE, &scene->planes[3]}; //floor
+	scene->geometries[7] = {GEO_TYPE_PLANE, &scene->planes[4]}; //ceiling
+	scene->geometries[8] = {GEO_TYPE_PLANE, &scene->planes[5]}; //Light
+
+	//Load materials
+	//Air material
+	scene->materials[0] = {};
+	set_spectrum_to_value(scene->materials[0].refract_index_spd, 1.0);
+	set_spectrum_to_value(scene->materials[0].extinct_index_spd, 1.0);
+
+
+	//Glass sphere material
+	scene->materials[1] = {};
+	scene->materials[1].shininess = 16.0;
+	NEW_load_spd("spectra/glass.csv", &scene->materials[1].refract_index_spd);
+	set_spectrum_to_value(scene->materials[1].glossy_spd, 1.0);
+	scene->materials[1].number_of_bdsfs = 2;
+	scene->materials[1].bdsfs[0].reflectance = NEW_fresnel_dielectric_reflectance;
+	scene->materials[1].bdsfs[0].sample_direction = NEW_sample_specular_direction;
+	scene->materials[1].bdsfs[1].reflectance = NEW_fresnel_transmittance;
+	scene->materials[1].bdsfs[1].sample_direction = NEW_sample_transmission_direction;
+	//scene->materials[1].bdsfs[2].reflectance = NEW_glossy_phong_reflectance; TODO
+	//scene->materials[1].bdsfs[2].sample_direction = NEW_sample_glossy_direction; TODO
+	//Gold sphere material
+	scene->materials[2] = {};
+	scene->materials[2].roughness = 0.344;
+	NEW_load_spd("spectra/au_spec_n.csv", &scene->materials[2].refract_index_spd);
+	NEW_load_spd("spectra/au_spec_k.csv", &scene->materials[2].extinct_index_spd);
+	scene->materials[2].number_of_bdsfs = 1;
+	scene->materials[2].bdsfs[0].reflectance = NEW_cook_torrance_reflectance; 
+	scene->materials[2].bdsfs[0].sample_direction = NEW_sample_cook_torrance_direction;
+
+	//Plastic sphere material
+	scene->materials[3] = {};
+	scene->materials[3].shininess = 50.0;
+	scene->materials[3].diffuse_spd = NEW_RGB64_to_spectrum(RGB64{0.2, 0.8, 0.8}, spectrum_buffer);
+	scene->materials[3].glossy_spd = NEW_RGB64_to_spectrum(RGB64{0.8, 0.9, 0.9}, spectrum_buffer);
+	scene->materials[3].number_of_bdsfs = 2;
+	scene->materials[3].bdsfs[0].reflectance = NEW_diffuse_phong_reflectance;
+	scene->materials[3].bdsfs[0].sample_direction = NEW_sample_diffuse_direction;
+	scene->materials[3].bdsfs[1].reflectance = NEW_glossy_phong_reflectance;
+	scene->materials[3].bdsfs[1].sample_direction = NEW_sample_glossy_direction;
+
+	//Wall materials
+	//back wall (blue)
+	scene->materials[4] = {};
+	scene->materials[4].shininess = 32.0;
+	scene->materials[4].diffuse_spd = NEW_RGB64_to_spectrum(RGB64{0.2, 0.2, 0.8}, spectrum_buffer);
+	scene->materials[4].glossy_spd = NEW_RGB64_to_spectrum(RGB64{0.8, 0.8, 0.9}, spectrum_buffer);
+	scene->materials[4].number_of_bdsfs = 2;
+	scene->materials[4].bdsfs[0].reflectance = NEW_diffuse_phong_reflectance;
+	scene->materials[4].bdsfs[0].sample_direction = NEW_sample_diffuse_direction;
+	scene->materials[4].bdsfs[1].reflectance = NEW_glossy_phong_reflectance;
+	scene->materials[4].bdsfs[1].sample_direction = NEW_sample_glossy_direction;
+
+	//left wall (green)
+	scene->materials[5] = {};
+	scene->materials[5].shininess = 32.0;
+	scene->materials[5].diffuse_spd = NEW_RGB64_to_spectrum(RGB64{0.1, 0.35, 0.1}, spectrum_buffer);
+	scene->materials[5].glossy_spd = NEW_RGB64_to_spectrum(RGB64{0.45, 0.55, 0.45}, spectrum_buffer);
+	scene->materials[5].number_of_bdsfs = 2;
+	scene->materials[5].bdsfs[0].reflectance = NEW_diffuse_phong_reflectance;
+	scene->materials[5].bdsfs[0].sample_direction = NEW_sample_diffuse_direction;
+	scene->materials[5].bdsfs[1].reflectance = NEW_glossy_phong_reflectance;
+	scene->materials[5].bdsfs[1].sample_direction = NEW_sample_glossy_direction;
+	
+	//right wall (red)
+	scene->materials[6] = {};
+	scene->materials[6].shininess = 32.0;
+	scene->materials[6].diffuse_spd = NEW_RGB64_to_spectrum(RGB64{0.5, 0.0, 0.0}, spectrum_buffer);
+	scene->materials[6].glossy_spd = NEW_RGB64_to_spectrum(RGB64{0.7, 0.6, 0.6}, spectrum_buffer);
+	scene->materials[6].number_of_bdsfs = 2;
+	scene->materials[6].bdsfs[0].reflectance = NEW_diffuse_phong_reflectance;
+	scene->materials[6].bdsfs[0].sample_direction = NEW_sample_diffuse_direction;
+	scene->materials[6].bdsfs[1].reflectance = NEW_glossy_phong_reflectance;
+	scene->materials[6].bdsfs[1].sample_direction = NEW_sample_glossy_direction;
+	
+	//floor + ceiling (white)
+	scene->materials[7] = {};
+	scene->materials[7].shininess = 32.0;
+	scene->materials[7].diffuse_spd = NEW_RGB64_to_spectrum(RGB64{0.55, 0.55, 0.55}, spectrum_buffer);
+	scene->materials[7].glossy_spd = NEW_RGB64_to_spectrum(RGB64{0.7, 0.7, 0.7}, spectrum_buffer);
+	scene->materials[7].number_of_bdsfs = 2;
+	scene->materials[7].bdsfs[0].reflectance = NEW_diffuse_phong_reflectance;
+	scene->materials[7].bdsfs[0].sample_direction = NEW_sample_diffuse_direction;
+	scene->materials[7].bdsfs[1].reflectance = NEW_glossy_phong_reflectance;
+	scene->materials[7].bdsfs[1].sample_direction = NEW_sample_glossy_direction;
+
+	//Light material
+	scene->materials[8] = {};
+	set_spectrum_to_zero(&scene->materials[8].emission+spd);	
+	
+	//Set scene objects
+	//Glass sphere
+	//Gold sphere
+	//Plastic sphere
+	//back wall
+	//left wall
+	//right wall
+	//floor
+	//ceiling
+	//Light
+	scene->number_of_objects = 9;
+	for(int i = 0; i < scene->number_of_objects; ++i)
+	{
+		scene->object_geometries[i] = &scene->geometries[i];
+		scene->object_materials[i] = &scene->materials[i+1];
+	}
+
+	//Load camera data
+	scene->camera_position = {0.0, 0.0, 8.0};
+	scene->camera_fov = 90.0;
+	scene->camera_up = {0.0, 1.0, 0.0};
+	scene->camera_right = {1.0, 0.0, 0.0};
+	scene->camera.film_normal = {0.0, 0.0, -1.0};	
+	scene->camera.focal_depth = 8.0;
+	scene->camera.focal_length = 0.5;
+	scene->camera.aperture_radius = 0.0; //NOTE: change for lens
+}
+
+void NEW_render_image(RGB64* target_RGB64_buffer, int target_width_px, int target_height_px, int number_of_render_samples)
+{
+	int max_path_depth = 4;
+	int number_of_pixels = target_width_px * target_height_px;
+	Spectrum* target_spectrum_buffer = (Spectrum*)alloc(number_of_pixels * sizeof(Spectrum));
+	NEW_Scene_Point* scene_path = (NEW_Scene_Path*)alloc((max_path_depth+1)*sizeof(New_Scene_Point));
+	NEW_Spectrum_Buffer* spectrum_buffer = (NEW_Spectrum_Buffer*)alloc(sizeof(NEW_Spectrum_Buffer));
+	NEW_Scene* scene = (NEW_Scene*)alloc(sizeof(NEW_Scene));
+
+	//Load colour functions and scene data
+	//Load camera data
+	NEW_load_scene(scene, spectrum_buffer);
+
+	//RNG seed
+	srand(100000);
+	
+	double aspect_ratio = (double)(target_width_px) / (double)(target_height_px);
+	double image_plane_aperture_distance = (scene->camera.focal_length * scene->camera.focal_depth) / (scene->camera.focal_length + scene->camera.focal_depth);
+	double image_plane_width = 2.0 * image_plane_aperture_distance * tan_deg(fov/2.0);
+	double image_plane_height = image_plane_width / aspect_ratio;
+	Vec3 film_top_left = scene->camera_position - 0.5 * image_plane_width * scene->camera_right + 0.5 * image_plane_height * scene->camera_up;
+	double pixel_width = image_plane_width/(double)(target_width_px);
+	double pixel_height = image_plane_height/(double)(target_height_px);
+
+	scene->camera.pinhole_position = scene->camera_position + image_plane_aperture_distance * scene->camera_forward;
+	
+	for(int pass = 0; pass < number_of_render_samples; ++pass)
+	{//For number of render samples
+		for(int pixel = 0; pixel < target_width_px * target_height_px; ++pixel)
+		{//For each pixel in the image
+			int x = pixel % target_width_px;
+			int y = pixel / target_width_px;
+
+			//Sample (center) point on the pixel
+			Vec3 pixel_top_left = film_top_left + ((double)x)*pixel_width*scene->camera_right - ((double)y)*pixel_height*scene->camera_up;
+			Vec3 pixel_sample = 0.5 * Vec3{0.5*pixel_width, 0.5*pixel_height, 0.0};
+			Vec3 sampled_pixel_point = pixel_top_left + pixel_sample;
+
+			//Cast ray to find scene path
+			int path_depth = NEW_sample_scene_path(scene, sampled_pixel_point, scene->camera.film_normal, scene_path, max_path_depth);
+			//Compute path radiance
+			NEW_compute_path_radiance(scene, spectrum_buffer, scene_path, path_depth);
+			//Filter pixel spectrum with image's current pixel spectrum
+			double pass_d = (double)(pass);
+			double pass_inc_d = pass_d + 1.0;
+			spectral_sum_and_multiply(spectrum_buffer->spectra[0], target_spectrum_buffer[pixel], pass_d, spectrum_buffer->spectra[0]);
+			spectral_multiply(spectrum_buffer->spectra[0], 1.0/pass_inc_d, target_spectrum_buffer[pixel]);
+		}
+	}
+	//Load colour matching functions
+	for(int pixel = 0; pixel < target_width_px * target_height_px; ++pixel)
+	{
+		int x = pixel % target_width_px;
+		int y = pixel / target_width_px;
+		//Convert target spectrum to RGB64
+		//Write RGB64 in target buffer
+		target_RGB64_buffer[pixel] = NEW_spectrum_to_RGB64(target_spectrum_buffer[pixel]);
+	}
+}
+*/
