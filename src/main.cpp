@@ -100,18 +100,11 @@
 
 //DOING:
 // - Right now
-// 	- WIP ray cast algorithm and general cleanup
-// 		- Ignore models for now (mem requirements unclear)
-// 		- Assume air is the 0th material in the scene materials
-// 		- NOTE: refraction can be supported fairly easily
-// 			- randomly choose a wavelength to take the refractive index of
-// 		- load scene
-// 		- need to make sure code mathematically correct
-// 		- need to make code compilable
-// 		- need to fix code
+// 	- Have a think about float imprecision
+// 	- Start removing old code
+// 	- Compute path radiance
 // - Cleanup
 // 	- Change bdsfs to have reflectance and direction sampling more separate
-// 	- Clean up bdsf code
 // 	- Colour code
 // 		- Remove spectra references in Colour
 // 		- Do a general cleanup to make it faster, neater and more sensible
@@ -124,8 +117,10 @@
 // 		- Spectrum sizes
 // 	- Clean up directory structure
 // 	- File streaming
+// 	- Readd transmission
 // 	- Readd models
 // 	- Readd textures
+// 	- Add refraction (wavelength index sampling)
 // 	- Regression testing and robustness
 // 		- Multiple scenes
 // 		- Multiple cameras
@@ -135,10 +130,10 @@
 // 		- Multiple render sample numbers
 // 		- Profiling
 // 		- Mem usage
-// 	- Platform layer improvement
 // 		- Handle paths robustly
 // 			- No hard coded max path depth
 // 			- Bias computation
+// 	- Platform layer improvement
 // 		- Memory allocation
 // 		- Render target stuf
 // 		- Logging/printf
@@ -274,7 +269,7 @@ void output_to_bmp(const char* path, int image_width, int image_height, RGB8* im
 
 	bmp_info_header.biSize = sizeof(bmp_info_header);
 	bmp_info_header.biWidth = image_width;
-	bmp_info_header.biHeight = image_height; //NOTE: THIS MAY NEED TO CHANGE IF PROBLEMS PRINTING FILE
+	bmp_info_header.biHeight = -image_height; //NOTE: THIS MAY NEED TO CHANGE IF PROBLEMS PRINTING FILE
 	bmp_info_header.biPlanes = 1;
 	bmp_info_header.biBitCount = 32;
 	bmp_info_header.biCompression = BI_RGB;

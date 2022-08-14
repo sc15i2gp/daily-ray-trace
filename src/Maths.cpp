@@ -800,8 +800,8 @@ double NEW_ray_intersects_plane(Ray ray, Plane p)
 		double i_u = dot(intersection - p.p, p.u); //How far along u intersection is
 		double i_v = dot(intersection - p.p, p.v); //How far along v intersection is
 		
-		bool within_u = i_u >= 0.0 && i_u <= p.u_length;
-		bool within_v = i_v >= 0.0 && i_v <= p.v_length;
+		bool within_u = i_u > -0.0009765625 && i_u <= p.u_length;
+		bool within_v = i_v > -0.0009765625 && i_v <= p.v_length;
 		bool intersection_within_bounds = within_u && within_v;
 		if(intersection_within_bounds) return desired_solution;
 	}

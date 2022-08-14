@@ -198,10 +198,4 @@ struct NEW_Scene_Point
 	NEW_Geometry_Sample light_contributions[16];
 };
 
-void NEW_render_image(RGB64* render_target, int target_width, int target_height, int render_samples);
-/*
-
-
-
-void NEW_render_image(RGB64*, int, int, int);
-*/
+void NEW_render_image(RGB64* render_target, int target_width, int target_height, int render_samples, bool invert_final_image = false);
