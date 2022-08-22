@@ -1,16 +1,17 @@
+#include <float.h>
+#include <immintrin.h>
+#include <stdint.h>
+#include <math.h>
+#include <cmath>
+#include <stdlib.h>
+#include <stdio.h>
 #include "Platform.h"
 #include "Maths.h"
 #include "Colour.h"
-#include "Texture.h"
 #include "bdsf.h"
 #include "Scene.h"
-#include "Debug.h"
-#include "Profiling.h"
 
 #include "Maths.cpp"
 #include "Colour.cpp"
-#include "Texture.cpp"
 #include "bdsf.cpp"
 #include "Scene.cpp"
-#include "Debug.cpp"
-#include "Profiling.cpp"

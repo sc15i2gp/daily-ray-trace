@@ -1,9 +1,3 @@
-#include <immintrin.h>
-#include <stdint.h>
-#include <math.h>
-#include <cmath>
-#include <stdlib.h>
-#include <stdio.h>
 
 double uniform_sample();
 
@@ -219,7 +213,7 @@ Vec3 uniform_sample_sphere_subtended(Sphere,Vec3 p, double* pdf_value); //Sample
 Vec3 uniform_sample_hemisphere(Vec3 normal, double* pdf_value);
 Vec3 uniform_sample_disc();
 double cos_weighted_sample_hemisphere_pdf(Vec3 normal, Vec3 v);
-Vec3 cos_weighted_sample_hemisphere(Vec3 normal, double* pdf_value);
+Vec3 cos_weighted_sample_hemisphere(Vec3 normal);
 
 struct Plane
 {

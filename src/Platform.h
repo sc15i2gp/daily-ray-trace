@@ -5,6 +5,8 @@
 #define MEGABYTES(n) 1024 * KILOBYTES(n)
 #define GIGABYTES(n) 1024 * MEGABYTES(n)
 
+struct Vec3; //Forward decl
+
 int window_width(HWND);
 int window_height(HWND);
 
@@ -30,3 +32,11 @@ double cycles_to_ms(long unsigned int);
 double elapsed_time_in_s(Timer*);
 double elapsed_time_in_ms(Timer*);
 long unsigned int elapsed_time_in_cycles(Timer*);
+
+struct RGB8
+{
+	uint8_t B;
+	uint8_t G;
+	uint8_t R;
+	uint8_t A;
+};

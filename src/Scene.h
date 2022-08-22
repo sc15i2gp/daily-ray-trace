@@ -1,21 +1,4 @@
-#include <float.h>
-
-typedef Spectrum Radiance;
-
-enum Geometry_Type
-{
-	GEO_TYPE_NONE = 0,
-	GEO_TYPE_POINT,
-	GEO_TYPE_SPHERE,
-	GEO_TYPE_PLANE,
-	GEO_TYPE_MODEL
-};
-
-struct Point
-{
-	Vec3 position;
-};
-
+/*
 struct Model_Vertex
 {
 	Vec3 position;
@@ -28,77 +11,16 @@ struct Model
 	int number_of_vertices;
 	Model_Vertex* vertices;
 };
+*/
 
-struct Scene_Geometry
+enum Geometry_Type
 {
-	Geometry_Type type;
-	union
-	{
-		Sphere sphere;
-		Plane plane;
-		Model model;
-	};
+	GEO_TYPE_NONE = 0,
+	GEO_TYPE_POINT,
+	GEO_TYPE_SPHERE,
+	GEO_TYPE_PLANE,
+	GEO_TYPE_MODEL
 };
-
-#define SCENE_OBJECT_MAX 32
-
-struct Scene_Object
-{
-	Scene_Geometry geometry;
-	Material material;
-	char* name;
-};
-
-struct Scene
-{
-	Scene_Object objects[SCENE_OBJECT_MAX];
-	Material air_material;
-	int number_of_objects;
-};
-
-struct Geometry_Intersection_Point
-{
-	//General intersection data
-	int scene_object;
-	
-	//Model geometry intersection data
-	int model_triangle_index;
-	Vec3 position;
-	Vec3 barycentric_coordinates;
-};
-
-struct Camera
-{
-	//Program input
-	//Needed by:
-	//	- Render image
-	//Orientation
-	Vec3 forward;
-	Vec3 right;
-	Vec3 up;
-	
-	//Lens
-	//Needed by:
-	//	- Render image
-	//	- Sample direction
-	Vec3 pinhole_position;
-	double focal_depth;
-	double focal_length;
-	double aperture_radius;
-	
-	//Computed from program input
-	//Film
-	//Needed by:
-	//	- Render image
-	Vec3 film_top_left;
-	double film_pixel_width; //Width of a pixel on the image plane
-	double film_pixel_height; //Height of a pixel on the image plane
-	int film_width_px; //Width of film in pixels
-	int film_height_px; //Height of film in pixels
-};
-
-
-void render_image(Texture* render_target, int number_of_samples);
 
 struct NEW_Spectrum_Buffer
 {
@@ -122,7 +44,7 @@ struct NEW_Scene_Geometry
 	{
 		Sphere* sphere;
 		Plane* plane;
-		Model* model;
+		//Model* model;
 	};
 };
 

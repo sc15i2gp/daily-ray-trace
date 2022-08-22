@@ -294,7 +294,6 @@ Vec3 normalise(Vec3 v)
 
 double point_to_line_distance_sq(Vec3 p, Vec3 l_0, Vec3 l_1)
 {
-	TIMED_FUNCTION;
 	Vec3 normalised_line = normalise(l_0 - l_1);
 	Vec3 q = l_1 + (dot(p - l_1, normalised_line))*normalised_line;
 	double distance = dot(p - q, p - q);
@@ -677,7 +676,7 @@ double cos_weighted_sample_hemisphere_pdf(Vec3 normal, Vec3 v)
 	return dot(normal, v) / PI;
 }
 
-Vec3 cos_weighted_sample_hemisphere(Vec3 normal, double* pdf)
+Vec3 cos_weighted_sample_hemisphere(Vec3 normal)
 {
 	Vec3 p = {};
 	for(;;)
@@ -689,7 +688,6 @@ Vec3 cos_weighted_sample_hemisphere(Vec3 normal, double* pdf)
 	//Rotate p by R such that R*(0, 0, 1) = normal
 	Mat3x3 r = find_rotation_between_vectors(Vec3{0.0, 0.0, 1.0}, normal);
 	Vec3 v = r * p;
-	*pdf = cos_weighted_sample_hemisphere_pdf(normal, v);
 	return v;
 }
 

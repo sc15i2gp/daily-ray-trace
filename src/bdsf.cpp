@@ -1,4 +1,5 @@
 
+/*
 double fresnel_reflectance_dielectric(double incident_refraction_index, double transmit_refraction_index, double incident_cos, double transmit_cos)
 {
 	double parallel_reflectance = 
@@ -185,7 +186,6 @@ double beckmann_distribution(Vec3 surface_normal, Vec3 microfacet_normal, double
 		double denominator = PI * lobe_width * lobe_width * nh_dot_sq * nh_dot_sq;
 		double d = exp(e_quot) / denominator;
 		return d;
-		*/
 		
 	}
 
@@ -248,8 +248,6 @@ double geometric_attenuation(Vec3 incoming, Vec3 outgoing, Vec3 surface_normal, 
 	return g;
 }
 
-
-/*	BDSFs	*/
 
 void diffuse_phong_bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance, Spectrum&)
 {
@@ -416,7 +414,6 @@ void bdsf(Surface_Point& p, Vec3 incoming, Vec3 outgoing, Spectrum& reflectance)
 }
 
 
-/*	Direction sampling	*/
 
 
 double diffuse_pdf(Surface_Point& p, Vec3 outgoing, Vec3 sampled)
@@ -432,11 +429,9 @@ Vec3 sample_diffuse_direction(Surface_Point& p, Vec3 outgoing, double* pdf_value
 //NOTE: Although these two sample functions are the same now, the glossy one may be changed soon
 Vec3 sample_glossy_direction(Surface_Point& p, Vec3 outgoing, double* pdf_value)
 {
-	/*
-	*pdf_value = 1.0;
-	Vec3 dir = reflect_vector(-outgoing, p.normal);
-	return dir;
-	*/
+	// *pdf_value = 1.0;
+	//Vec3 dir = reflect_vector(-outgoing, p.normal);
+	//return dir;
 	return sample_diffuse_direction(p, outgoing, pdf_value);
 }
 
@@ -471,7 +466,7 @@ Vec3 sample_cook_torrance_reflection_direction(Surface_Point& p, Vec3 outgoing, 
 	}
 	
 	Vec3 reflection_direction = reflect_vector(-outgoing, microfacet_normal);
-	//*pdf_value = dot(outgoing, microfacet_normal) * geometric_attenuation(reflection_direction, outgoing, p.normal, microfacet_normal, p.material.roughness) / (dot(outgoing, p.normal) * dot(microfacet_normal, p.normal));
+	// *pdf_value = dot(outgoing, microfacet_normal) * geometric_attenuation(reflection_direction, outgoing, p.normal, microfacet_normal, p.material.roughness) / (dot(outgoing, p.normal) * dot(microfacet_normal, p.normal));
 	double d = ggx_distribution(p.normal, microfacet_normal, a) * mn_sn_dot;
 
 	*pdf_value = d * (1.0/(4.0 * dot(outgoing, microfacet_normal)));
@@ -547,7 +542,6 @@ Vec3 sample_specular_reflection_or_transmission_direction(Surface_Point& p, Vec3
 }
 
 
-/*	Create materials	*/
 
 
 Material create_plastic(Spectrum diffuse_spd, Spectrum glossy_spd, double shininess)
@@ -679,7 +673,6 @@ Material create_dielectric(Spectrum refract_index)
 }
 
 // NEW_bdsf utility functions
-/*
 double NEW_microfacet_distribution(double roughness, Vec3 n, Vec3 v)
 {
 	double cos_th_sq = dot(n, v) * dot(n, v);
@@ -783,18 +776,18 @@ void NEW_fresnel_transmittance_dielectric(Spectrum* incident_refract_index, Spec
 
 void NEW_const_1_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr)
 {
-	set_spectrum_to_value(*fr, 1.0);
+	NEW_set_spectrum_to_value(fr, 1.0);
 }
 
 void NEW_specular_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* reflectance)
 {
-	if(in_direction == reflect_vector(-out_direction, p->normal)) set_spectrum_to_value(*reflectance, 1.0);
-	else set_spectrum_to_value(*reflectance, 0.0);
+	if(in_direction == reflect_vector(-out_direction, p->normal)) NEW_set_spectrum_to_value(reflectance, 1.0);
+	else NEW_set_spectrum_to_value(reflectance, 0.0);
 }
 
 void NEW_diffuse_phong_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* reflectance)
 {
-	spectral_multiply(*p->diffuse_spd, 1.0/PI, *reflectance);
+	NEW_spectral_multiply(p->diffuse_spd, 1.0/PI, reflectance);
 }
 
 void NEW_glossy_phong_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* reflectance)
@@ -802,7 +795,7 @@ void NEW_glossy_phong_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 
 	Vec3 bisector = (in_direction + out_direction)/2.0;
 	double shininess = p->shininess;
 	double specular_coefficient = pow(d_max(0.0, dot(p->normal, bisector)), p->shininess);
-	spectral_multiply(*p->glossy_spd, specular_coefficient, *reflectance);
+	NEW_spectral_multiply(p->glossy_spd, specular_coefficient, reflectance);
 }
 
 /*
@@ -919,31 +912,40 @@ void NEW_fresnel_dielectric_specular_reflectance()
 }
 */
 
+//NEW bdsf pdf values
+double NEW_const_1_pdf(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction)
+{
+	return 1.0;
+}
+
+double NEW_cos_weighted_hemisphere_pdf(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction)
+{
+	return cos_weighted_sample_hemisphere_pdf(p->normal, out_direction);
+}
+
 // NEW_bdsf direction sampling
 
-Vec3 NEW_sample_camera_lens_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+Vec3 NEW_sample_camera_lens_direction(NEW_Surface_Point* p, Vec3 in_direction)
 {
-	*pdf = 1.0; //TODO: Figure out what this really should be
 	Vec3 plane_of_focus_point = p->position + p->camera->focal_depth * normalise(p->camera->pinhole_position - p->position);
 	Mat3x3 r = find_rotation_between_vectors(p->camera->film_normal, Vec3{0.0, 0.0, 1.0});
 	Vec3 sampled_lens_point = p->camera->pinhole_position + r * ((p->camera->focal_length / p->camera->aperture_radius) * uniform_sample_disc());
 	return normalise(p->camera->pinhole_position - p->position);
 }
 
-Vec3 NEW_sample_camera_pinhole_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+Vec3 NEW_sample_camera_pinhole_direction(NEW_Surface_Point* p, Vec3 in_direction)
 {
-	*pdf = 1.0;
 	return normalise(p->camera->pinhole_position - p->position);
 }
 
-Vec3 NEW_sample_diffuse_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+Vec3 NEW_sample_diffuse_direction(NEW_Surface_Point* p, Vec3 in_direction)
 {
-	return cos_weighted_sample_hemisphere(p->normal, pdf);
+	return cos_weighted_sample_hemisphere(p->normal);
 }
 
-Vec3 NEW_sample_glossy_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+Vec3 NEW_sample_glossy_direction(NEW_Surface_Point* p, Vec3 in_direction)
 {
-	return NEW_sample_diffuse_direction(p, in_direction, pdf);
+	return NEW_sample_diffuse_direction(p, in_direction);
 }
 
 //TODO: Vec3 NEW_sample_glossy_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)

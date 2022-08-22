@@ -101,15 +101,14 @@
 //DOING:
 // - Right now
 // 	- Have a think about float imprecision
+// 	- Have a think about colour code
+// 		- How to handle number of samples, sample intervals, wavelengths etc.
+// 		- File read/write?
 // 	- Start removing old code
 // 	- Compute path radiance
 // - Cleanup
 // 	- Change bdsfs to have reflectance and direction sampling more separate
-// 	- Colour code
-// 		- Remove spectra references in Colour
-// 		- Do a general cleanup to make it faster, neater and more sensible
-// 	- Move RGB8 to platform
-// 	- Fully remove old texture, profiling and debug info code
+// 	- Readd render sample timing
 // 	- Make geometries position independent(?)
 // 	- Remove hard coded parameters
 // 		- Scene
@@ -122,6 +121,9 @@
 // 	- Readd textures
 // 	- Add refraction (wavelength index sampling)
 // 	- Regression testing and robustness
+// 		- Path analysis
+// 		- Radiance analysis
+// 		- Output different data images (depth buffer for example)
 // 		- Multiple scenes
 // 		- Multiple cameras
 // 		- Multiple const spectra
@@ -165,6 +167,24 @@
 // 		- Number of wavelengths represented
 // - Output
 // 	- Rendered image
+
+RGB8 rgb64_to_rgb8(Vec3 rgb64)
+{
+	RGB8 rgb8 = {};
+
+	if(rgb64.R < 0.0) rgb64.R = 0.0;
+	if(rgb64.R > 1.0) rgb64.R = 1.0;
+	if(rgb64.G < 0.0) rgb64.G = 0.0;
+	if(rgb64.G > 1.0) rgb64.G = 1.0;
+	if(rgb64.B < 0.0) rgb64.B = 0.0;
+	if(rgb64.B > 1.0) rgb64.B = 1.0;
+
+	rgb8.R = (uint8_t)(rgb64.R * 255.0);
+	rgb8.G = (uint8_t)(rgb64.G * 255.0);
+	rgb8.B = (uint8_t)(rgb64.B * 255.0);
+
+	return rgb8;
+}
 
 void* alloc(int size)
 {
@@ -295,10 +315,10 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 {
 	query_pc_frequency();
 	int number_of_pixels = RENDER_TARGET_WIDTH * RENDER_TARGET_HEIGHT;
-	RGB64* target_buffer = (RGB64*)alloc(number_of_pixels * sizeof(RGB64));
+	Vec3* target_buffer = (Vec3*)alloc(number_of_pixels * sizeof(Vec3));
 	RGB8* final_image = (RGB8*)alloc(number_of_pixels * sizeof(RGB8));
 
-	NEW_render_image(target_buffer, RENDER_TARGET_WIDTH, RENDER_TARGET_HEIGHT, 1);
+	NEW_render_image(target_buffer, RENDER_TARGET_WIDTH, RENDER_TARGET_HEIGHT, 256);
 	for(int i = 0; i < number_of_pixels; ++i)
 	{
 		final_image[i] = rgb64_to_rgb8(target_buffer[i]);
