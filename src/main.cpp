@@ -100,23 +100,30 @@
 
 //DOING:
 // - Right now
+// 	- Simplify
+// 		- Reduce number of functions
+// 	- Remove NEW_
+// 	- Readd metal material
+// 	- Readd glass material
+// 	- Figure out how to use one data structure for surface points (instead of scene and surface points)
 // 	- Have a think about float imprecision
 // 	- Have a think about colour code
 // 		- How to handle number of samples, sample intervals, wavelengths etc.
 // 		- File read/write?
-// 	- Start removing old code
-// 	- Compute path radiance
+// 	- Remove old code
+// 	- Simplify path and radiance functions
+// 	- Make spectra better
+// - Performance
+// 	- Group together multiple spectral calculations for parallelisation and ma use
+// 	- Reduce program mem
+// 	- Remove need for zeromems
 // - Cleanup
-// 	- Change bdsfs to have reflectance and direction sampling more separate
-// 	- Readd render sample timing
 // 	- Make geometries position independent(?)
 // 	- Remove hard coded parameters
 // 		- Scene
 // 		- Number of render samples
 // 		- Spectrum sizes
-// 	- Clean up directory structure
 // 	- File streaming
-// 	- Readd transmission
 // 	- Readd models
 // 	- Readd textures
 // 	- Add refraction (wavelength index sampling)
@@ -141,6 +148,7 @@
 // 		- Logging/printf
 // 	- Better RNG
 // 	- Readd textures and better file handling
+// 	- Treat skybox as sphere encompassing scene
 // - Bone up on maths
 //		- Light transport
 //		- Monte Carlo integration
@@ -318,7 +326,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
 	Vec3* target_buffer = (Vec3*)alloc(number_of_pixels * sizeof(Vec3));
 	RGB8* final_image = (RGB8*)alloc(number_of_pixels * sizeof(RGB8));
 
-	NEW_render_image(target_buffer, RENDER_TARGET_WIDTH, RENDER_TARGET_HEIGHT, 256);
+	NEW_render_image(target_buffer, RENDER_TARGET_WIDTH, RENDER_TARGET_HEIGHT, 1);
 	for(int i = 0; i < number_of_pixels; ++i)
 	{
 		final_image[i] = rgb64_to_rgb8(target_buffer[i]);

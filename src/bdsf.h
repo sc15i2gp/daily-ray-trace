@@ -31,10 +31,16 @@ Vec3 NEW_sample_camera_lens_direction(NEW_Surface_Point*, Vec3);
 Vec3 NEW_sample_camera_pinhole_direction(NEW_Surface_Point*, Vec3);
 Vec3 NEW_sample_diffuse_direction(NEW_Surface_Point*, Vec3);
 Vec3 NEW_sample_glossy_direction(NEW_Surface_Point*, Vec3);
+Vec3 NEW_sample_specular_reflection_direction(NEW_Surface_Point*, Vec3);
+Vec3 NEW_sample_cook_torrance_reflection_direction(NEW_Surface_Point*, Vec3);
 
 void NEW_const_1_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr);
 void NEW_diffuse_phong_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr);
 void NEW_glossy_phong_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr);
+void NEW_mirror_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr);
+void NEW_cook_torrance_conductor_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr);
+void NEW_fresnel_conductor_specular_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr);
 
 double NEW_const_1_pdf(NEW_Surface_Point*, Vec3, Vec3);
 double NEW_cos_weighted_hemisphere_pdf(NEW_Surface_Point*, Vec3, Vec3);
+double NEW_cook_torrance_reflection_pdf(NEW_Surface_Point*, Vec3, Vec3);

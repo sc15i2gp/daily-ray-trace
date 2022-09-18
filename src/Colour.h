@@ -1,5 +1,5 @@
 
-extern int number_of_samples;
+extern const int number_of_samples;
 typedef Vec3 RGB64;
 
 #define SPECTRUM_SAMPLE_MAX 128

@@ -140,8 +140,10 @@ void NEW_load_scene(NEW_Scene* scene, NEW_Spectrum_Buffer* spectrum_buffer)
 	scene->planes[3] = create_plane_from_points(Vec3{-h, -h, -h}, Vec3{h, -h, -h}, Vec3{-h, -h, h}); //floor
 	scene->planes[4] = create_plane_from_points(Vec3{-h, h, h}, Vec3{h, h, h}, Vec3{-h, h, -h});  //ceiling
 	scene->planes[5] = create_plane_from_points(Vec3{-0.5, 2.9, 0.5}, Vec3{0.5, 2.9, 0.5}, Vec3{-0.5, 2.9, -0.5}); //Light
+	scene->planes[6] = create_plane_from_points(Vec3{-1.0, 1.0, -2.4}, Vec3{1.0, 1.0, -2.4}, Vec3{-1.0, -1.0, -2.9});//Mirror
+	scene->spheres[0] = {{-2.0, -2.2, -0.5}, 0.75};
 
-	scene->number_of_geometries = 6;
+	scene->number_of_geometries = 8;
 	scene->geometries[0].type = GEO_TYPE_PLANE;
 	scene->geometries[0].plane = &scene->planes[0];
 	scene->geometries[1].type = GEO_TYPE_PLANE;
@@ -154,9 +156,14 @@ void NEW_load_scene(NEW_Scene* scene, NEW_Spectrum_Buffer* spectrum_buffer)
 	scene->geometries[4].plane = &scene->planes[4];
 	scene->geometries[5].type = GEO_TYPE_PLANE;
 	scene->geometries[5].plane = &scene->planes[5];
+	scene->geometries[6].type = GEO_TYPE_PLANE;
+	scene->geometries[6].plane = &scene->planes[6];
+	scene->geometries[7].type = GEO_TYPE_SPHERE;
+	scene->geometries[7].sphere = &scene->spheres[0];
 
 	//Materials
-	scene->number_of_materials = 5;
+	NEW_load_spd("spectra/air_spec.csv", &scene->air_material.refract_index_spd);
+	scene->number_of_materials = 7;
 	//back wall (blue)
 	scene->materials[0] = {};
 	scene->materials[0].shininess = 32.0;
@@ -214,8 +221,26 @@ void NEW_load_scene(NEW_Scene* scene, NEW_Spectrum_Buffer* spectrum_buffer)
 	scene->materials[4].is_emissive = true;
 	NEW_set_spectrum_to_value(&scene->materials[4].emission_spd, 1.0);
 
+	//Mirror
+	scene->materials[5] = {};
+	scene->materials[5].number_of_bdsfs = 1;
+	scene->materials[5].bdsfs[0].reflectance = NEW_mirror_reflectance;
+	scene->materials[5].bdsfs[0].sample_direction = NEW_sample_specular_reflection_direction;
+	scene->materials[5].bdsfs[0].pdf = NEW_const_1_pdf;
+
+	//Gold
+	double roughness = 0.344;
+	scene->materials[6] = {};
+	scene->materials[6].number_of_bdsfs = 1;
+	scene->materials[6].bdsfs[0].reflectance = (roughness >= 0.001) ? NEW_cook_torrance_conductor_reflectance : NEW_fresnel_conductor_specular_reflectance;
+	scene->materials[6].bdsfs[0].sample_direction = (roughness >= 0.001) ? NEW_sample_cook_torrance_reflection_direction : NEW_sample_specular_reflection_direction;
+	scene->materials[6].bdsfs[0].pdf = (roughness >= 0.001) ? NEW_cook_torrance_reflection_pdf : NEW_const_1_pdf;
+	scene->materials[6].roughness = roughness;
+	NEW_load_spd("spectra/au_spec_n.csv", &scene->materials[6].refract_index_spd);
+	NEW_load_spd("spectra/au_spec_k.csv", &scene->materials[6].extinct_index_spd);
+
 	//Set scene objects and light sources
-	scene->number_of_objects = 6;
+	scene->number_of_objects = 8;
 
 	//back wall
 	scene->object_geometries[0] = &scene->geometries[0];
@@ -242,6 +267,14 @@ void NEW_load_scene(NEW_Scene* scene, NEW_Spectrum_Buffer* spectrum_buffer)
 	scene->light_source_geometries[0] = &scene->geometries[5];
 	scene->light_source_materials[0] = &scene->materials[4];
 
+	//Mirror
+	scene->object_geometries[6] = &scene->geometries[6];
+	scene->object_materials[6] = &scene->materials[5];
+
+	//Gold
+	scene->object_geometries[7] = &scene->geometries[7];
+	scene->object_materials[7] = &scene->materials[6];
+
 	//Load camera data
 	scene->camera_position = {0.0, 0.0, 8.0};
 	scene->camera_fov = 90.0;
@@ -260,16 +293,6 @@ void NEW_load_scene(NEW_Scene* scene, NEW_Spectrum_Buffer* spectrum_buffer)
 	scene->film_material.bdsfs[0].pdf = NEW_const_1_pdf; //TODO: Change this for lens (probably shouldn't be 1)
 }
 
-
-void NEW_sample_geometry(NEW_Scene_Geometry* geometry, Vec3 origin, NEW_Geometry_Sample* geometry_sample)
-{
-	switch(geometry->type)
-	{
-		case GEO_TYPE_SPHERE: geometry_sample->position = uniform_sample_sphere_subtended(*geometry->sphere, origin, &geometry_sample->pdf); break;
-		case GEO_TYPE_PLANE: geometry_sample->position = uniform_sample_plane(*geometry->plane, &geometry_sample->pdf); break;
-		//TODO: case GEO_TYPE_MODEL
-	}
-}
 
 Vec3 NEW_find_ray_scene_intersection_point(NEW_Scene* scene, Ray ray, int* ret_intersecting_object = NULL)
 {
@@ -338,7 +361,6 @@ void NEW_find_ray_scene_intersection(NEW_Scene* scene, Ray ray, NEW_Scene_Point*
 
 int NEW_sample_scene_path(NEW_Scene* scene, Vec3 film_point, NEW_Scene_Point* scene_path, int max_depth)
 {
-	int depth = 0;
 	bool is_there_next_point = true;
 	NEW_Scene_Point* current_point = &scene_path[0];
 	NEW_Scene_Point* next_point = &scene_path[1];
@@ -354,13 +376,20 @@ int NEW_sample_scene_path(NEW_Scene* scene, Vec3 film_point, NEW_Scene_Point* sc
 
 	NEW_Surface_Point surface_point = {};
 
-	while(is_there_next_point && depth < max_depth)
+	int depth;
+	for(depth = 0; depth < max_depth && is_there_next_point; ++depth)
 	{
 		//Sample incoming light rays
 		for(int i = 0; depth != 0 && i < scene->number_of_light_sources; ++i)
 		{
 			NEW_Geometry_Sample* light_sample = &current_point->light_contributions[current_point->number_of_light_contributions];
-			NEW_sample_geometry(scene->light_source_geometries[i], current_point->position, light_sample);
+			NEW_Scene_Geometry* geometry = scene->light_source_geometries[i];
+			switch(geometry->type)
+			{
+				case GEO_TYPE_SPHERE: light_sample->position = uniform_sample_sphere_subtended(*geometry->sphere, current_point->position, &light_sample->pdf); break;
+				case GEO_TYPE_PLANE: light_sample->position = uniform_sample_plane(*geometry->plane, &light_sample->pdf); break;
+				//TODO: case GEO_TYPE_MODEL
+			}
 			light_sample->object = i;
 			
 			Ray shadow_ray = {};
@@ -404,7 +433,6 @@ int NEW_sample_scene_path(NEW_Scene* scene, Vec3 film_point, NEW_Scene_Point* sc
 		}
 		current_point->out_ray.origin = current_point->position + 0.03125*current_point->out_ray.direction;
 		NEW_find_ray_scene_intersection(scene, current_point->out_ray, next_point);
-		++depth;
 
 		//Store and iterate points
 		current_point = next_point;
@@ -519,10 +547,10 @@ void NEW_render_image(RGB64* render_target, int render_target_width, int render_
 
 	//Load scene data
 	srand(100000);
-	NEW_Spectrum_Buffer* spectrum_buffer = (NEW_Spectrum_Buffer*)alloc(sizeof(NEW_Spectrum_Buffer));
+	int scene_path_size = (max_path_depth + 1)*sizeof(NEW_Scene_Point);
 	Spectrum* spectral_render_target = (Spectrum*)alloc(number_of_pixels * sizeof(Spectrum));
 	NEW_Scene* scene = (NEW_Scene*)alloc(sizeof(NEW_Scene));
-	int scene_path_size = (max_path_depth + 1)*sizeof(NEW_Scene_Point);
+	NEW_Spectrum_Buffer* spectrum_buffer = (NEW_Spectrum_Buffer*)alloc(sizeof(NEW_Spectrum_Buffer));
 	NEW_Scene_Point* scene_path = (NEW_Scene_Point*)alloc(scene_path_size);
 	NEW_load_scene(scene, spectrum_buffer);
 
@@ -538,14 +566,45 @@ void NEW_render_image(RGB64* render_target, int render_target_width, int render_
 	scene->camera.pinhole_position = scene->camera_position + image_plane_aperture_distance * scene->camera.film_normal;
 
 	printf("Starting render...\n");
+	double max_render_time = 0.0;
+	double min_render_time = DBL_MAX;
+	double max_path_time = 0.0;
+	double min_path_time = DBL_MAX;
+	double max_radiance_time = 0.0;
+	double min_radiance_time = DBL_MAX;
+	double total_render_time = 0.0;
+	double total_path_time = 0.0;
+	double total_radiance_time = 0.0;
+	Timer path_t = {};
+	Timer radiance_t = {};
+	Timer t = {};
+
+	DEBUG
+	(
+		debug_info.scene = scene;
+		debug_info.scene_path = scene_path;
+		debug_info.spectrum_buffer = spectrum_buffer;
+		debug_info.render_target = spectral_render_target;
+	)
+
 	//Render image
 	for(int pass = 0; pass < number_of_render_samples; ++pass)
 	{
 		printf("Pass %d/%d\n", pass+1, number_of_render_samples);
+		start_timer(&t);
 		for(int pixel = 0; pixel < number_of_pixels; ++pixel)
 		{
 			int x = pixel % render_target_width;
 			int y = pixel / render_target_width;
+
+			DEBUG
+			(
+				debug_info.pixel_x = x;
+				debug_info.pixel_y = y;
+				debug_info.pass = pass;
+			);
+			zero_mem(scene_path, scene_path_size);
+
 
 			//Sample (center) point on the pixel
 			Vec3 pixel_top_left = film_top_left + ((double)x)*pixel_width*scene->camera_right - ((double)y)*pixel_height*scene->camera_up;
@@ -553,12 +612,14 @@ void NEW_render_image(RGB64* render_target, int render_target_width, int render_
 			Vec3 sampled_pixel_point = pixel_top_left + pixel_sample; 
 
 			//Cast ray to get scene path
-			zero_mem(scene_path, scene_path_size);
+			start_timer(&path_t);
 			int path_depth = NEW_sample_scene_path(scene, sampled_pixel_point, scene_path, max_path_depth);
+			stop_timer(&path_t);
 
 			//Compute path radiance
-			zero_mem(spectrum_buffer, sizeof(NEW_Spectrum_Buffer));
+			start_timer(&radiance_t);
 			NEW_compute_path_radiance(scene, spectrum_buffer, scene_path, path_depth);
+			stop_timer(&radiance_t);
 			/*
 			double depth = (double)path_depth/4.0;
 			NEW_set_spectrum_to_value(&spectral_render_target[pixel], depth);
@@ -567,8 +628,30 @@ void NEW_render_image(RGB64* render_target, int render_target_width, int render_
 			double pass_inc_d = pass_d + 1.0;
 			NEW_spectral_sum_and_multiply(&spectrum_buffer->spectra[0], &spectral_render_target[pixel], pass_d, &spectrum_buffer->spectra[0]);
 			NEW_spectral_multiply(&spectrum_buffer->spectra[0], 1.0/pass_inc_d, &spectral_render_target[pixel]);
+			double path_time = elapsed_time_in_ms(&path_t);
+			double radiance_time = elapsed_time_in_ms(&radiance_t);
+			if(path_time > max_path_time) max_path_time = path_time;
+			if(path_time < min_path_time) min_path_time = path_time;
+			if(radiance_time > max_radiance_time) max_radiance_time = radiance_time;
+			if(radiance_time < min_radiance_time) min_radiance_time = radiance_time;
+			total_path_time += path_time;
+			total_radiance_time += radiance_time;
 		}
+		stop_timer(&t);
+		double render_time = elapsed_time_in_ms(&t);
+		if(render_time > max_render_time) max_render_time = render_time;
+		if(render_time < min_render_time) min_render_time = render_time;
+		total_render_time += render_time;
 	}
+	printf("Max render time = %fms\n", max_render_time);
+	printf("Min render time = %fms\n", min_render_time);
+	printf("Total render time = %fms\n", total_render_time);
+	printf("Max path time = %fms\n", max_path_time);
+	printf("Min path time = %fms\n", min_path_time);
+	printf("Total path time = %fms\n", total_path_time);
+	printf("Max radiance time = %fms\n", max_radiance_time);
+	printf("Min radiance time = %fms\n", min_radiance_time);
+	printf("Total radiance time = %fms\n", total_radiance_time);
 
 	//Convert spectral image to RGB64
 	NEW_set_spectrum_to_value(&spectrum_buffer->spectra[0], 1.0);

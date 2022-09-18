@@ -10,6 +10,7 @@
 #include "Colour.h"
 #include "bdsf.h"
 #include "Scene.h"
+#include "debug.h"
 
 #include "Maths.cpp"
 #include "Colour.cpp"

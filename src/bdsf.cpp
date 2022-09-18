@@ -207,40 +207,6 @@ double ggx_distribution(Vec3 surface_normal, Vec3 microfacet_normal, double lobe
 	}
 }
 
-double ggx_g_1(Vec3 v, Vec3 surface_normal, Vec3 microfacet_normal, double lobe_width)
-{
-	double vh_dot = dot(v, microfacet_normal);
-	double vn_dot = dot(v, surface_normal);
-	double vnh_dot_quot = abs(vh_dot / vn_dot);
-
-	if(vnh_dot_quot <= 0.0) return 0.0;
-	else
-	{
-		double a_sq = lobe_width * lobe_width;
-		double tan_vn_sq = (1.0/(vn_dot*vn_dot)) - 1.0;
-		double d = 2.0 / (1.0 + sqrt(1.0 + a_sq*tan_vn_sq));
-		return d;
-	}
-}
-
-//Cite: Microfacet models for refraction through rough surfaces
-//TODO: Make these maths variable names more consistent/better thought out
-double g_1(Vec3 v, Vec3 surface_normal, Vec3 microfacet_normal, double lobe_width)
-{
-	double v_h_dot = dot(v, microfacet_normal);
-	double v_n_dot = dot(v, surface_normal);
-	double v_h_n_dot_quot = abs(v_h_dot / v_n_dot);
-	double tan_v_n = sqrt((1.0/(v_n_dot*v_n_dot)) - 1.0);
-	double a = 1.0/(lobe_width * tan_v_n);
-	
-	if(v_h_n_dot_quot <= 0.0) return 0.0;
-	else if(a < 1.6)
-	{
-		double d = v_h_n_dot_quot * (3.535*a + 2.181*a*a)/(1.0 + 2.276*a + 2.577*a*a);
-		return d;
-	}
-	else return 1.0;
-}
 
 double geometric_attenuation(Vec3 incoming, Vec3 outgoing, Vec3 surface_normal, Vec3 microfacet_normal, double lobe_width)
 {
@@ -691,37 +657,6 @@ double NEW_microfacet_distribution(double roughness, Vec3 n, Vec3 v)
 	return d;
 }
 
-double NEW_lambda(double roughness, Vec3 n, Vec3 v)
-{
-	double cos_th = dot(n, v);
-	double sin_th = sqrt(1.0 - cos_th * cos_th);
-	double abs_tan_th = abs(sin_th/cos_th);
-	double cos_ph = (sin_th == 0.0) ? 1.0 : clamp(v.x / sin_th, -1.0, 1.0);
-	double sin_ph = (sin_th == 0.0) ? 0.0 : clamp(v.y / sin_th, -1.0, 1.0);
-	double cos_ph_sq = cos_ph * cos_ph;
-	double sin_ph_sq = sin_ph * sin_ph;
-
-	double r = roughness;
-	double r_sq = r * r; 
-	double alpha = sqrt(cos_ph_sq * r_sq + sin_ph_sq * r_sq); //alpha = sqrt(2) * sigma
-	double a = 1.0 / (alpha * abs_tan_th);
-	
-	if(a >= 1.6) return 1.0;
-
-	double d = (1.0 - 1.259*a + 0.396*a*a) / (3.535*a + 2.181*a*a);
-	return d;
-}
-
-double NEW_geometric_attenuation(double roughness, Vec3 incoming, Vec3 outgoing, Vec3 normal)
-{
-	return 1.0 / (1.0 + NEW_lambda(roughness, outgoing, normal) + NEW_lambda(roughness, incoming, normal));
-}
-
-double NEW_geometric_attenuation(double roughness, Vec3 v, Vec3 normal)
-{
-	return 1.0/ (1.0 + NEW_lambda(roughness, v, normal));
-}
-
 void NEW_fresnel_reflectance_conductor(Spectrum* incident_refract_index, Spectrum* transmit_refract_index, Spectrum* transmit_extinct_index, double incident_cos, Spectrum* reflectance)
 {
 	for(int i = 0; i < number_of_samples; ++i)
@@ -774,14 +709,126 @@ void NEW_fresnel_transmittance_dielectric(Spectrum* incident_refract_index, Spec
 */
 // NEW_bdsfs
 
+double NEW_lambda(double roughness, Vec3 n, Vec3 v)
+{
+	double cos_th = dot(n, v);
+	double sin_th = sqrt(1.0 - cos_th * cos_th);
+	double abs_tan_th = abs(sin_th/cos_th);
+	double cos_ph = (sin_th == 0.0) ? 1.0 : clamp(v.x / sin_th, -1.0, 1.0);
+	double sin_ph = (sin_th == 0.0) ? 0.0 : clamp(v.y / sin_th, -1.0, 1.0);
+	double cos_ph_sq = cos_ph * cos_ph;
+	double sin_ph_sq = sin_ph * sin_ph;
+
+	double r = roughness;
+	double r_sq = r * r; 
+	double alpha = sqrt(cos_ph_sq * r_sq + sin_ph_sq * r_sq); //alpha = sqrt(2) * sigma
+	double a = 1.0 / (alpha * abs_tan_th);
+	
+	if(a >= 1.6) return 1.0;
+
+	double d = (1.0 - 1.259*a + 0.396*a*a) / (3.535*a + 2.181*a*a);
+	return d;
+}
+
+double ggx_g_1(Vec3 v, Vec3 surface_normal, Vec3 microfacet_normal, double lobe_width)
+{
+	double vh_dot = dot(v, microfacet_normal);
+	double vn_dot = dot(v, surface_normal);
+	double vnh_dot_quot = abs(vh_dot / vn_dot);
+
+	if(vnh_dot_quot <= 0.0) return 0.0;
+	else
+	{
+		double a_sq = lobe_width * lobe_width;
+		double tan_vn_sq = (1.0/(vn_dot*vn_dot)) - 1.0;
+		double d = 2.0 / (1.0 + sqrt(1.0 + a_sq*tan_vn_sq));
+		return d;
+	}
+}
+
+//Cite: Microfacet models for refraction through rough surfaces
+//TODO: Make these maths variable names more consistent/better thought out
+double g_1(Vec3 v, Vec3 surface_normal, Vec3 microfacet_normal, double lobe_width)
+{
+	double v_h_dot = dot(v, microfacet_normal);
+	double v_n_dot = dot(v, surface_normal);
+	double v_h_n_dot_quot = abs(v_h_dot / v_n_dot);
+	double tan_v_n = sqrt((1.0/(v_n_dot*v_n_dot)) - 1.0);
+	double a = 1.0/(lobe_width * tan_v_n);
+	
+	if(v_h_n_dot_quot <= 0.0) return 0.0;
+	else if(a < 1.6)
+	{
+		double d = v_h_n_dot_quot * (3.535*a + 2.181*a*a)/(1.0 + 2.276*a + 2.577*a*a);
+		return d;
+	}
+	else return 1.0;
+}
+double geometric_attenuation(Vec3 incoming, Vec3 outgoing, Vec3 surface_normal, Vec3 microfacet_normal, double lobe_width)
+{
+	double g = ggx_g_1(outgoing, surface_normal, microfacet_normal, lobe_width) * ggx_g_1(incoming, surface_normal, microfacet_normal, lobe_width);
+	return g;
+}
+
+double NEW_geometric_attenuation(double roughness, Vec3 incoming, Vec3 outgoing, Vec3 normal)
+{
+	return 1.0 / (1.0 + NEW_lambda(roughness, outgoing, normal) + NEW_lambda(roughness, incoming, normal));
+}
+
+double NEW_geometric_attenuation(double roughness, Vec3 v, Vec3 normal)
+{
+	return 1.0/ (1.0 + NEW_lambda(roughness, v, normal));
+}
+
+double ggx_distribution(Vec3 surface_normal, Vec3 microfacet_normal, double lobe_width)
+{
+	double nh_dot = dot(surface_normal, microfacet_normal);
+	if(nh_dot <= 0.0) return 0.0;
+	else
+	{
+		double a_sq = lobe_width * lobe_width;
+		double cos_h_sq = nh_dot * nh_dot;
+		double cos_h_quart = cos_h_sq * cos_h_sq;
+		double tan_h_sq = (1.0/cos_h_sq) - 1.0;
+
+		double d = a_sq / (PI * cos_h_quart * (a_sq + tan_h_sq) * (a_sq + tan_h_sq));
+		return d;
+	}
+}
+
+void NEW_fresnel_reflectance_conductor(Spectrum* incident_refract_index, Spectrum* transmit_refract_index, Spectrum* transmit_extinct_index, double incident_cos, Spectrum* reflectance)
+{
+	for(int i = 0; i < number_of_samples; ++i)
+	{
+		double relative_refract_index = transmit_refract_index->samples[i] / incident_refract_index->samples[i];
+		double relative_extinct_index = transmit_extinct_index->samples[i] / incident_refract_index->samples[i];
+
+		double incident_cos_sq = incident_cos * incident_cos;
+		double incident_sin_sq = 1.0 - incident_cos_sq;
+		double relative_refract_index_sq = relative_refract_index * relative_refract_index;
+		double relative_extinct_index_sq = relative_extinct_index * relative_extinct_index;
+		double r = relative_refract_index_sq - relative_extinct_index_sq - incident_sin_sq;
+		double a_sq_plus_b_sq = sqrt(r * r + 4.0 * relative_refract_index_sq * relative_extinct_index_sq);
+		double a = sqrt(0.5 * (a_sq_plus_b_sq + r));
+		double s = a_sq_plus_b_sq + incident_cos_sq;
+		double t = 2.0 * a * incident_cos;
+		double u = incident_cos_sq * a_sq_plus_b_sq + incident_sin_sq * incident_sin_sq;
+		double v = t * incident_sin_sq;
+		double parallel_reflectance = (s - t) / (s + t);
+		double perpendicular_reflectance = parallel_reflectance * (u - v) / (u + v);
+
+		reflectance->samples[i] = 0.5 * (parallel_reflectance + perpendicular_reflectance);
+	}
+}
+
 void NEW_const_1_reflectance(NEW_Surface_Point*, Vec3, Vec3, Spectrum* fr)
 {
 	NEW_set_spectrum_to_value(fr, 1.0);
 }
 
-void NEW_specular_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* reflectance)
+void NEW_mirror_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* reflectance)
 {
-	if(in_direction == reflect_vector(-out_direction, p->normal)) NEW_set_spectrum_to_value(reflectance, 1.0);
+	if(out_direction == reflect_vector(-in_direction, p->normal)) NEW_set_spectrum_to_value(reflectance, 1.0);
 	else NEW_set_spectrum_to_value(reflectance, 0.0);
 }
 
@@ -798,7 +845,68 @@ void NEW_glossy_phong_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 
 	NEW_spectral_multiply(p->glossy_spd, specular_coefficient, reflectance);
 }
 
+//Cite: Microfacet models for refraction through rough surfaces
+void NEW_cook_torrance_conductor_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* fr)
+{
+	Vec3 microfacet_normal = normalise(out_direction + in_direction);
+	Vec3 surface_normal = p->normal;
+	double cos_sn_out = abs(dot(out_direction, surface_normal));
+	double cos_sn_in = abs(dot(in_direction, surface_normal));
+
+	double cos_mn_out = abs(dot(out_direction, microfacet_normal));
+	double cos_mn_in = abs(dot(in_direction, microfacet_normal));
+	
+	NEW_fresnel_reflectance_conductor(p->incident_refract_index_spd, p->transmit_refract_index_spd, p->transmit_extinct_index_spd, cos_mn_out, fr);
+	NEW_spectral_multiply(fr, 1.0/cos_mn_in, fr);
+
+	double reflectance_coefficient = ggx_distribution(surface_normal, microfacet_normal, p->roughness) * geometric_attenuation(in_direction, out_direction, surface_normal, microfacet_normal, p->roughness);
+	NEW_spectral_multiply(fr, reflectance_coefficient, fr);
+	reflectance_coefficient = 1.0/(4.0 * cos_sn_out * cos_sn_in);
+	NEW_spectral_multiply(fr, reflectance_coefficient, fr);
+}
+
+//TODO: Make it so specular bdsfs don't have to check if incoming is specular reflection vector
+void NEW_fresnel_conductor_specular_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* reflectance)
+{
+	if(in_direction == reflect_vector(-out_direction, p->normal))
+	{
+		double incident_cos = abs(dot(out_direction, p->normal));
+		double reflectance_cos = abs(dot(in_direction, p->normal));
+		NEW_fresnel_reflectance_conductor(p->incident_refract_index_spd, p->transmit_refract_index_spd, p->transmit_extinct_index_spd, incident_cos, reflectance);
+		NEW_spectral_multiply(reflectance, 1.0 / reflectance_cos, reflectance);
+	}
+	else NEW_set_spectrum_to_value(reflectance, 0.0);
+}
+
 /*
+void cook_torrance_reflectance(Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* fr)
+{
+	Vec3 microfacet_normal = normalise(out_direction + in_direction);
+	Vec3 surface_normal = p->normal;
+	double cos_sn_out = abs(dot(out_direction, surface_normal));
+	double cos_sn_in = abs(dot(in_direction, surface_normal));
+
+	double cos_mn_out = abs(dot(out_direction, microfacet_normal));
+	double cos_mn_in = abs(dot(in_direction, microfacet_normal));
+
+	if(p.surface_material->type == MAT_TYPE_CONDUCTOR)
+	{
+		fresnel_reflectance_conductor(incident_refract_index, transmit_refract_index, transmit_extinct_index, cos_mn_out, fr);
+		spectral_multiply(fr, 1.0 / cos_mn_in, fr);
+	}
+	else if(p.surface_material->type == MAT_TYPE_DIELECTRIC)
+	{
+		fresnel_reflectance_dielectric(incident_refract_index, transmit_refract_index, cos_mn_out, fr);
+		spectral_multiply(fr, 1.0 / cos_mn_in, fr);
+	}
+
+	double roughness = *TEXTURE_SAMPLE(double, p.surface_material->roughness_texture, p.texture_coordinates);
+	double reflectance_coefficient = ggx_distribution(surface_normal, microfacet_normal, roughness) * geometric_attenuation(incoming, outgoing, surface_normal, microfacet_normal, roughness);
+	spectral_multiply(fr, reflectance_coefficient, fr);
+	reflectance_coefficient = 1.0/(4.0 * cos_sn_out * cos_sn_in);
+	spectral_multiply(fr, reflectance_coefficient, fr);
+}
+
 void NEW_torrance_sparrow_conductor_reflectance(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction, Spectrum* fr)
 {
 	double cos_th_out = dot(out_direction, p->normal);
@@ -886,19 +994,6 @@ void NEW_fresnel_specular_transmittance(NEW_Surface_Point* p, Vec3 in_direction,
 	else set_spectrum_to_value(*transmittance, 0.0);
 }
 
-//TODO: Make it so specular bdsfs don't have to check if incoming is specular reflection vector
-void NEW_fresnel_conductor_specular_reflectance()
-{
-	if(incoming == reflect_vector(-out_direction, p->normal))
-	{
-		double incident_cos = abs(dot(out_direction, p->normal));
-		double reflectance_cos = abs(dot(in_direction, p->normal));
-		NEW_fresnel_reflectance_conductor(p->incident_refract_index_spd, p->transmit_refract_index_spd, p->transmit_extinct_index_spd, incident_cos, reflectance);
-		spectral_multiply(*reflectance, 1.0 / reflectance_cos, *reflectance);
-	}
-	else set_spectrum_to_value(*reflectance, 0.0);
-}
-
 void NEW_fresnel_dielectric_specular_reflectance()
 {
 	if(incoming == reflect_vector(-out_direction, p->normal))
@@ -921,6 +1016,15 @@ double NEW_const_1_pdf(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_directi
 double NEW_cos_weighted_hemisphere_pdf(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction)
 {
 	return cos_weighted_sample_hemisphere_pdf(p->normal, out_direction);
+}
+
+double NEW_cook_torrance_reflection_pdf(NEW_Surface_Point* p, Vec3 in_direction, Vec3 out_direction)
+{
+	//*pdf_value = dot(outgoing, microfacet_normal) * geometric_attenuation(reflection_direction, outgoing, p.normal, microfacet_normal, p.material.roughness) / (dot(outgoing, p.normal) * dot(microfacet_normal, p.normal));
+	Vec3 microfacet_normal = normalise(in_direction + out_direction);
+	double mn_sn_dot = dot(microfacet_normal, p->normal);
+	double d = ggx_distribution(p->normal, microfacet_normal, p->roughness) * mn_sn_dot;
+	return d * (1.0/(4.0 * dot(in_direction, microfacet_normal)));
 }
 
 // NEW_bdsf direction sampling
@@ -950,19 +1054,17 @@ Vec3 NEW_sample_glossy_direction(NEW_Surface_Point* p, Vec3 in_direction)
 
 //TODO: Vec3 NEW_sample_glossy_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
 
-Vec3 NEW_sample_specular_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+Vec3 NEW_sample_specular_reflection_direction(NEW_Surface_Point* p, Vec3 in_direction)
 {
-	*pdf = 1.0;
 	return reflect_vector(-in_direction, p->normal);
 }
 
-/*
-Vec3 NEW_sample_cook_torrance_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
+Vec3 NEW_sample_cook_torrance_reflection_direction(NEW_Surface_Point* p, Vec3 in_direction)
 {
 	double f = uniform_sample();
 	double g = uniform_sample();
 
-	double a = p.roughness;
+	double a = p->roughness;
 	double a_sq = a * a;
 #if 0
 	double l = log(1.0 - f);
@@ -988,13 +1090,11 @@ Vec3 NEW_sample_cook_torrance_direction(NEW_Surface_Point* p, Vec3 in_direction,
 	}
 	
 	Vec3 reflection_direction = reflect_vector(-in_direction, microfacet_normal);
-	//*pdf_value = dot(outgoing, microfacet_normal) * geometric_attenuation(reflection_direction, outgoing, p.normal, microfacet_normal, p.material.roughness) / (dot(outgoing, p.normal) * dot(microfacet_normal, p.normal));
-	double d = ggx_distribution(p->normal, microfacet_normal, a) * mn_sn_dot;
-
-	*pdf = d * (1.0/(4.0 * dot(in_direction, microfacet_normal)));
 
 	return reflection_direction;
 }
+
+/*
 
 Vec3 NEW_sample_torrance_sparrow_direction(NEW_Surface_Point* p, Vec3 in_direction, double* pdf)
 {

@@ -2,7 +2,7 @@
 double start_wavelength = 380.0; //In nm
 double end_wavelength = 720.0; //In nm
 double sample_interval = 5.0; //In nm
-int number_of_samples = 69;
+const int number_of_samples = 69;
 
 //Spectral operations and example locations:
 //	- spectrum = 0
