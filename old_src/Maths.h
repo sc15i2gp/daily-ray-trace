@@ -1,19 +1,4 @@
-
-double uniform_sample();
-
 #define PI 3.141592653L
-
-double sin_deg(double t);
-double cos_deg(double t);
-double tan_deg(double t);
-
-double d_max(double, double);
-double d_min(double, double);
-
-double clamp(double, double low, double high);
-int clamp(int, int low, int high);
-
-double lerp(double x, double x_0, double x_1, double y_0, double y_1);
 
 /*	Vectors	*/
 
@@ -195,26 +180,6 @@ Vec3 reflect_vector(Vec3 v, Vec3 n); //Reflects v through n
 
 /*	Geometry	*/
 
-struct Ray
-{
-	Vec3 origin;
-	Vec3 direction;
-};
-
-struct Sphere
-{
-	Vec3 center;
-	double radius;
-};
-
-double area(Sphere);
-Vec3 uniform_sample_sphere(Sphere, Vec3 p, double* pdf_value);
-Vec3 uniform_sample_sphere_subtended(Sphere,Vec3 p, double* pdf_value); //Samples from points on sphere visible from p
-Vec3 uniform_sample_hemisphere(Vec3 normal, double* pdf_value);
-Vec3 uniform_sample_disc();
-double cos_weighted_sample_hemisphere_pdf(Vec3 normal, Vec3 v);
-Vec3 cos_weighted_sample_hemisphere(Vec3 normal);
-
 struct Plane
 {
 	Vec3 p; //Corner point of plane
@@ -226,15 +191,37 @@ struct Plane
 	double v_length;
 };
 
+struct Sphere
+{
+	Vec3 center;
+	double radius;
+};
 Plane create_plane_from_bounds(Vec3 p, Vec3 u, Vec3 v);
 Plane create_plane_from_points(Vec3 p, Vec3 u, Vec3 v);
-double area(Plane);
-Vec3 uniform_sample_plane(Plane, double* pdf_value);
 
-bool ray_intersects_sphere(Ray, Sphere, double* t);
-bool ray_intersects_plane(Ray ray, Plane, double* t);
+double ray_intersects_sphere(Vec3 o, Vec3 v, Sphere);
+double ray_intersects_plane(Vec3 o, Vec3 v, Plane);
 
-double point_to_line_distance_sq(Vec3 p, Vec3 l_0, Vec3 l_1);
+// Basic sampling
+double uniform_sample();
+Vec3 uniform_sample_disc();
 
-double NEW_ray_intersects_sphere(Ray, Sphere);
-double NEW_ray_intersects_plane(Ray, Plane);
+// Geometry sampling
+double uniform_sample_sphere_subtended_pdf(Sphere, Vec3 p);
+Vec3 uniform_sample_sphere_subtended(Sphere,Vec3 p); //Samples from points on sphere visible from p
+Vec3 uniform_sample_plane(Plane);
+double uniform_sample_plane_pdf(Plane);
+
+// Maths interface
+double sin_deg(double t);
+double cos_deg(double t);
+double tan_deg(double t);
+
+double d_max(double, double);
+double d_min(double, double);
+
+double clamp(double, double low, double high);
+int clamp(int, int low, int high);
+
+double lerp(double x, double x_0, double x_1, double y_0, double y_1);
+

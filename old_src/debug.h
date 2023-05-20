@@ -1,9 +1,8 @@
 
 struct Debug_Info
 {
-	NEW_Scene* scene;
-	NEW_Scene_Point* scene_path;
-	NEW_Spectrum_Buffer* spectrum_buffer;
+	Scene* scene;
+	Scene_Point* scene_path;
 	Spectrum* render_target;
 	int scene_path_depth;
 	int pixel_x;
