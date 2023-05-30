@@ -8,13 +8,22 @@
 //  - No windows/live preview for now
 
 //TODO:
-//  - Spectral stuff
-//      - Rgb to/from spectrum
-//      - Blackbody spd
-//      - Separate file for spectrum code
+//  - Simple spectral operations (sum, multiply etc.)
+//      - + tests
+//  - RGB to/from spectrum
+//      - Functions
+//      - Analyse error/correctness
+//      - Alternative methods (e.g. table rep of matching funcs vs gaussian approx)
+//      - Tests
+//  - Blackbody spd
+//  - Separate spectral code to another file
 //  - PRNG
 //  - Line/shape intersection
 //  - Raytrace algorithm
+
+// dst += (src1 * d)
+// Acc: dst += src
+// Mul: dst *= d
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -39,7 +48,7 @@ typedef struct
         };
         u8  bgra[4];
     };
-}   rgb8;
+}   rgb_u8;
 
 //64 bit rgb values 0.0-1.0
 typedef struct
@@ -47,13 +56,13 @@ typedef struct
     f64 r;
     f64 g;
     f64 b;
-}   rgb64;
+}   rgb_f64;
 
 typedef struct
 {
     BITMAPFILEHEADER *file_header;
     BITMAPINFOHEADER *info_header;
-    rgb8             *pixels; //bgra
+    rgb_u8             *pixels; //bgra
 }   windows_bmp;
 
 u32 write_bmp_to_file(windows_bmp *bmp, const char *file_path)
@@ -83,7 +92,7 @@ void write_test_bmp(u32 colour, const char *test_bmp_path)
 
     test_bmp.file_header = (BITMAPFILEHEADER*)raw_test_bmp;
     test_bmp.info_header = (BITMAPINFOHEADER*)(raw_test_bmp + sizeof(BITMAPFILEHEADER));
-    test_bmp.pixels      = (rgb8*)(raw_test_bmp + test_headers_size);
+    test_bmp.pixels      = (rgb_u8*)(raw_test_bmp + test_headers_size);
 
     for(u32 pixel = 0; pixel < number_of_test_pixels; ++pixel)
     {
@@ -112,6 +121,7 @@ void write_test_bmp(u32 colour, const char *test_bmp_path)
 }
 
 #define MAX_NUM_SPECTRUM_VALUES 128
+//TODO: Is this info nececssary outside of i/o?
 u32 number_of_spectrum_samples = 69;
 f64 smallest_wavelength       = 380.0; //In nm
 f64 largest_wavelength        = 720.0; //In nm
@@ -133,6 +143,27 @@ void zero_spectrum_full(spectrum *dst)
 void zero_f64_array(f64 *dst_array, u32 dst_number_of_elements)
 {
     for(u32 i = 0; i < dst_number_of_elements; ++i) dst_array[i] = 0.0;
+}
+
+void const_spectrum(spectrum *dst, f64 value)
+{
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i) dst->samples[i] = value;
+}
+
+void spectral_sum(spectrum *dst, spectrum *src)
+{
+    for(u32 sample = 0; sample < number_of_spectrum_samples; ++sample)
+    {
+        dst->samples[sample] += src->samples[sample];
+    }
+}
+
+void spectral_mul_by_scalar(spectrum *dst, f64 scalar)
+{
+    for(u32 sample = 0; sample < number_of_spectrum_samples; ++sample)
+    {
+        dst->samples[sample] *= src->samples[sample];
+    }
 }
 
 char *find_next_newline(char *c)
@@ -241,22 +272,32 @@ u32 load_csv_file_to_spectrum(spectrum *dst, const char *csv_path)
     return success;
 }
 
+u32 test_spectral_operations()
+{
+    u32 success = 1;
+
+    return success;
+}
+
 int main(int argc, char **argv)
 {
     write_test_bmp(0, "output\\test_output_blue.bmp");
     write_test_bmp(1, "output\\test_output_green.bmp");
     write_test_bmp(2, "output\\test_output_red.bmp");
-    rgb8 p8 = {.a = 0, .r = 1, .g = 2, .b = 3};
-    rgb64 p64 = {.r = 0.1, .g = 0.2, .b = 0.3};
+    rgb_u8 p8 = {.a = 0, .r = 1, .g = 2, .b = 3};
+    rgb_f64 p64 = {.r = 0.1, .g = 0.2, .b = 0.3};
     printf("Hello World\n");
     printf("%u, %u, %u, %u\n", p8.a, p8.r, p8.g, p8.b);
     printf("%f, %f, %f\n", p64.r, p64.g, p64.b);
     printf("lerp(5.0, 3.0, 6.0, 5.0, 2.0) = %f, should be %f\n", lerp(5.0, 3.0, 6.0, 5.0, 2.0), 3.0);
     printf("Loading d65.csv...\n");
-    spectrum test_spectrum;
-    zero_spectrum_full(&test_spectrum);
-    u32 d65_success = load_csv_file_to_spectrum(&test_spectrum, "spectra\\d65.csv");
+    spectrum test_spectrum_0;
+    zero_spectrum_full(&test_spectrum_0);
+    u32 d65_success = load_csv_file_to_spectrum(&test_spectrum_0, "spectra\\d65.csv");
     if(d65_success) printf("Loaded d65.csv\n");
     else printf("Failed to load d65.csv\n");
+    spectrum test_spectrum_1;
+    zero_spectrum_full(&test_spectrum_1);
+
     return 0;
 }
