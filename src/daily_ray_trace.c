@@ -1,20 +1,23 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <Windows.h>
+#include <math.h>
 
 //Program description:
 //  - Given a scene and sample parameters, produce an image
 //  - Output bmp
 //  - No windows/live preview for now
 
+//Long term TODO:
+//  - Investigate use + comparison of different RGB working spaces
+
 //TODO:
 //  - Simple spectral operations (sum, multiply etc.)
 //      - + tests
 //  - RGB to/from spectrum
-//      - Functions
-//      - Analyse error/correctness
-//      - Alternative methods (e.g. table rep of matching funcs vs gaussian approx)
-//      - Tests
+//      - rgb to spectrum
+//      - spectrum to xyz
+//      - xyz to rgb
 //  - Blackbody spd
 //  - Separate spectral code to another file
 //  - PRNG
@@ -53,9 +56,23 @@ typedef struct
 //64 bit rgb values 0.0-1.0
 typedef struct
 {
-    f64 r;
-    f64 g;
-    f64 b;
+    union
+    {
+        struct
+        {
+            f64 r;
+            f64 g;
+            f64 b;
+        };
+        struct
+        {
+            f64 x;
+            f64 y;
+            f64 z;
+        };
+        f64 rgb[3];
+        f64 xyz[3];
+    };
 }   rgb_f64;
 
 typedef struct
@@ -140,6 +157,14 @@ void zero_spectrum_full(spectrum *dst)
     for(u32 i = 0; i < MAX_NUM_SPECTRUM_VALUES; ++i) dst->samples[i] = 0.0;
 }
 
+void zero_spectrum(spectrum *dst)
+{
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    {
+        dst->samples[i] = 0.0;
+    }
+}
+
 void zero_f64_array(f64 *dst_array, u32 dst_number_of_elements)
 {
     for(u32 i = 0; i < dst_number_of_elements; ++i) dst_array[i] = 0.0;
@@ -150,20 +175,131 @@ void const_spectrum(spectrum *dst, f64 value)
     for(u32 i = 0; i < number_of_spectrum_samples; ++i) dst->samples[i] = value;
 }
 
-void spectral_sum(spectrum *dst, spectrum *src)
+void spectral_mul_by_spectrum(spectrum *dst, spectrum *src0, spectrum *src1)
 {
-    for(u32 sample = 0; sample < number_of_spectrum_samples; ++sample)
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
     {
-        dst->samples[sample] += src->samples[sample];
+        dst->samples[i] = src0->samples[i] * src1->samples[i];
     }
 }
 
-void spectral_mul_by_scalar(spectrum *dst, f64 scalar)
+void spectral_mul_by_scalar(spectrum *dst, spectrum *src, f64 d)
 {
-    for(u32 sample = 0; sample < number_of_spectrum_samples; ++sample)
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
     {
-        dst->samples[sample] *= src->samples[sample];
+        dst->samples[i] = src->samples[i] * d;
     }
+}
+
+void spectral_acc(spectrum *dst, spectrum *src)
+{
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    {
+        dst->samples[i] += src->samples[i];
+    }
+}
+
+void spectral_acc_mul_by_scalar(spectrum *dst, spectrum *src, f64 d)
+{
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    {
+        dst->samples[i] += src->samples[i] * d;
+    }
+}
+
+void spectral_sum(spectrum *dst, spectrum *src0, spectrum *src1)
+{
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    {
+        dst->samples[i] = src0->samples[i] + src1->samples[i];
+    }
+}
+
+rgb_f64 spectrum_to_xyz(spectrum *spd, spectrum *cmf_x, spectrum *cmf_y, spectrum *cmf_z, spectrum *ref_white)
+{
+    rgb_f64 xyz = {0.0, 0.0, 0.0};
+    f64 n = 0.0;
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    {
+        n += (cmf_y->samples[i] * ref_white->samples[i]);
+    }
+    n *= sample_interval;
+
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    {
+        xyz.x += (cmf_x->samples[i] * spd->samples[i] * ref_white->samples[i]);
+        xyz.y += (cmf_y->samples[i] * spd->samples[i] * ref_white->samples[i]);
+        xyz.z += (cmf_z->samples[i] * spd->samples[i] * ref_white->samples[i]);
+    }
+    xyz.x *= (sample_interval/n);
+    xyz.y *= (sample_interval/n);
+    xyz.z *= (sample_interval/n);
+
+    return xyz;
+}
+
+rgb_f64 spectrum_to_rgb_f64(spectrum *spd, spectrum *ref_white, spectrum *cmf_x, spectrum *cmf_y, spectrum *cmf_z)
+{
+    rgb_f64 spd_xyz = spectrum_to_xyz(spd, cmf_x, cmf_y, cmf_z, ref_white);
+    
+    rgb_f64 linear_rgb;
+    linear_rgb.r = (2.3706743 * spd_xyz.x) - (0.9000405 * spd_xyz.y) - (0.4706338 * spd_xyz.z);
+    linear_rgb.g = (-0.5138850 * spd_xyz.x) + (1.4253036 * spd_xyz.y) + (0.0885814 * spd_xyz.z);
+    linear_rgb.b = (0.0052982 * spd_xyz.x) - (0.0146949 * spd_xyz.y) + (1.0093968 * spd_xyz.z);
+
+    return linear_rgb;
+}
+
+//RGB to spectrum
+//  - smallest_rgb
+//  - mid_rgb
+//  - largest_rgb
+//  - rgb_to_spd is spectrum of largest_rgb to spd
+//  - cym_to_spd is:
+//      - If R is smallest_rgb then cyan
+//      - If G is smallest_rgb then magenta
+//      - If B is smallest_rgb then yellow
+//  - spectrum = smallest_rgb * white_rgb_spd + cym_spd * (mid_rgb - smallest_rgb) + rgb_spd * (largest_rgb - mid_rgb)
+
+void rgb_f64_to_spectrum(   rgb_f64 rgb,         spectrum *dst, 
+                            spectrum *white_spd, spectrum *red_spd, 
+                            spectrum *green_spd, spectrum *blue_spd,
+                            spectrum *cyan_spd,  spectrum *magenta_spd,
+                            spectrum *yellow_spd)
+{
+    spectrum *rgb_spectra[] = {red_spd,  green_spd,   blue_spd};
+    spectrum *cmy_spectra[] = {cyan_spd, magenta_spd, yellow_spd};
+    f64 rgb_values[] =        {rgb.r,    rgb.g,       rgb.b};
+    u32 indices[] = {0, 1, 2};
+    u32 tmp_val;
+
+    if(rgb_values[indices[0]] > rgb_values[indices[1]])
+    {
+        tmp_val = indices[1];
+        indices[1] = indices[0];
+        indices[0] = tmp_val;
+    }
+    if(rgb_values[indices[1]] > rgb_values[indices[2]])
+    {
+        tmp_val = indices[2];
+        indices[2] = indices[1];
+        indices[1] = tmp_val;
+    }
+    if(rgb_values[indices[0]] > rgb_values[indices[1]])
+    {
+        tmp_val = indices[1];
+        indices[1] = indices[0];
+        indices[0] = tmp_val;
+    }
+
+    u32 small_index = indices[0];
+    u32 mid_index = indices[1];
+    u32 large_index = indices[2];
+    f64 rgb_diff_mid_small = rgb_values[mid_index] - rgb_values[small_index];
+    f64 rgb_diff_large_mid = rgb_values[large_index] - rgb_values[mid_index];
+    spectral_mul_by_scalar(dst, white_spd, rgb_values[small_index]); //dst = white_rgb_spd * smallest_rgb
+    spectral_acc_mul_by_scalar(dst, cmy_spectra[small_index], rgb_diff_mid_small); //dst += cym_spd * (mid - small)
+    spectral_acc_mul_by_scalar(dst, rgb_spectra[large_index], rgb_diff_large_mid); //dst += rgb_spd * (large - mid)
 }
 
 char *find_next_newline(char *c)
@@ -262,21 +398,41 @@ u32 load_csv_file_to_spectrum(spectrum *dst, const char *csv_path)
         dst->samples[sample] = lerp(sample_wavelength, file_wavelengths[file_wl_index], file_wavelengths[file_wl_index + 1], file_wavelength_values[file_wl_index], file_wavelength_values[file_wl_index+1]);
     }
 
+    /*
     printf("Wavelength | Value\n");
     for(u32 i = 0; i < file_number_of_samples; ++i)
     {
         f64 sample_wl = smallest_wavelength + ((f64)i) * sample_interval;
         printf("%f | %f\n", sample_wl, dst->samples[i]);
     }
-
+*/
     return success;
 }
 
 u32 test_spectral_operations()
 {
     u32 success = 1;
+    
+    //Test basic ops (sum, mul)
+    
+    //Test csv loading
+    //  - Exact
+    //  - Lerp
+    //  - Spectral range greater than file
+    //  - Spectral range shorter than file
+    //  - Overlapping ranges both left and right
 
     return success;
+}
+
+void print_spectrum(spectrum *spd)
+{
+    printf("Wavelength | Value\n");
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    {
+        f64 wl = smallest_wavelength + (((f64)i) * sample_interval);
+        printf("%f | %f\n", wl, spd->samples[i]);
+    }
 }
 
 int main(int argc, char **argv)
@@ -291,13 +447,31 @@ int main(int argc, char **argv)
     printf("%f, %f, %f\n", p64.r, p64.g, p64.b);
     printf("lerp(5.0, 3.0, 6.0, 5.0, 2.0) = %f, should be %f\n", lerp(5.0, 3.0, 6.0, 5.0, 2.0), 3.0);
     printf("Loading d65.csv...\n");
-    spectrum test_spectrum_0;
-    zero_spectrum_full(&test_spectrum_0);
-    u32 d65_success = load_csv_file_to_spectrum(&test_spectrum_0, "spectra\\d65.csv");
-    if(d65_success) printf("Loaded d65.csv\n");
-    else printf("Failed to load d65.csv\n");
-    spectrum test_spectrum_1;
-    zero_spectrum_full(&test_spectrum_1);
 
+    spectrum white_spd, white_rgb_spd;
+    spectrum red_spd, green_spd, blue_spd;
+    spectrum cyan_spd, magenta_spd, yellow_spd;
+    spectrum cmf_x, cmf_y, cmf_z;
+    const_spectrum(&white_spd, 1.0);
+    load_csv_file_to_spectrum(&white_rgb_spd, "spectra\\white_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&red_spd, "spectra\\red_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&green_spd, "spectra\\green_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&blue_spd, "spectra\\blue_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&cyan_spd, "spectra\\cyan_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&magenta_spd, "spectra\\magenta_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&yellow_spd, "spectra\\yellow_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&cmf_x, "spectra\\cmf_x.csv");
+    load_csv_file_to_spectrum(&cmf_y, "spectra\\cmf_y.csv");
+    load_csv_file_to_spectrum(&cmf_z, "spectra\\cmf_z.csv");
+
+    spectrum s;
+    zero_spectrum(&s);
+    print_spectrum(&s);
+    rgb_f64_to_spectrum(p64, &s, &white_spd, &red_spd, &green_spd, &blue_spd, &cyan_spd, &magenta_spd, &yellow_spd);
+    print_spectrum(&s);
+    rgb_f64 f = spectrum_to_rgb_f64(&s, &white_spd, &cmf_x, &cmf_y, &cmf_z);
+
+    printf("First rgb = (%f, %f, %f)\n", p64.r, p64.g, p64.b);
+    printf("Final rgb = (%f, %f, %f)\n", f.r, f.g, f.b);
     return 0;
 }
