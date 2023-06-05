@@ -10,9 +10,16 @@
 //  - Investigate introduction of error in rgb/spectrum conversion
 //      - e.g. which introduces more error: rgb to spectrum or rgb from spectrum
 //  - SPD visualisations
+//  - Spectral investigations
+//      - Get a good understanding of what's going on with spectral stuff
+//      - Test code
+//      - Currently testing rgb -> spectrum -> rgb, could test all:
+//          - rgb -> spectrum
+//          - spectrum -> rgb
+//          - spectrum -> xyz
+//          - spectrum -> rgb
 
 //TODO:
-//  - Separate spectral code to another file
 //  - PRNG
 //  - Line/shape intersection
 //  - Raytrace algorithm
@@ -106,6 +113,120 @@ void zero_f64_array(f64 *dst_array, u32 dst_number_of_elements)
     for(u32 i = 0; i < dst_number_of_elements; ++i) dst_array[i] = 0.0;
 }
 
+u32 test_rgb_spectrum_conversion(f64 low_rgb, f64 high_rgb, f64 rgb_iterand)
+{
+    //Steps:
+    //  - Load spectra
+    //  - Malloc for rgb inputs/outputs
+    //  - Do the conversion for each rgb and store results
+    //  - Compare results and get a figure for error
+
+    printf("Testing spectral conversion...\n");
+    
+    spectrum white;
+    spectrum red, green, blue;
+    spectrum cyan, magenta, yellow;
+    spectrum cmf_x, cmf_y, cmf_z;
+    const_spectrum(&white, 1.0);
+    load_csv_file_to_spectrum(&red, "spectra\\red_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&green, "spectra\\green_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&blue, "spectra\\blue_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&cyan, "spectra\\cyan_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&magenta, "spectra\\magenta_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&yellow, "spectra\\yellow_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&cmf_x, "spectra\\cmf_x.csv");
+    load_csv_file_to_spectrum(&cmf_y, "spectra\\cmf_y.csv");
+    load_csv_file_to_spectrum(&cmf_z, "spectra\\cmf_z.csv");
+
+    u32 rgb_it = ((u32)(high_rgb - low_rgb)/rgb_iterand) + 1U;
+    u32 number_of_rgb_values = rgb_it * rgb_it * rgb_it;
+    rgb_f64 *inputs = (rgb_f64*)VirtualAlloc(0, number_of_rgb_values * sizeof(rgb_f64), MEM_COMMIT, PAGE_READWRITE);
+    rgb_f64 *results = (rgb_f64*)VirtualAlloc(0, number_of_rgb_values * sizeof(rgb_f64), MEM_COMMIT, PAGE_READWRITE);
+
+    rgb_f64 rgb = {0.0, 0.0, 0.0};
+    rgb_f64 rgb_result = {0.0, 0.0, 0.0};
+    spectrum s;
+    zero_spectrum(&s);
+    u32 rgb_value_index = 0;
+    for(f64 r = low_rgb; r <= high_rgb; r += rgb_iterand)
+    {
+        rgb.r = r;
+        for(f64 g = low_rgb; g <= high_rgb; g += rgb_iterand)
+        {
+            rgb.g = g;
+            for(f64 b = low_rgb; b <= high_rgb; b += rgb_iterand)
+            {
+                rgb.b = b;
+                rgb_f64_to_spectrum(rgb, &s, &white, &red, &green, &blue, &cyan, &magenta, &yellow);
+                results[rgb_value_index] = spectrum_to_rgb_f64(&s, &cmf_x, &cmf_y, &cmf_z, &white);
+                inputs[rgb_value_index] = rgb;
+                ++rgb_value_index;
+            }
+        }
+    }
+
+
+    //Info of interest:
+    //  - Smallest, largest, average errors for both overall rgb and individual rgb channels
+    //  - Locations + actual values corresponding to smallest, largest average errors
+    //  - 
+    f64 smallest_error = DBL_MAX;
+    f64 largest_error = 0.0;
+    f64 average_error = 0.0;
+    rgb_f64 smallest_rgb_errors = {DBL_MAX, DBL_MAX, DBL_MAX};
+    rgb_f64 largest_rgb_errors = {0.0, 0.0, 0.0};
+    rgb_f64 average_rgb_errors = {0.0, 0.0, 0.0};
+    for(u32 i = 0; i < number_of_rgb_values; ++i)
+    {
+        rgb_f64 input = inputs[i];
+        rgb_f64 result = results[i];
+
+        rgb_f64 rgb_error;
+        rgb_error.r = fabs(result.r - input.r);
+        rgb_error.g = fabs(result.g - input.g);
+        rgb_error.b = fabs(result.b - input.b);
+        
+        f64 error = (rgb_error.r*rgb_error.r) + (rgb_error.g*rgb_error.g) + (rgb_error.b*rgb_error.b);
+        error = sqrt(error);
+        if(error < smallest_error)
+        {
+            smallest_error = error;
+        }
+        if(error > largest_error)
+        {
+            largest_error = error;
+        }
+        average_error += error;
+        for(u32 j = 0; j < 3; ++j)
+        {
+            if(rgb_error.rgb[j] < smallest_rgb_errors.rgb[j])
+            {
+                smallest_rgb_errors.rgb[j] = rgb_error.rgb[j];
+            }
+            if(rgb_error.rgb[j] > largest_rgb_errors.rgb[j])
+            {
+                largest_rgb_errors.rgb[j] = rgb_error.rgb[j];
+            }
+            average_rgb_errors.rgb[j] += rgb_error.rgb[j];
+        }
+    }
+    average_error /= ((f64)(number_of_rgb_values));
+    average_rgb_errors.r /= ((f64)(number_of_rgb_values));
+    average_rgb_errors.g /= ((f64)(number_of_rgb_values));
+    average_rgb_errors.b /= ((f64)(number_of_rgb_values));
+    printf("Smallest overall error: %f\n", smallest_error);
+    printf("Largest overall error:  %f\n", largest_error);
+    printf("Average overall error:  %f\n", average_error);
+    printf("Smallest rgb errors: %f %f %f\n", smallest_rgb_errors.r, smallest_rgb_errors.g, smallest_rgb_errors.b);
+    printf("Largest rgb errors:  %f %f %f\n", largest_rgb_errors.r, largest_rgb_errors.g, largest_rgb_errors.b);
+    printf("Average rgb errors:  %f %f %f\n", average_rgb_errors.r, average_rgb_errors.g, average_rgb_errors.b);
+
+    printf("Done testing spectral conversion.\n");
+
+    u32 success = 1;
+    return success;
+}
+
 u32 test_spectral_operations()
 {
     u32 success = 1;
@@ -137,38 +258,7 @@ int main(int argc, char **argv)
     write_test_bmp(0, "output\\test_output_blue.bmp");
     write_test_bmp(1, "output\\test_output_green.bmp");
     write_test_bmp(2, "output\\test_output_red.bmp");
-    rgb_u8 p8 = {.a = 0, .r = 1, .g = 2, .b = 3};
-    rgb_f64 p64 = {.r = 0.1, .g = 0.2, .b = 0.3};
-    printf("Hello World\n");
-    printf("%u, %u, %u, %u\n", p8.a, p8.r, p8.g, p8.b);
-    printf("%f, %f, %f\n", p64.r, p64.g, p64.b);
-    printf("lerp(5.0, 3.0, 6.0, 5.0, 2.0) = %f, should be %f\n", lerp(5.0, 3.0, 6.0, 5.0, 2.0), 3.0);
-    printf("Loading d65.csv...\n");
 
-    spectrum white_spd, white_rgb_spd;
-    spectrum red_spd, green_spd, blue_spd;
-    spectrum cyan_spd, magenta_spd, yellow_spd;
-    spectrum cmf_x, cmf_y, cmf_z;
-    const_spectrum(&white_spd, 1.0);
-    load_csv_file_to_spectrum(&white_rgb_spd, "spectra\\white_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&red_spd, "spectra\\red_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&green_spd, "spectra\\green_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&blue_spd, "spectra\\blue_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&cyan_spd, "spectra\\cyan_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&magenta_spd, "spectra\\magenta_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&yellow_spd, "spectra\\yellow_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&cmf_x, "spectra\\cmf_x.csv");
-    load_csv_file_to_spectrum(&cmf_y, "spectra\\cmf_y.csv");
-    load_csv_file_to_spectrum(&cmf_z, "spectra\\cmf_z.csv");
-
-    spectrum s;
-    zero_spectrum(&s);
-    print_spectrum(&s);
-    rgb_f64_to_spectrum(p64, &s, &white_rgb_spd, &red_spd, &green_spd, &blue_spd, &cyan_spd, &magenta_spd, &yellow_spd);
-    print_spectrum(&s);
-    rgb_f64 f = spectrum_to_rgb_f64(&s, &cmf_x, &cmf_y, &cmf_z, &white_spd);
-
-    printf("First rgb = (%f, %f, %f)\n", p64.r, p64.g, p64.b);
-    printf("Final rgb = (%f, %f, %f)\n", f.r, f.g, f.b);
+    test_rgb_spectrum_conversion(0.0, 1.0, 0.1);
     return 0;
 }

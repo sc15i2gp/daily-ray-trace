@@ -20,8 +20,10 @@ void spectral_mul_by_scalar(spectrum *dst, spectrum *src0, f64 src1); //dst = sr
 void spectral_acc(spectrum *dst, spectrum *src); //dst += src
 void spectral_acc_mul_by_scalar(spectrum *dst, spectrum *src0, f64 src1); //dst += src0 * src1
 void spectral_sum(spectrum *dst, spectrum *src0, spectrum *src1); //dst = src0 + src1
+
 rgb_f64 spectrum_to_xyz(spectrum *dst, spectrum *cmf_x, spectrum *cmf_y, spectrum *cmf_z, spectrum *ref_white);
-rgb_f64 spectrum_to_rgb_f64(spectrum *dst, spectrum *cmf_x, spectrum *cmf_y, spectrum *cmf_z, spectrum *ref_white);
+rgb_f64 spectrum_to_rgb_f64(spectrum *spd, spectrum *cmf_x, spectrum *cmf_y, spectrum *cmf_z, spectrum *ref_white);
 void rgb_f64_to_spectrum(rgb_f64 rgb, spectrum *dst, spectrum *white, spectrum *red, spectrum *green, spectrum *blue, spectrum *cyan, spectrum *magenta, spectrum *yellow);
+
 void generate_blackbody_spectrum(spectrum *dst, f64 temperature);
 u32 load_csv_file_to_spectrum(spectrum *dst, const char *path);
