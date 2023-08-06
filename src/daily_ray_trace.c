@@ -1,5 +1,11 @@
 #include "daily_ray_trace.h"
 
+//Standards:
+//  - Struct specific variants of similar functions start with lower case struct name
+//      e.g minus for Vec3 is vec3_minus
+//  - Words in names are separated by _
+//  - Functions with a dst ptr arg have the dst ptr as the first argument
+
 //Program description:
 //  - Given a scene and sample parameters, produce an image
 //  - Output bmp
@@ -21,7 +27,6 @@
 
 //TODO:
 //  - PRNG
-//  - Line/shape intersection
 //  - Raytrace algorithm
 
 // dst += (src1 * d)
@@ -62,6 +67,38 @@ u32 write_bmp_to_file(windows_bmp *bmp, const char *file_path)
 
     BOOL success = WriteFile(output_file, (void*)bmp->file_header, bmp->file_header->bfSize, &bytes_written, NULL);
     CloseHandle(output_file);
+
+    return success;
+}
+
+u32 write_pixels_to_bmp(rgb_u8 *pixels, u32 width, u32 height, const char *path)
+{
+    u32 pixels_size = width * height * sizeof(u32);
+    u32 bmp_size = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + pixels_size;
+    windows_bmp bmp = {0};
+    u8 *raw_bmp = (u8*)VirtualAlloc(0, bmp_size, MEM_COMMIT, PAGE_READWRITE);
+    bmp.file_header = (BITMAPFILEHEADER*)raw_bmp;
+    bmp.info_header = (BITMAPINFOHEADER*)(raw_bmp + sizeof(BITMAPFILEHEADER));
+    bmp.pixels = (rgb_u8*)(raw_bmp + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER));
+
+    memcpy(bmp.pixels, pixels, pixels_size);
+    
+    bmp.file_header->bfType = 0x4d42;
+    bmp.file_header->bfSize = bmp_size;
+    bmp.file_header->bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+    bmp.info_header->biSize = sizeof(BITMAPINFOHEADER);
+    bmp.info_header->biWidth = width;
+    bmp.info_header->biHeight = height;
+    bmp.info_header->biBitCount = 32;
+    bmp.info_header->biCompression = BI_RGB;
+    bmp.info_header->biSizeImage = 0;
+    bmp.info_header->biXPelsPerMeter = 3780;
+    bmp.info_header->biYPelsPerMeter = 3780;
+    bmp.info_header->biClrUsed = 0;
+    bmp.info_header->biClrImportant = 0;
+
+    u32 success = write_bmp_to_file(&bmp, path);
+    VirtualFree(raw_bmp, bmp_size, MEM_RELEASE);
 
     return success;
 }
@@ -169,7 +206,6 @@ u32 test_rgb_spectrum_conversion(f64 low_rgb, f64 high_rgb, f64 rgb_iterand)
     //Info of interest:
     //  - Smallest, largest, average errors for both overall rgb and individual rgb channels
     //  - Locations + actual values corresponding to smallest, largest average errors
-    //  - 
     f64 smallest_error = DBL_MAX;
     f64 largest_error = 0.0;
     f64 average_error = 0.0;
@@ -253,6 +289,256 @@ void print_spectrum(spectrum *spd)
     }
 }
 
+typedef struct
+{
+    f64 x;
+    f64 y;
+    f64 z;
+} vec3;
+
+vec3 vec3_sum(vec3 a, vec3 b)
+{
+    vec3 result;
+    result.x = a.x + b.x;
+    result.y = a.y + b.y;
+    result.z = a.z + b.z;
+    return result;
+}
+
+vec3 vec3_sub(vec3 a, vec3 b)
+{
+    vec3 result;
+    result.x = a.x - b.x;
+    result.y = a.y - b.y;
+    result.z = a.z - b.z;
+    return result;
+}
+
+f64 vec3_dot(vec3 a, vec3 b)
+{
+    f64 result = a.x*b.x + a.y*b.y + a.z*b.z;
+    return result;
+}
+
+vec3 vec3_mul_by_f64(vec3 v, f64 f)
+{
+    vec3 result;
+    result.x = f * v.x;
+    result.y = f * v.y;
+    result.z = f * v.z;
+    return result;
+}
+
+vec3 vec3_div_by_f64(vec3 v, f64 f)
+{
+    vec3 result;
+    result.x = v.x / f;
+    result.y = v.y / f;
+    result.z = v.z / f;
+    return result;
+}
+
+f64 vec3_length(vec3 v)
+{
+    f64 result = vec3_dot(v, v);
+    result = sqrt(result);
+    return result;
+}
+
+vec3 vec3_normalise(vec3 v)
+{
+    vec3 result = v;
+    result = vec3_div_by_f64(v, vec3_length(v));
+    return result;
+}
+
+f64 point_to_line_distance(vec3 p, vec3 l_0, vec3 l_1)
+{
+    vec3 normalised_l = vec3_normalise(vec3_sub(l_0, l_1));
+    vec3 q = vec3_sum(l_1, vec3_mul_by_f64(normalised_l, vec3_dot(vec3_sub(p, l_1), normalised_l)));
+    vec3 q_to_p = vec3_sub(p, q);
+    f64 distance = vec3_dot(q_to_p, q_to_p);
+    return distance;
+}
+
+//line_o: line origin
+//line_d: normalised line direction
+//sphere_c: sphere center
+//sphere_r: sphere radius
+//Returns the smallest positive intersection point from line_o along line_d through the sphere
+//Returns NaN if there is no intersection point, or if there are only negative intersection points
+f64 line_sphere_intersection(vec3 line_o, vec3 line_d, vec3 sphere_c, f64 sphere_r)
+{
+    vec3 c_to_o = vec3_sub(line_o, sphere_c);
+
+    f64 a               = 1.0;
+    f64 b               = -2.0 * vec3_dot(c_to_o, line_d);
+    f64 c               = vec3_dot(c_to_o, c_to_o) - sphere_r*sphere_r;
+    f64 discriminant    = b*b - 4.0 * a * c;
+
+    if(discriminant < 0.0) return NAN;
+
+    f64 sqrt_discriminant = sqrt(discriminant);
+
+    f64 a_2 = 2.0 * a;
+
+    f64 solution_0 = (b + sqrt_discriminant)/a_2;
+    f64 solution_1 = (b - sqrt_discriminant)/a_2;
+
+    if      (solution_0 < 0.0 && solution_1 < 0.0)  return NAN;         //No positive solutions
+    else if (solution_0 >= 0.0 && solution_1 < 0.0) return solution_0;  //Only solution_0 positive
+    else if (solution_1 >= 0.0 && solution_0 < 0.0) return solution_1;  //Only solution_1 positive
+    else if (solution_0 <= solution_1)              return solution_0;  //Smallest solution_0
+    else                                            return solution_1;  //Smallest solution_1
+}
+
+//plane consists of a reference point as origin, a normal and two bounding vectors extending from reference
+//line_o: line origin
+//line_d: normalised line direction
+//plane_p: plane reference point
+//plane_n: normalised plane normal
+//plane_u: first plane bounds vector
+//plane_v: second plane bounds vector
+//Returns positive intersection point from line_o along line_d through the plane
+//Returns NaN if there is no positive intersection point
+f64 line_plane_intersection(vec3 line_o, vec3 line_d, vec3 plane_p, vec3 plane_n, vec3 plane_u, vec3 plane_v)
+{
+    if(vec3_dot(line_d, plane_n) == 0.0) return NAN; //Line parallel to plane
+    
+    vec3    o_to_p  = vec3_sub(plane_p, line_o);
+    f64     l       = vec3_dot(o_to_p, plane_n) / vec3_dot(line_d, plane_n);
+    vec3    i       = vec3_sum(line_o, vec3_mul_by_f64(line_d, l));
+    vec3    j       = vec3_sub(i, plane_p);
+
+    f64 plane_u_length          = vec3_length(plane_u);
+    f64 plane_v_length          = vec3_length(plane_v);
+    f64 j_dot_plane_u           = vec3_dot(j, plane_u);
+    f64 j_dot_plane_v           = vec3_dot(j, plane_v);
+
+    if( 0.0 <= j_dot_plane_u && j_dot_plane_u <= plane_u_length &&
+        0.0 <= j_dot_plane_v && j_dot_plane_v <= plane_v_length)
+    {
+        return l;
+    }
+
+    return NAN;
+}
+
+//triangle consists of three points in CCW order when viewed down from the normal
+//line_o: line origin
+//line_d: normalised line direction
+f64 line_triangle_intersection(vec3 line_o, vec3 line_d, vec3 triangle_a, vec3 triangle_b, vec3 triangle_c, vec3 triangle_n)
+{
+    vec3 o_to_a = vec3_sub(triangle_a, line_o);
+    f64 l = vec3_dot(o_to_a, triangle_n)/vec3_dot(line_d, triangle_n);
+    vec3 i = vec3_sum(line_o, vec3_mul_by_f64(line_d, l));
+
+    f64 a = point_to_line_distance(i, triangle_b, triangle_c)/point_to_line_distance(triangle_a, triangle_b, triangle_c);
+    f64 b = point_to_line_distance(i, triangle_c, triangle_a)/point_to_line_distance(triangle_b, triangle_c, triangle_a);
+    f64 c = point_to_line_distance(i, triangle_a, triangle_b)/point_to_line_distance(triangle_c, triangle_a, triangle_b);
+    f64 d = a + b + c;
+
+    if(d > 1.0) return NAN;
+
+    return l;
+}
+
+void test_shape_intersection(u32 film_width, u32 film_height)
+{
+    printf("Testing shape intersection...\n");
+    u32 film_pixel_count = film_width * film_height;
+    u32 film_size = film_pixel_count * sizeof(f64);
+
+    vec3 film_bottom_left = {-2.0, -2.0, 1.0};
+    vec3 film_top_right = {2.0, 2.0, 1.0};
+    f64 *film = (f64*)VirtualAlloc(0, film_size, MEM_COMMIT, PAGE_READWRITE);
+
+    printf("Testing line-sphere intersection...\n");
+    vec3 sphere_c = {0.0, 0.0, 0.0};
+    f64 sphere_r = 1.0;
+
+    f64 film_p_width = (film_top_right.x - film_bottom_left.x)/((f64)film_width);
+    f64 film_p_height = (film_top_right.y - film_bottom_left.y)/((f64)film_height);
+    vec3 line_d = {0.0, 0.0, -1.0};
+    for(u32 y = 0; y < film_height; ++y)
+    {
+        for(u32 x = 0; x < film_width; ++x)
+        {
+            f64 line_o_x = film_bottom_left.x + ((f64)x + 0.5) * film_p_width;
+            f64 line_o_y = film_bottom_left.y + ((f64)y + 0.5) * film_p_height;
+            vec3 line_o = {line_o_x, line_o_y, film_bottom_left.z};
+            f64 l = line_sphere_intersection(line_o, line_d, sphere_c, sphere_r);
+            film[film_width*y + x] = 1.0 - l;
+        }
+    }
+
+    u32 film_pixels_size = film_pixel_count * sizeof(rgb_u8);
+    rgb_u8 *film_pixels = (rgb_u8*)VirtualAlloc(0, film_pixels_size, MEM_COMMIT, PAGE_READWRITE);
+    for(u32 i = 0; i < film_pixel_count; ++i)
+    {
+        if(!isnan(film[i]))
+        {
+            film_pixels[i].r = (u8)(255.0 * film[i]);
+            film_pixels[i].g = (u8)(255.0 * film[i]);
+            film_pixels[i].b = (u8)(255.0 * film[i]);
+            film_pixels[i].a = 255;
+
+        }
+        else
+        {
+            film_pixels[i].r = 255;
+            film_pixels[i].g = 105;
+            film_pixels[i].b = 184;
+            film_pixels[i].a = 255;
+        }
+    }
+
+    write_pixels_to_bmp(film_pixels, film_width, film_height, "output\\sphere_test.bmp");
+
+    printf("Testing line-plane interaction...\n");
+    memset(film, 0, film_size);
+    memset(film_pixels, 0, film_pixels_size);
+
+    vec3 plane_p = {0.0, 0.0, 0.0};
+    vec3 plane_u = {1.0, 0.0, 0.0};
+    vec3 plane_v = {0.0, 1.0, 0.0};
+    vec3 plane_n = {0.0, 0.0, 1.0};
+
+    for(u32 y = 0; y < film_height; ++y)
+    {
+        for(u32 x = 0; x < film_width; ++x)
+        {
+            f64 line_o_x = film_bottom_left.x + ((f64)x + 0.5) * film_p_width;
+            f64 line_o_y = film_bottom_left.y + ((f64)y + 0.5) * film_p_height;
+            vec3 line_o = {line_o_x, line_o_y, film_bottom_left.z};
+            f64 l = line_plane_intersection(line_o, line_d, plane_p, plane_n, plane_u, plane_v);
+            film[film_width*y + x] = l;
+        }
+    }
+    for(u32 i = 0; i < film_pixel_count; ++i)
+    {
+        if(!isnan(film[i]))
+        {
+            film_pixels[i].r = (u8)(255.0 * film[i]);
+            film_pixels[i].g = (u8)(255.0 * film[i]);
+            film_pixels[i].b = (u8)(255.0 * film[i]);
+            film_pixels[i].a = 255;
+
+        }
+        else
+        {
+            film_pixels[i].r = 255;
+            film_pixels[i].g = 105;
+            film_pixels[i].b = 184;
+            film_pixels[i].a = 255;
+        }
+    }
+    write_pixels_to_bmp(film_pixels, film_width, film_height, "output\\plane_test.bmp");
+
+    VirtualFree(film, film_size, MEM_RELEASE);
+    VirtualFree(film_pixels, film_pixels_size, MEM_RELEASE);
+}
+
 int main(int argc, char **argv)
 {
     write_test_bmp(0, "output\\test_output_blue.bmp");
@@ -260,5 +546,6 @@ int main(int argc, char **argv)
     write_test_bmp(2, "output\\test_output_red.bmp");
 
     test_rgb_spectrum_conversion(0.0, 1.0, 0.1);
+    test_shape_intersection(1600, 1600);
     return 0;
 }

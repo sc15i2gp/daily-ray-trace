@@ -8,3 +8,7 @@
 #include "spectrum.h"
 
 #include "spectrum.c"
+
+#ifndef NAN
+#error "NAN not supported, dingus!"
+#endif
