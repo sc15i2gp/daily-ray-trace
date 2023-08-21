@@ -24,6 +24,7 @@
 //          - spectrum -> rgb
 //          - spectrum -> xyz
 //          - spectrum -> rgb
+//  - Stop being ignorant about line-shape intersection methods and float precision
 
 //TODO:
 //  - PRNG
@@ -33,6 +34,26 @@
 // Acc: dst += src
 // Mul: dst *= d
 
+u32 urng()
+{
+    u32 u = (u32)rand();
+    return u;
+}
+
+u32 range_urng(u32 low, u32 high)
+{
+    u32 u = urng();
+    u32 r = u % (high + 1 - low) + low;
+    return r;
+}
+
+f64 range_frng(f32 low, f32 high)
+{
+    u32 u = urng();
+    f64 fu = (f64)u;
+    f64 fr = low + fu/(((f64)RAND_MAX)/high);
+    return fr;
+}
 
 //8 bit rgb values 0-255
 typedef struct
@@ -499,7 +520,7 @@ void test_shape_intersection(u32 film_width, u32 film_height)
     memset(film, 0, film_size);
     memset(film_pixels, 0, film_pixels_size);
 
-    vec3 plane_p = {0.0, 0.0, 0.0};
+    vec3 plane_p = {-0.5, -0.5, 0.0};
     vec3 plane_u = {1.0, 0.0, 0.0};
     vec3 plane_v = {0.0, 1.0, 0.0};
     vec3 plane_n = {0.0, 0.0, 1.0};
@@ -547,5 +568,11 @@ int main(int argc, char **argv)
 
     test_rgb_spectrum_conversion(0.0, 1.0, 0.1);
     test_shape_intersection(1600, 1600);
+    u32 seed = 0xfeedbeef;
+    srand(seed);
+    for(u32 i = 0; i < 100; ++i)
+    {
+        printf("RAND: %u\n", range_urng(0, 100));
+    }
     return 0;
 }
