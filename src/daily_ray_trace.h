@@ -6,8 +6,10 @@
 
 #include "types.h"
 #include "spectrum.h"
+#include "rng.h"
 
 #include "spectrum.c"
+#include "rng.c"
 
 #ifndef NAN
 #error "NAN not supported, dingus!"
