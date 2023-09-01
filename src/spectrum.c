@@ -11,6 +11,11 @@ void const_spectrum(spectrum *dst, f64 value)
     for(u32 i = 0; i < number_of_spectrum_samples; ++i) dst->samples[i] = value;
 }
 
+void copy_spectrum(spectrum *dst, spectrum *src)
+{
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i) dst->samples[i] = src->samples[i];
+}
+
 void spectral_mul_by_spectrum(spectrum *dst, spectrum *src0, spectrum *src1)
 {
     for(u32 i = 0; i < number_of_spectrum_samples; ++i)

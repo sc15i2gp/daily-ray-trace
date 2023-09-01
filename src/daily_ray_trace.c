@@ -27,7 +27,15 @@
 //  - Stop being ignorant about line-shape intersection methods and float precision
 
 //TODO:
+//  - Spectrum file to store currently rendered image
+//  - Specrum file -> bmp
+//  - Xorshift rng
 //  - Raytrace algorithm
+//      - Sample pixel
+//      - Sample lens(?)
+//      - Cast ray
+//      - Visibility between two points
+//      - Pixel filtering
 
 // dst += (src1 * d)
 // Acc: dst += src
@@ -538,7 +546,7 @@ void test_shape_intersection(u32 film_width, u32 film_height)
     VirtualFree(film_pixels, film_pixels_size, MEM_RELEASE);
 }
 
-int main(int argc, char **argv)
+void call_test_funcs()
 {
     write_test_bmp(0, "output\\test_output_blue.bmp");
     write_test_bmp(1, "output\\test_output_green.bmp");
@@ -546,11 +554,79 @@ int main(int argc, char **argv)
 
     test_rgb_spectrum_conversion(0.0, 1.0, 0.1);
     test_shape_intersection(1600, 1600);
-    u32 seed = 0xfeedbeef;
-    srand(seed);
-    for(u32 i = 0; i < 100; ++i)
+}
+
+int main(int argc, char **argv)
+{
+    call_test_funcs();
+
+    //Default args
+    const char *default_spectrum_output_path = "output\\output.spd";
+    u32 default_number_of_spectrum_samples = 69;
+    f64 default_smallest_wavelength = 380.0;
+    f64 default_largest_wavelength = 720.0;
+    f64 default_sample_interval = 5.0;
+    u32 default_image_width = 800;
+    u32 default_image_height = 600;
+    u32 default_spd_pixel_data_size = default_image_width * default_image_height * sizeof(spectrum);
+
+    //Args (just set to default for now)
+    number_of_spectrum_samples = default_number_of_spectrum_samples;
+    smallest_wavelength = default_smallest_wavelength;
+    largest_wavelength = default_largest_wavelength;
+    sample_interval = default_sample_interval;
+    const char *spectrum_output_path = default_spectrum_output_path;
+    u32 image_width_in_pixels = default_image_width;
+    u32 image_height_in_pixels = default_image_height;
+    u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
+    u32 spd_pixel_data_size = default_spd_pixel_data_size;
+
+    //Spectrum file contents:
+    //- Number of spectra/pixels (dims)
+    //- Number of samples per spectrum
+    //- Wavelength low, high and interval
+    //- Spectral data
+    HANDLE spectrum_output_file = CreateFile(spectrum_output_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+    typedef struct
     {
-        printf("RAND: %u\n", range_urng(0, 100));
+        u32 id;
+        u32 width_in_pixels;
+        u32 height_in_pixels;
+        u32 number_of_wavelengths;
+        f64 min_wavelength;
+        f64 wavelength_interval;
+    } spd_file_header;
+
+    spd_file_header header;
+    memset(&header, 0, sizeof(header));
+    header.id = 0xedfeefbe;
+    header.width_in_pixels = image_width_in_pixels;
+    header.height_in_pixels = image_height_in_pixels;
+    header.number_of_wavelengths = number_of_spectrum_samples;
+    header.min_wavelength = smallest_wavelength;
+    header.wavelength_interval = sample_interval;
+
+    //Write spd file header
+    DWORD bytes_written;
+    WriteFile(spectrum_output_file, &header, sizeof(header), &bytes_written, NULL);
+
+    //Alloc a certain amount of memory for pixel data
+    u32 allocated_pixels = spd_pixel_data_size / sizeof(spectrum);
+    spectrum *spd_pixels = (spectrum*)VirtualAlloc(NULL, spd_pixel_data_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+
+    spectrum d;
+    memset(&d, 0, sizeof(d));
+    for(u32 i = 0; i < number_of_spectrum_samples; ++i) d.samples[i] = 0.8;
+    for(u32 pixel = 0; pixel < number_of_image_pixels; ++pixel)
+    {
+        u32 spd_pixel = pixel % allocated_pixels;
+        copy_spectrum(&spd_pixels[spd_pixel], &d);
+        if(spd_pixel == allocated_pixels - 1)
+        {
+            WriteFile(spectrum_output_file, spd_pixels, spd_pixel_data_size, &bytes_written, NULL);
+        }
     }
+
     return 0;
 }

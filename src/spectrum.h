@@ -15,6 +15,7 @@ typedef struct
 
 void zero_spectrum(spectrum *dst);
 void const_spectrum(spectrum *dst, f64 f);
+void copy_spectrum(spectrum *dst, spectrum *src);
 void spectral_mul_by_spectrum(spectrum *dst, spectrum *src0, spectrum *src1); //dst = src0 * src1
 void spectral_mul_by_scalar(spectrum *dst, spectrum *src0, f64 src1); //dst = src0 * src1
 void spectral_acc(spectrum *dst, spectrum *src); //dst += src
