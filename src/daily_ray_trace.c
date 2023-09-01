@@ -27,8 +27,6 @@
 //  - Stop being ignorant about line-shape intersection methods and float precision
 
 //TODO:
-//  - Spectrum file to store currently rendered image
-//  - Specrum file -> bmp
 //  - Xorshift rng
 //  - Raytrace algorithm
 //      - Sample pixel
@@ -57,6 +55,16 @@ typedef struct
         u8  bgra[4];
     };
 }   rgb_u8;
+
+rgb_u8 rgb_f64_to_rgb_u8(rgb_f64 in_rgb)
+{
+    rgb_u8 out_rgb;
+    out_rgb.r = (u8)(in_rgb.r * 255.0);
+    out_rgb.g = (u8)(in_rgb.g * 255.0);
+    out_rgb.b = (u8)(in_rgb.b * 255.0);
+
+    return out_rgb;
+}
 
 typedef struct
 {
@@ -546,6 +554,37 @@ void test_shape_intersection(u32 film_width, u32 film_height)
     VirtualFree(film_pixels, film_pixels_size, MEM_RELEASE);
 }
 
+typedef struct
+{
+    u32 id;
+    u32 width_in_pixels;
+    u32 height_in_pixels;
+    u32 number_of_wavelengths;
+    f64 min_wavelength;
+    f64 wavelength_interval;
+} spd_file_header;
+
+
+//Assume handle starts at pixel data in spd_file
+void spd_file_to_bmp(HANDLE spd_file, spd_file_header *header, const char *bmp_path, spectrum *cmf_x, spectrum *cmf_y, spectrum *cmf_z, spectrum *ref_white)
+{
+    u32 number_of_pixels = header->width_in_pixels * header->height_in_pixels;
+    u32 pixels_size_rgb_u8 = number_of_pixels * sizeof(rgb_u8);
+    rgb_u8 *pixels_rgb_u8 = (rgb_u8*)VirtualAlloc(NULL, pixels_size_rgb_u8, MEM_COMMIT, PAGE_READWRITE);
+    DWORD bytes_read;
+
+    spectrum pixel_spd;
+    for(u32 pixel = 0; pixel < number_of_pixels; ++pixel)
+    {
+        ReadFile(spd_file, &pixel_spd, sizeof(pixel_spd), &bytes_read, NULL);
+        rgb_f64 pixel_f64 = spectrum_to_rgb_f64(&pixel_spd, cmf_x, cmf_y, cmf_z, ref_white);
+        pixels_rgb_u8[pixel] = rgb_f64_to_rgb_u8(pixel_f64);
+    }
+
+    write_pixels_to_bmp(pixels_rgb_u8, header->width_in_pixels, header->height_in_pixels, bmp_path);
+    VirtualFree(pixels_rgb_u8, pixels_size_rgb_u8, MEM_RELEASE);
+}
+
 void call_test_funcs()
 {
     write_test_bmp(0, "output\\test_output_blue.bmp");
@@ -562,6 +601,7 @@ int main(int argc, char **argv)
 
     //Default args
     const char *default_spectrum_output_path = "output\\output.spd";
+    const char *default_bmp_output_path = "output\\output.bmp";
     u32 default_number_of_spectrum_samples = 69;
     f64 default_smallest_wavelength = 380.0;
     f64 default_largest_wavelength = 720.0;
@@ -576,10 +616,11 @@ int main(int argc, char **argv)
     largest_wavelength = default_largest_wavelength;
     sample_interval = default_sample_interval;
     const char *spectrum_output_path = default_spectrum_output_path;
+    const char *bmp_output_path = default_bmp_output_path;
     u32 image_width_in_pixels = default_image_width;
     u32 image_height_in_pixels = default_image_height;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
-    u32 spd_pixel_data_size = default_spd_pixel_data_size;
+    u32 spd_pixel_data_size = 400 * 300 * sizeof(spectrum);
 
     //Spectrum file contents:
     //- Number of spectra/pixels (dims)
@@ -587,16 +628,6 @@ int main(int argc, char **argv)
     //- Wavelength low, high and interval
     //- Spectral data
     HANDLE spectrum_output_file = CreateFile(spectrum_output_path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
-    typedef struct
-    {
-        u32 id;
-        u32 width_in_pixels;
-        u32 height_in_pixels;
-        u32 number_of_wavelengths;
-        f64 min_wavelength;
-        f64 wavelength_interval;
-    } spd_file_header;
 
     spd_file_header header;
     memset(&header, 0, sizeof(header));
@@ -616,8 +647,8 @@ int main(int argc, char **argv)
     spectrum *spd_pixels = (spectrum*)VirtualAlloc(NULL, spd_pixel_data_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
     spectrum d;
-    memset(&d, 0, sizeof(d));
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i) d.samples[i] = 0.8;
+    //for(u32 i = 0; i < number_of_spectrum_samples; ++i) d.samples[i] = 0.8;
+    load_csv_file_to_spectrum(&d, "spectra\\red_rgb_to_spd.csv");
     for(u32 pixel = 0; pixel < number_of_image_pixels; ++pixel)
     {
         u32 spd_pixel = pixel % allocated_pixels;
@@ -627,6 +658,21 @@ int main(int argc, char **argv)
             WriteFile(spectrum_output_file, spd_pixels, spd_pixel_data_size, &bytes_written, NULL);
         }
     }
+    CloseHandle(spectrum_output_file);
+    VirtualFree(spd_pixels, spd_pixel_data_size, MEM_RELEASE);
+
+    spectrum ref_white;
+    spectrum cmf_x, cmf_y, cmf_z;
+    const_spectrum(&ref_white, 1.0);
+    load_csv_file_to_spectrum(&cmf_x, "spectra\\cmf_x.csv");
+    load_csv_file_to_spectrum(&cmf_y, "spectra\\cmf_y.csv");
+    load_csv_file_to_spectrum(&cmf_z, "spectra\\cmf_z.csv");
+
+    spectrum_output_file = CreateFile(spectrum_output_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    DWORD bytes_read;
+    ReadFile(spectrum_output_file, &header, sizeof(header), &bytes_read, NULL);
+    spd_file_to_bmp(spectrum_output_file, &header, bmp_output_path, &cmf_x, &cmf_y, &cmf_z, &ref_white);
+    CloseHandle(spectrum_output_file);
 
     return 0;
 }
