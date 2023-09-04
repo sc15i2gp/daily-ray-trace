@@ -30,3 +30,19 @@ typedef struct
     };
 }   rgb_f64;
 
+//8 bit rgb values 0-255
+typedef struct
+{
+    union
+    {
+        u32 value;
+        struct
+        {
+            u8 b;
+            u8 g;
+            u8 r;
+            u8 a;
+        };
+        u8  bgra[4];
+    };
+}   rgb_u8;

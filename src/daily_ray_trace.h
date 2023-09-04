@@ -7,9 +7,11 @@
 #include "types.h"
 #include "spectrum.h"
 #include "rng.h"
+#include "geometry.h"
 
 #include "spectrum.c"
 #include "rng.c"
+#include "geometry.c"
 
 #ifndef NAN
 #error "NAN not supported, dingus!"
