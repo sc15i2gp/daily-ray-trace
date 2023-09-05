@@ -423,6 +423,7 @@ int main(int argc, char **argv)
     u32 default_image_width = 800;
     u32 default_image_height = 600;
     u32 default_spd_pixel_data_size = default_image_width * default_image_height * sizeof(spectrum);
+    u32 default_number_of_pixel_samples = 2;
 
     //Args (just set to default for now)
     number_of_spectrum_samples = default_number_of_spectrum_samples;
@@ -434,7 +435,8 @@ int main(int argc, char **argv)
     u32 image_width_in_pixels = default_image_width;
     u32 image_height_in_pixels = default_image_height;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
-    u32 spd_pixel_data_size = 400 * 300 * sizeof(spectrum);
+    u32 number_of_pixel_samples = default_number_of_pixel_samples;
+    u32 spd_pixel_data_size = 400 * 300 * sizeof(spectrum); //NOTE: non-default arg
 
     //Spectrum file contents:
     //- Number of spectra/pixels (dims)
@@ -461,16 +463,19 @@ int main(int argc, char **argv)
     spectrum *spd_pixels = (spectrum*)VirtualAlloc(NULL, spd_pixel_data_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
     spectrum d;
-    //for(u32 i = 0; i < number_of_spectrum_samples; ++i) d.samples[i] = 0.8;
     load_csv_file_to_spectrum(&d, "spectra\\red_rgb_to_spd.csv");
-    for(u32 pixel = 0; pixel < number_of_image_pixels; ++pixel)
+    for(u32 sample = 0; sample < number_of_pixel_samples; ++sample)
     {
-        u32 spd_pixel = pixel % allocated_pixels;
-        copy_spectrum(&spd_pixels[spd_pixel], &d);
-        if(spd_pixel == allocated_pixels - 1)
+        for(u32 pixel = 0; pixel < number_of_image_pixels; ++pixel)
         {
-            WriteFile(spectrum_output_file, spd_pixels, spd_pixel_data_size, &bytes_written, NULL);
+            u32 spd_pixel = pixel % allocated_pixels;
+            copy_spectrum(&spd_pixels[spd_pixel], &d);
+            if(spd_pixel == allocated_pixels - 1)
+            {
+                WriteFile(spectrum_output_file, spd_pixels, spd_pixel_data_size, &bytes_written, NULL);
+            }
         }
+        SetFilePointer(spectrum_output_file, sizeof(header), NULL, FILE_BEGIN);
     }
     CloseHandle(spectrum_output_file);
     VirtualFree(spd_pixels, spd_pixel_data_size, MEM_RELEASE);
