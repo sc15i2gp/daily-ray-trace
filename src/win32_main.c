@@ -28,19 +28,25 @@
 //  - Xorshift rng
 
 //TODO:
-//  - Test to see whether I can store XYZ colours instead of SPD
-//      - Test conversion
-//  - Move code to other files
-//  - Raytrace algorithm
-//      - Sample pixel
-//      - Sample lens(?)
-//      - Cast ray
-//      - Visibility between two points
-//      - Pixel filtering
+//  - Render blinn-phong sphere lit by point light
+//  - Shape and direction sampling
+//  - Geometry intersection
+//  - Add func decls to geometry.h
+//  - Figure out better strategy for spectra which doesn't leave massive gaps
+//      - (without recompiling)
+//  - Variance
+//  - Sort out camera
+//      - Surely the camera's film dimensions shouldn't be dictated by fov?
+//      - Non-pinhole
 
-// dst += (src1 * d)
-// Acc: dst += src
-// Mul: dst *= d
+//Figures to aim for:
+//  - Handle images with resolutions up to HD (1920x1080)
+//  - Textures up to 1024*1024
+//  - Under 1GB memory allocated
+//  - Handles all things I want to raytrace
+//  - <speed target>
+//  - <variance + statistics targets>
+//  - <quality target?>
 
 rgb_u8 rgb_f64_to_rgb_u8(rgb_f64 in_rgb)
 {
@@ -127,14 +133,9 @@ void spd_file_to_bmp(HANDLE spd_file, spd_file_header *header, const char *bmp_p
     VirtualFree(pixels_rgb_u8, pixels_size_rgb_u8, MEM_RELEASE);
 }
 
-void sample_pixel(spectrum *dst, spectrum *src)
-{
-
-}
-
 int main(int argc, char **argv)
 {
-    call_test_funcs();
+    //call_test_funcs();
 
     //Default args
     const char *default_spectrum_output_path = "output\\output.spd";
@@ -159,7 +160,7 @@ int main(int argc, char **argv)
     u32 image_height_in_pixels = default_image_height;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
     u32 number_of_pixel_samples = default_number_of_pixel_samples;
-    u32 spd_pixel_data_size = 400 * 300 * sizeof(spectrum); //NOTE: non-default arg
+    u32 spd_pixel_data_size = default_spd_pixel_data_size;
 
     //Spectrum file contents:
     //- Number of spectra/pixels (dims)
@@ -184,7 +185,22 @@ int main(int argc, char **argv)
     //Alloc a certain amount of memory for pixel data
     u32 allocated_pixels = spd_pixel_data_size / sizeof(spectrum);
     spectrum *spd_pixels = (spectrum*)VirtualAlloc(NULL, spd_pixel_data_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    printf("Size = %u\n", spd_pixel_data_size);
 
+#if 1
+    camera_data camera;
+    vec3 camera_pos     = {0.0, 0.0, 8.0};
+    vec3 camera_up      = {0.0, 1.0, 0.0};
+    vec3 camera_right   = {1.0, 0.0, 0.0};
+    vec3 camera_forward = {0.0, 0.0, -1.0};
+    f64 fov          = 90.0;
+    f64 focal_depth  = 8.0;
+    f64 focal_length = 0.5;
+    f64 aperture_rad = 0.0;
+    init_camera(&camera, image_width_in_pixels, image_height_in_pixels, camera_pos, camera_up, camera_right, camera_forward, fov, focal_depth, focal_length, aperture_rad);
+    print_camera(&camera);
+    render_image(spd_pixels, image_width_in_pixels, image_height_in_pixels, NULL, &camera, 1);
+#else
     spectrum d;
     load_csv_file_to_spectrum(&d, "spectra\\red_rgb_to_spd.csv");
     for(u32 sample = 0; sample < number_of_pixel_samples; ++sample)
@@ -200,6 +216,8 @@ int main(int argc, char **argv)
         }
         SetFilePointer(spectrum_output_file, sizeof(header), NULL, FILE_BEGIN);
     }
+#endif
+    WriteFile(spectrum_output_file, spd_pixels, spd_pixel_data_size, &bytes_written, NULL);
     CloseHandle(spectrum_output_file);
     VirtualFree(spd_pixels, spd_pixel_data_size, MEM_RELEASE);
 

@@ -1,3 +1,8 @@
+void print_vector(vec3 v)
+{
+    printf("%f %f %f", v.x, v.y, v.z);
+}
+
 vec3 vec3_sum(vec3 a, vec3 b)
 {
     vec3 result;
