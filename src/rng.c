@@ -1,20 +1,12 @@
-u32 urng()
+//Gens number between 0 and 1
+f64 rng()
 {
-    u32 u = (u32)rand();
-    return u;
+    f64 r = (f64)rand();
+    f64 f = r / (f64)RAND_MAX;
+    return f;
 }
 
-u32 range_urng(u32 low, u32 high)
+void seed_rng(u32 seed)
 {
-    u32 u = urng();
-    u32 r = u % (high + 1 - low) + low;
-    return r;
-}
-
-f64 range_frng(f64 low, f64 high)
-{
-    u32 u = urng();
-    f64 fu = (f64)u;
-    f64 fr = low + fu/(((f64)RAND_MAX)/high);
-    return fr;
+    srand(seed);
 }
