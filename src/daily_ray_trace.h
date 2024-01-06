@@ -76,6 +76,17 @@ typedef struct
 
     u32 num_emissive_materials;
     object_material *emissive_materials;
+
+    //Temp:
+    spectrum diffuse_spd;
+    spectrum glossy_spd;
+    f64      shininess;
+
+    spectrum light_spd;
+    vec3     light_position;
+
+    vec3 sphere_center;
+    f64  sphere_radius;
 } scene_data;
 
 typedef struct

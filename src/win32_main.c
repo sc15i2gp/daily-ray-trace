@@ -38,6 +38,15 @@
 //  - Sort out camera
 //      - Surely the camera's film dimensions shouldn't be dictated by fov?
 //      - Non-pinhole
+//  - Consider generating RNG up front
+//      - Also a test set of numbers for reliability
+//  - Test
+//      - RNG
+//      - Camera
+//  - Visualisation/comparison methods for material parameters
+//      - e.g. what effect does raising/lowering shininess within a range do for glossiness
+//  - Output rendered scene info to files
+//      - e.g. light colours/spectra, material colours etc.
 
 //Figures to aim for:
 //  - Handle images with resolutions up to HD (1920x1080)
@@ -48,9 +57,19 @@
 //  - <variance + statistics targets>
 //  - <quality target?>
 
+f64 clamp(f64 f, f64 min, f64 max)
+{
+    f = (f < min) ? min : f;
+    f = (f > max) ? max : f;
+    return f;
+}
+
 rgb_u8 rgb_f64_to_rgb_u8(rgb_f64 in_rgb)
 {
     rgb_u8 out_rgb;
+    in_rgb.r = clamp(in_rgb.r, 0.0, 1.0);
+    in_rgb.g = clamp(in_rgb.g, 0.0, 1.0);
+    in_rgb.b = clamp(in_rgb.b, 0.0, 1.0);
     out_rgb.r = (u8)(in_rgb.r * 255.0);
     out_rgb.g = (u8)(in_rgb.g * 255.0);
     out_rgb.b = (u8)(in_rgb.b * 255.0);
@@ -189,7 +208,7 @@ int main(int argc, char **argv)
 
 #if 1
     camera_data camera;
-    vec3 camera_pos     = {0.0, 0.0, 8.0};
+    vec3 camera_pos     = {0.0, 0.0, 1.0};
     vec3 camera_up      = {0.0, 1.0, 0.0};
     vec3 camera_right   = {1.0, 0.0, 0.0};
     vec3 camera_forward = {0.0, 0.0, -1.0};
@@ -199,7 +218,35 @@ int main(int argc, char **argv)
     f64 aperture_rad = 0.0;
     init_camera(&camera, image_width_in_pixels, image_height_in_pixels, camera_pos, camera_up, camera_right, camera_forward, fov, focal_depth, focal_length, aperture_rad);
     print_camera(&camera);
-    render_image(spd_pixels, image_width_in_pixels, image_height_in_pixels, NULL, &camera, 1);
+
+    scene_data scene;
+    spectrum white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow;
+    const_spectrum(&white, 1.0);
+    load_csv_file_to_spectrum(&rgb_red, "spectra\\red_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&rgb_green, "spectra\\green_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&rgb_blue, "spectra\\blue_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&rgb_cyan, "spectra\\cyan_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&rgb_magenta, "spectra\\magenta_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&rgb_yellow, "spectra\\yellow_rgb_to_spd.csv");
+
+    rgb_f64 diffuse_rgb = {0.25, 1.0, 0.25};
+    rgb_f64_to_spectrum(diffuse_rgb, &scene.diffuse_spd, &white, &rgb_red, &rgb_green, &rgb_blue, &rgb_cyan, &rgb_magenta, &rgb_yellow);
+    rgb_f64 glossy_rgb  = {0.5, 1.0, 0.5};
+    rgb_f64_to_spectrum(glossy_rgb, &scene.glossy_spd, &white, &rgb_red, &rgb_green, &rgb_blue, &rgb_cyan, &rgb_magenta, &rgb_yellow);
+    const_spectrum(&scene.light_spd, 1.0);
+    //generate_blackbody_spectrum(&scene.light_spd, 4000.0L);
+    spectrum_normalise(&scene.light_spd);
+    spectral_mul_by_scalar(&scene.light_spd, &scene.light_spd, 1.0);
+    scene.light_position.x = 0.0;
+    scene.light_position.y = 1.0;
+    scene.light_position.z = 1.0;
+    scene.shininess = 1.0;
+    scene.sphere_center.x = 0.0;
+    scene.sphere_center.y = 0.0;
+    scene.sphere_center.z = 0.0;
+    scene.sphere_radius = 0.3;
+
+    render_image(spd_pixels, image_width_in_pixels, image_height_in_pixels, &scene, &camera, 1);
 #else
     spectrum d;
     load_csv_file_to_spectrum(&d, "spectra\\red_rgb_to_spd.csv");

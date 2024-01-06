@@ -59,6 +59,15 @@ vec3 vec3_normalise(vec3 v)
     return result;
 }
 
+vec3 vec3_reverse(vec3 v)
+{
+    vec3 result;
+    result.x = -v.x;
+    result.y = -v.y;
+    result.z = -v.z;
+    return result;
+}
+
 f64 point_to_line_distance(vec3 p, vec3 l_0, vec3 l_1)
 {
     vec3 normalised_l = vec3_normalise(vec3_sub(l_0, l_1));

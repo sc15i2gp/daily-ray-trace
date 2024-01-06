@@ -1,3 +1,4 @@
+/*
 vec3 cos_weighted_sample_hemisphere()
 {
 }
@@ -29,7 +30,6 @@ void find_scene_intersection(scene_point *intersection, scene_data *scene, vec3 
 
 u32 estimate_indirect_contribution(spectrum *contribution, scene_point *intersection, scene_data *scene, vec3 ray_origin, vec3 ray_direction)
 {
-    /*
     spectrum *reflectance;
     zero_spectrum(contribution);
 
@@ -69,12 +69,49 @@ u32 estimate_indirect_contribution(spectrum *contribution, scene_point *intersec
 
     //return 1 for bounce
     return 1;
-    */
+}
+*/
+
+f64 f64_max(f64 f0, f64 f1)
+{
+    return (f0 > f1) ? f0 : f1;
 }
 
 void cast_ray(spectrum *dst, scene_data* scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)
 {
-    const_spectrum(dst, 0.1);
+    //Render blinn-phong sphere with point light
+    spectrum tmp_spd;
+    zero_spectrum(&tmp_spd);
+    f64 dist = line_sphere_intersection(ray_origin, ray_direction, scene->sphere_center, scene->sphere_radius);
+    if(!isnan(dist))
+    {
+        vec3 outgoing      = vec3_reverse(ray_direction);
+        vec3 intersection  = vec3_sum(ray_origin, vec3_mul_by_f64(ray_direction, dist));
+        vec3 normal        = vec3_normalise(vec3_sub(intersection, scene->sphere_center));
+        vec3 incoming      = vec3_normalise(vec3_sub(scene->light_position, intersection));
+        f64  c = f64_max(0.0, vec3_dot(incoming, normal));
+        //Diffuse
+        spectral_mul_by_scalar(&tmp_spd, &scene->diffuse_spd, 1.0/PI);
+        //Glossy
+        vec3 bisector         = vec3_normalise(vec3_sum(outgoing, incoming));
+        f64  spec_coefficient = pow(f64_max(0.0, vec3_dot(normal, bisector)), scene->shininess);
+        spectral_mul_by_scalar(dst, &scene->glossy_spd, spec_coefficient);
+        spectral_sum(&tmp_spd, &tmp_spd, dst);
+
+        spectral_mul_by_spectrum(&tmp_spd, &tmp_spd, &scene->light_spd);
+        spectral_mul_by_scalar(dst, &tmp_spd, c);
+        /*
+        vec3 light_dir = vec3_normalise(vec3_sub(scene->light_position, sphere_point));
+        vec3 bisector = vec3_div_by_f64(vec3_sum(ray_direction, light_dir), 2.0);
+        f64 spec_coefficient = pow(f64_max(0.0, vec3_dot(sphere_normal, bisector)), scene->shininess);
+        spectral_mul_by_scalar(dst, &scene->glossy_spd, spec_coefficient);
+        spectral_sum(dst, dst, &tmp_spd);
+        */
+    }
+    else
+    {
+        const_spectrum(dst, 0.0);
+    }
     /*
     spectrum *contribution;
     spectrum *throughput;
