@@ -240,13 +240,13 @@ int main(int argc, char **argv)
     scene_data scene;
     scene.num_surfaces = 1;
     scene.surfaces = VirtualAlloc(NULL, sizeof(object_geometry), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    /*
+
     scene.surfaces[0].type   = GEO_TYPE_SPHERE;
     scene.surfaces[0].center.x = 0.0;
     scene.surfaces[0].center.y = 0.0;
     scene.surfaces[0].center.z = 0.0;
     scene.surfaces[0].radius = 0.3;
-    */
+    /*
     vec3 pp = {-0.5, -0.5, -0.5};
     vec3 pv = {-0.5, 0.5, -0.5};
     vec3 pu = {0.5, -0.5, -0.5};
@@ -255,10 +255,21 @@ int main(int argc, char **argv)
     scene.surfaces[0].u = vec3_sub(pu, pp);
     scene.surfaces[0].v = vec3_sub(pv, pp);
     scene.surfaces[0].normal = vec3_normalise(vec3_cross(scene.surfaces[0].u, scene.surfaces[0].v));
+    */
+
+    scene.spd_capacity = 8;
+    scene.spd_buffer = VirtualAlloc(NULL, scene.spd_capacity * sizeof(spectrum), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    scene.num_surface_materials = 1;
+    scene.surface_materials = VirtualAlloc(NULL, scene.num_surface_materials * sizeof(object_material), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    scene.surface_materials[0].diffuse_spd = &scene.spd_buffer[0];
+    scene.surface_materials[0].glossy_spd  = &scene.spd_buffer[1];
+    scene.surface_materials[0].shininess   = 1.0;
+
     rgb_f64 diffuse_rgb = {0.25, 1.0, 0.25};
-    rgb_f64_to_spectrum(diffuse_rgb, &scene.diffuse_spd, &white, &rgb_red, &rgb_green, &rgb_blue, &rgb_cyan, &rgb_magenta, &rgb_yellow);
+    rgb_f64_to_spectrum(diffuse_rgb, scene.surface_materials[0].diffuse_spd, &white, &rgb_red, &rgb_green, &rgb_blue, &rgb_cyan, &rgb_magenta, &rgb_yellow);
     rgb_f64 glossy_rgb  = {0.5, 1.0, 0.5};
-    rgb_f64_to_spectrum(glossy_rgb, &scene.glossy_spd, &white, &rgb_red, &rgb_green, &rgb_blue, &rgb_cyan, &rgb_magenta, &rgb_yellow);
+    rgb_f64_to_spectrum(glossy_rgb, scene.surface_materials[0].glossy_spd, &white, &rgb_red, &rgb_green, &rgb_blue, &rgb_cyan, &rgb_magenta, &rgb_yellow);
+
     const_spectrum(&scene.light_spd, 1.0);
     //generate_blackbody_spectrum(&scene.light_spd, 4000.0L);
     spectrum_normalise(&scene.light_spd);
@@ -266,7 +277,6 @@ int main(int argc, char **argv)
     scene.light_position.x = 0.0;
     scene.light_position.y = 1.0;
     scene.light_position.z = 1.0;
-    scene.shininess = 120.0;
 
     render_image(spd_pixels, image_width_in_pixels, image_height_in_pixels, &scene, &camera, 1);
 #else

@@ -99,6 +99,7 @@ void find_scene_intersection(scene_data *scene, scene_point *p, vec3 ray_origin,
 {
     f64 min_dist = DBL_MAX;
     object_geometry *intersection_surface = NULL;
+    u32 intersection_index = -1;
     for(u32 i = 0; i < scene->num_surfaces; ++i)
     {
         f64 dist = INFINITY;
@@ -120,6 +121,7 @@ void find_scene_intersection(scene_data *scene, scene_point *p, vec3 ray_origin,
         {
             min_dist = dist;
             intersection_surface = surface;
+            intersection_index = i;
         }
     }
     if(intersection_surface)
@@ -138,9 +140,9 @@ void find_scene_intersection(scene_data *scene, scene_point *p, vec3 ray_origin,
                 break;
             }
         }
-        p->diffuse_spd = &scene->diffuse_spd;
-        p->glossy_spd  = &scene->glossy_spd;
-        p->shininess   = scene->shininess;
+        p->diffuse_spd = scene->surface_materials[intersection_index].diffuse_spd;
+        p->glossy_spd  = scene->surface_materials[intersection_index].glossy_spd;
+        p->shininess   = scene->surface_materials[intersection_index].shininess;
     }
     else
     {
