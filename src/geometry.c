@@ -27,6 +27,15 @@ f64 vec3_dot(vec3 a, vec3 b)
     return result;
 }
 
+vec3 vec3_cross(vec3 a, vec3 b)
+{
+    vec3 n;
+    n.x = a.y*b.z - a.z*b.y;
+    n.y = a.z*b.x - a.x*b.z;
+    n.z = a.x*b.y - a.y*b.x;
+    return n;
+}
+
 vec3 vec3_mul_by_f64(vec3 v, f64 f)
 {
     vec3 result;
@@ -92,7 +101,7 @@ f64 line_sphere_intersection(vec3 line_o, vec3 line_d, vec3 sphere_c, f64 sphere
     f64 c               = vec3_dot(c_to_o, c_to_o) - sphere_r*sphere_r;
     f64 discriminant    = b*b - 4.0 * a * c;
 
-    if(discriminant < 0.0) return NAN;
+    if(discriminant < 0.0) return INFINITY;
 
     f64 sqrt_discriminant = sqrt(discriminant);
 
@@ -101,7 +110,7 @@ f64 line_sphere_intersection(vec3 line_o, vec3 line_d, vec3 sphere_c, f64 sphere
     f64 solution_0 = (b + sqrt_discriminant)/a_2;
     f64 solution_1 = (b - sqrt_discriminant)/a_2;
 
-    if      (solution_0 < 0.0 && solution_1 < 0.0)  return NAN;         //No positive solutions
+    if      (solution_0 < 0.0 && solution_1 < 0.0)  return INFINITY;    //No positive solutions
     else if (solution_0 >= 0.0 && solution_1 < 0.0) return solution_0;  //Only solution_0 positive
     else if (solution_1 >= 0.0 && solution_0 < 0.0) return solution_1;  //Only solution_1 positive
     else if (solution_0 <= solution_1)              return solution_0;  //Smallest solution_0
@@ -119,7 +128,7 @@ f64 line_sphere_intersection(vec3 line_o, vec3 line_d, vec3 sphere_c, f64 sphere
 //Returns NaN if there is no positive intersection point
 f64 line_plane_intersection(vec3 line_o, vec3 line_d, vec3 plane_p, vec3 plane_n, vec3 plane_u, vec3 plane_v)
 {
-    if(vec3_dot(line_d, plane_n) == 0.0) return NAN; //Line parallel to plane
+    if(vec3_dot(line_d, plane_n) == 0.0) return INFINITY; //Line parallel to plane
     
     vec3    o_to_p  = vec3_sub(plane_p, line_o);
     f64     l       = vec3_dot(o_to_p, plane_n) / vec3_dot(line_d, plane_n);
@@ -137,7 +146,7 @@ f64 line_plane_intersection(vec3 line_o, vec3 line_d, vec3 plane_p, vec3 plane_n
         return l;
     }
 
-    return NAN;
+    return INFINITY;
 }
 
 //triangle consists of three points in CCW order when viewed down from the normal

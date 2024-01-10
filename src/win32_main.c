@@ -28,10 +28,14 @@
 //  - Xorshift rng
 
 //TODO:
-//  - Render blinn-phong sphere lit by point light
-//  - Shape and direction sampling
-//  - Geometry intersection
-//  - Add func decls to geometry.h
+//  - Cornell Box scene
+//      - Variable geometry
+//          - Estimate indirect contribution function
+//          - Visibility and intersection functions
+//      - Dynamic spectrum allocation
+//      - Shape and direction sampling
+//          - Sphere or plane with area light
+//      - Path tracing
 //  - Figure out better strategy for spectra which doesn't leave massive gaps
 //      - (without recompiling)
 //  - Variance
@@ -47,6 +51,11 @@
 //      - e.g. what effect does raising/lowering shininess within a range do for glossiness
 //  - Output rendered scene info to files
 //      - e.g. light colours/spectra, material colours etc.
+//  - Good memory management
+//  - Automatic scene creation
+//  - Check whether shininess/bp bsdf is correct
+//      - High shininess seems like specular spot is too big
+//      - Very abrupt light cutoff in center of specular spot, with gradual fadeout beyond
 
 //Figures to aim for:
 //  - Handle images with resolutions up to HD (1920x1080)
@@ -219,7 +228,6 @@ int main(int argc, char **argv)
     init_camera(&camera, image_width_in_pixels, image_height_in_pixels, camera_pos, camera_up, camera_right, camera_forward, fov, focal_depth, focal_length, aperture_rad);
     print_camera(&camera);
 
-    scene_data scene;
     spectrum white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow;
     const_spectrum(&white, 1.0);
     load_csv_file_to_spectrum(&rgb_red, "spectra\\red_rgb_to_spd.csv");
@@ -229,6 +237,24 @@ int main(int argc, char **argv)
     load_csv_file_to_spectrum(&rgb_magenta, "spectra\\magenta_rgb_to_spd.csv");
     load_csv_file_to_spectrum(&rgb_yellow, "spectra\\yellow_rgb_to_spd.csv");
 
+    scene_data scene;
+    scene.num_surfaces = 1;
+    scene.surfaces = VirtualAlloc(NULL, sizeof(object_geometry), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    /*
+    scene.surfaces[0].type   = GEO_TYPE_SPHERE;
+    scene.surfaces[0].center.x = 0.0;
+    scene.surfaces[0].center.y = 0.0;
+    scene.surfaces[0].center.z = 0.0;
+    scene.surfaces[0].radius = 0.3;
+    */
+    vec3 pp = {-0.5, -0.5, -0.5};
+    vec3 pv = {-0.5, 0.5, -0.5};
+    vec3 pu = {0.5, -0.5, -0.5};
+    scene.surfaces[0].type = GEO_TYPE_PLANE;
+    scene.surfaces[0].origin = pp;
+    scene.surfaces[0].u = vec3_sub(pu, pp);
+    scene.surfaces[0].v = vec3_sub(pv, pp);
+    scene.surfaces[0].normal = vec3_normalise(vec3_cross(scene.surfaces[0].u, scene.surfaces[0].v));
     rgb_f64 diffuse_rgb = {0.25, 1.0, 0.25};
     rgb_f64_to_spectrum(diffuse_rgb, &scene.diffuse_spd, &white, &rgb_red, &rgb_green, &rgb_blue, &rgb_cyan, &rgb_magenta, &rgb_yellow);
     rgb_f64 glossy_rgb  = {0.5, 1.0, 0.5};
@@ -240,11 +266,7 @@ int main(int argc, char **argv)
     scene.light_position.x = 0.0;
     scene.light_position.y = 1.0;
     scene.light_position.z = 1.0;
-    scene.shininess = 1.0;
-    scene.sphere_center.x = 0.0;
-    scene.sphere_center.y = 0.0;
-    scene.sphere_center.z = 0.0;
-    scene.sphere_radius = 0.3;
+    scene.shininess = 120.0;
 
     render_image(spd_pixels, image_width_in_pixels, image_height_in_pixels, &scene, &camera, 1);
 #else

@@ -77,41 +77,104 @@ f64 f64_max(f64 f0, f64 f1)
     return (f0 > f1) ? f0 : f1;
 }
 
-void cast_ray(spectrum *dst, scene_data* scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)
+void blinn_phong_diffuse_spd(spectrum *reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
 {
-    //Render blinn-phong sphere with point light
-    spectrum tmp_spd;
-    zero_spectrum(&tmp_spd);
-    f64 dist = line_sphere_intersection(ray_origin, ray_direction, scene->sphere_center, scene->sphere_radius);
-    if(!isnan(dist))
-    {
-        vec3 outgoing      = vec3_reverse(ray_direction);
-        vec3 intersection  = vec3_sum(ray_origin, vec3_mul_by_f64(ray_direction, dist));
-        vec3 normal        = vec3_normalise(vec3_sub(intersection, scene->sphere_center));
-        vec3 incoming      = vec3_normalise(vec3_sub(scene->light_position, intersection));
-        f64  c = f64_max(0.0, vec3_dot(incoming, normal));
-        //Diffuse
-        spectral_mul_by_scalar(&tmp_spd, &scene->diffuse_spd, 1.0/PI);
-        //Glossy
-        vec3 bisector         = vec3_normalise(vec3_sum(outgoing, incoming));
-        f64  spec_coefficient = pow(f64_max(0.0, vec3_dot(normal, bisector)), scene->shininess);
-        spectral_mul_by_scalar(dst, &scene->glossy_spd, spec_coefficient);
-        spectral_sum(&tmp_spd, &tmp_spd, dst);
+    spectral_mul_by_scalar(reflectance, p->glossy_spd, 1.0/PI);
+}
 
-        spectral_mul_by_spectrum(&tmp_spd, &tmp_spd, &scene->light_spd);
-        spectral_mul_by_scalar(dst, &tmp_spd, c);
-        /*
-        vec3 light_dir = vec3_normalise(vec3_sub(scene->light_position, sphere_point));
-        vec3 bisector = vec3_div_by_f64(vec3_sum(ray_direction, light_dir), 2.0);
-        f64 spec_coefficient = pow(f64_max(0.0, vec3_dot(sphere_normal, bisector)), scene->shininess);
-        spectral_mul_by_scalar(dst, &scene->glossy_spd, spec_coefficient);
-        spectral_sum(dst, dst, &tmp_spd);
-        */
+void blinn_phong_glossy_spd(spectrum *reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
+{
+    vec3 bisector         = vec3_normalise(vec3_sum(outgoing, incoming));
+    f64  spec_coefficient = pow(f64_max(0.0, vec3_dot(p->normal, bisector)), p->shininess);
+
+    spectral_mul_by_scalar(reflectance, p->glossy_spd, spec_coefficient);
+}
+
+u32 points_mutually_visible(vec3 p0, vec3 p1, object_geometry *surfaces)
+{
+
+}
+
+void find_scene_intersection(scene_data *scene, scene_point *p, vec3 ray_origin, vec3 ray_direction)
+{
+    f64 min_dist = DBL_MAX;
+    object_geometry *intersection_surface = NULL;
+    for(u32 i = 0; i < scene->num_surfaces; ++i)
+    {
+        f64 dist = INFINITY;
+        object_geometry *surface = &scene->surfaces[i];
+        switch(surface->type)
+        {
+            case GEO_TYPE_SPHERE:
+            {
+                dist = line_sphere_intersection(ray_origin, ray_direction, surface->center, surface->radius);
+                break;
+            }
+            case GEO_TYPE_PLANE:
+            {
+                dist = line_plane_intersection(ray_origin, ray_direction, surface->origin, surface->normal, surface->u, surface->v);
+                break;
+            }
+        }
+        if(dist < min_dist)
+        {
+            min_dist = dist;
+            intersection_surface = surface;
+        }
+    }
+    if(intersection_surface)
+    {
+        p->position = vec3_sum(ray_origin, vec3_mul_by_f64(ray_direction, min_dist));
+        switch(intersection_surface->type)
+        {
+            case GEO_TYPE_SPHERE:
+            {
+                p->normal = vec3_normalise(vec3_sub(p->position, intersection_surface->center));
+                break;
+            }
+            case GEO_TYPE_PLANE:
+            {
+                p->normal = intersection_surface->normal;
+                break;
+            }
+        }
+        p->diffuse_spd = &scene->diffuse_spd;
+        p->glossy_spd  = &scene->glossy_spd;
+        p->shininess   = scene->shininess;
     }
     else
     {
-        const_spectrum(dst, 0.0);
+        p->is_black_body = 1;
     }
+}
+
+void cast_ray(spectrum *dst, scene_data* scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)
+{
+    //Render blinn-phong sphere with point light
+    scene_point p;
+    spectrum dr;
+    spectrum gr;
+    zero_spectrum(&dr);
+    zero_spectrum(&gr);
+    p.is_black_body = 0;
+    find_scene_intersection(scene, &p, ray_origin, ray_direction);
+
+    if(p.is_black_body)
+    {
+        const_spectrum(dst, 0.0);
+        return;
+    }
+
+    vec3 outgoing = vec3_reverse(ray_direction);
+    vec3 incoming = vec3_normalise(vec3_sub(scene->light_position, p.position));
+    blinn_phong_diffuse_spd(&dr, &p, incoming, outgoing);
+    blinn_phong_glossy_spd(&gr, &p, incoming, outgoing);
+    spectral_sum(dst, &dr, &gr);
+    spectral_mul_by_spectrum(dst, dst, &scene->light_spd);
+
+    f64  c = vec3_dot(incoming, p.normal);
+    spectral_mul_by_scalar(dst, dst, c);
+
     /*
     spectrum *contribution;
     spectrum *throughput;

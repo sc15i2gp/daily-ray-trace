@@ -30,6 +30,7 @@
 typedef enum
 {
     GEO_TYPE_NONE,
+    GEO_TYPE_POINT,
     GEO_TYPE_SPHERE,
     GEO_TYPE_PLANE,
     GEO_TYPE_COUNT
@@ -44,14 +45,14 @@ typedef struct
         {
             vec3 center;
             f64  radius;
-        } sphere;
+        };
         struct
         {
             vec3 origin;
             vec3 normal;
             vec3 u; //Bounds vector
             vec3 v; //Bounds vector
-        } plane;
+        };
     };
 } object_geometry;
 
@@ -98,6 +99,9 @@ typedef struct
     u32  is_emissive;
 
     spectrum *emission_spd;
+    spectrum *diffuse_spd;
+    spectrum *glossy_spd;
+    f64      shininess;
 } scene_point;
 
 typedef struct
