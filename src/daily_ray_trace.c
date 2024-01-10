@@ -77,12 +77,12 @@ f64 f64_max(f64 f0, f64 f1)
     return (f0 > f1) ? f0 : f1;
 }
 
-void blinn_phong_diffuse_spd(spectrum *reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
+void blinn_phong_diffuse_bdsf(spectrum *reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
 {
     spectral_mul_by_scalar(reflectance, p->glossy_spd, 1.0/PI);
 }
 
-void blinn_phong_glossy_spd(spectrum *reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
+void blinn_phong_glossy_bdsf(spectrum *reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
 {
     vec3 bisector         = vec3_normalise(vec3_sum(outgoing, incoming));
     f64  spec_coefficient = pow(f64_max(0.0, vec3_dot(p->normal, bisector)), p->shininess);
@@ -90,9 +90,25 @@ void blinn_phong_glossy_spd(spectrum *reflectance, scene_point *p, vec3 incoming
     spectral_mul_by_scalar(reflectance, p->glossy_spd, spec_coefficient);
 }
 
+//Out = back towards camera
+//In  = towards light source/next intersection
+void bdsf(spectrum *reflectance, scene_point *p, vec3 in, vec3 out)
+{
+    spectrum bdsf_result;
+    zero_spectrum(reflectance);
+    blinn_phong_diffuse_bdsf(&bdsf_result, p, in, out);
+    spectral_sum(reflectance, &bdsf_result, reflectance);
+    blinn_phong_glossy_bdsf(&bdsf_result, p, in, out);
+    spectral_sum(reflectance, &bdsf_result, reflectance);
+}
+
+//Used in cases where one point is on a light source (sampled)
+//Instead of moving non-light point outside of object:
+//  - Test object point's normal to see if it points away from the light
+//  - Do the normal test for everything else
+//Maybe even don't call this function if the light source is on the other side of the object
 u32 points_mutually_visible(vec3 p0, vec3 p1, object_geometry *surfaces)
 {
-
 }
 
 void find_scene_intersection(scene_data *scene, scene_point *p, vec3 ray_origin, vec3 ray_direction)
@@ -150,32 +166,35 @@ void find_scene_intersection(scene_data *scene, scene_point *p, vec3 ray_origin,
     }
 }
 
+u32 estimate_indirect_contribution(spectrum *contribution, scene_point *intersection, scene_data *scene, vec3 ray_origin, vec3 ray_direction)
+{
+    spectrum reflectance;
+    intersection->is_black_body = 0;
+    find_scene_intersection(scene, intersection, ray_origin, ray_direction);
+
+    if(intersection->is_black_body)
+    {
+        const_spectrum(contribution, 0.0);
+        return 0;
+    }
+
+    vec3 outgoing = vec3_reverse(ray_direction);
+    vec3 incoming = vec3_normalise(vec3_sub(scene->light_position, intersection->position));
+    bdsf(&reflectance, intersection, incoming, outgoing);
+    spectral_sum(contribution, contribution, &reflectance);
+    spectral_mul_by_spectrum(contribution, contribution, &scene->light_spd);
+
+    f64  c = vec3_dot(incoming, intersection->normal);
+    spectral_mul_by_scalar(contribution, contribution, c);
+
+    return 1;
+}
+
 void cast_ray(spectrum *dst, scene_data* scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)
 {
     //Render blinn-phong sphere with point light
     scene_point p;
-    spectrum dr;
-    spectrum gr;
-    zero_spectrum(&dr);
-    zero_spectrum(&gr);
-    p.is_black_body = 0;
-    find_scene_intersection(scene, &p, ray_origin, ray_direction);
-
-    if(p.is_black_body)
-    {
-        const_spectrum(dst, 0.0);
-        return;
-    }
-
-    vec3 outgoing = vec3_reverse(ray_direction);
-    vec3 incoming = vec3_normalise(vec3_sub(scene->light_position, p.position));
-    blinn_phong_diffuse_spd(&dr, &p, incoming, outgoing);
-    blinn_phong_glossy_spd(&gr, &p, incoming, outgoing);
-    spectral_sum(dst, &dr, &gr);
-    spectral_mul_by_spectrum(dst, dst, &scene->light_spd);
-
-    f64  c = vec3_dot(incoming, p.normal);
-    spectral_mul_by_scalar(dst, dst, c);
+    estimate_indirect_contribution(dst, &p, scene, ray_origin, ray_direction);
 
     /*
     spectrum *contribution;
@@ -290,6 +309,7 @@ void render_image(spectrum *dst_pixels, u32 dst_width, u32 dst_height, scene_dat
                 vec3 ray_direction        = vec3_normalise(vec3_sub(sampled_camera_point, ray_origin));
                 
                 //Only one dst pixel for now (EDIT: What does this comment mean?)
+                zero_spectrum(contribution);
                 cast_ray(contribution, scene, ray_origin, ray_direction, max_cast_depth);
 
                 f64 pixel_filter_value = 1.0;
