@@ -22,8 +22,7 @@ void init_camera(camera_data *camera, u32 width_px, u32 height_px, vec3 position
 
 void init_scene(scene_data *scene)
 {
-    scene->num_emissive_surfaces = 1;
-    scene->num_surfaces = 1;
+    scene->num_surfaces = 2;
     scene->surfaces = VirtualAlloc(NULL, sizeof(object_geometry), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
     scene->surfaces[0].type   = GEO_TYPE_SPHERE;
@@ -31,6 +30,10 @@ void init_scene(scene_data *scene)
     scene->surfaces[0].center.y = 0.0;
     scene->surfaces[0].center.z = 0.0;
     scene->surfaces[0].radius = 0.3;
+    scene->surfaces[1].type = GEO_TYPE_POINT;
+    scene->surfaces[1].position.x = 0.0; 
+    scene->surfaces[1].position.y = 1.0; 
+    scene->surfaces[1].position.z = 1.0; 
     /*
     vec3 pp = {-0.5, -0.5, -0.5};
     vec3 pv = {-0.5, 0.5, -0.5};
@@ -42,16 +45,15 @@ void init_scene(scene_data *scene)
     scene->surfaces[0].normal = vec3_normalise(vec3_cross(scene->surfaces[0].u, scene->surfaces[0].v));
     */
 
-    scene->num_surface_materials = 1;
+    scene->num_surface_materials = 2;
     scene->surface_materials = VirtualAlloc(NULL, scene->num_surface_materials * sizeof(object_material), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     scene->surface_materials[0].diffuse_spd = alloc_spd();
     scene->surface_materials[0].glossy_spd  = alloc_spd();
     scene->surface_materials[0].shininess   = 1.0;
-
+    scene->surface_materials[1].emission_spd = alloc_spd();
+    const_spectrum(scene->surface_materials[1].emission_spd, 1.0);
+    scene->surface_materials[1].is_emissive = 1;
     //generate_blackbody_spectrum(&scene->light_spd, 4000.0L);
-    scene->light_spd = alloc_spd();
-    const_spectrum(scene->light_spd, 1.0);
-    spectrum_normalise(scene->light_spd);
 
     spectrum white       = alloc_spd();
     spectrum rgb_red     = alloc_spd();
@@ -73,10 +75,6 @@ void init_scene(scene_data *scene)
     rgb_f64 glossy_rgb  = {0.5, 1.0, 0.5};
     rgb_f64_to_spectrum(glossy_rgb, scene->surface_materials[0].glossy_spd, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
 
-    spectral_mul_by_scalar(scene->light_spd, scene->light_spd, 1.0);
-    scene->light_position.x = 0.0;
-    scene->light_position.y = 1.0;
-    scene->light_position.z = 1.0;
     free_spd(white);
     free_spd(rgb_red);
     free_spd(rgb_green);
@@ -167,15 +165,15 @@ f64 f64_max(f64 f0, f64 f1)
 
 void blinn_phong_diffuse_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
 {
-    spectral_mul_by_scalar(reflectance, p->glossy_spd, 1.0/PI);
+    spectral_mul_by_scalar(reflectance, p->material->diffuse_spd, 1.0/PI);
 }
 
 void blinn_phong_glossy_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
 {
     vec3 bisector         = vec3_normalise(vec3_sum(outgoing, incoming));
-    f64  spec_coefficient = pow(f64_max(0.0, vec3_dot(p->normal, bisector)), p->shininess);
+    f64  spec_coefficient = pow(f64_max(0.0, vec3_dot(p->normal, bisector)), p->material->shininess);
 
-    spectral_mul_by_scalar(reflectance, p->glossy_spd, spec_coefficient);
+    spectral_mul_by_scalar(reflectance, p->material->glossy_spd, spec_coefficient);
 }
 
 //Out = back towards camera
@@ -245,9 +243,7 @@ void find_scene_intersection(scene_data *scene, scene_point *p, vec3 ray_origin,
                 break;
             }
         }
-        p->diffuse_spd = scene->surface_materials[intersection_index].diffuse_spd;
-        p->glossy_spd  = scene->surface_materials[intersection_index].glossy_spd;
-        p->shininess   = scene->surface_materials[intersection_index].shininess;
+        p->material = &scene->surface_materials[intersection_index];
     }
     else
     {
@@ -257,6 +253,7 @@ void find_scene_intersection(scene_data *scene, scene_point *p, vec3 ray_origin,
 
 u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersection, scene_data *scene, vec3 ray_origin, vec3 ray_direction)
 {
+    u32 ret;
     spectrum reflectance = alloc_spd();
     intersection->is_black_body = 0;
     find_scene_intersection(scene, intersection, ray_origin, ray_direction);
@@ -264,21 +261,30 @@ u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersect
     if(intersection->is_black_body)
     {
         const_spectrum(contribution, 0.0);
-        free_spd(reflectance);
-        return 0;
+        ret = 0;
     }
+    else
+    {
+        for(u32 i = 0; i < scene->num_surfaces; ++i)
+        {
+            object_material *light_material = &scene->surface_materials[i];
+            if(light_material->is_emissive)
+            {
+                object_geometry *light_surface = &scene->surfaces[i];
+                vec3 outgoing = vec3_reverse(ray_direction);
+                vec3 incoming = vec3_normalise(vec3_sub(light_surface->position, intersection->position));
+                bdsf(reflectance, intersection, incoming, outgoing);
+                spectral_sum(contribution, contribution, reflectance);
+                spectral_mul_by_spectrum(contribution, contribution, light_material->emission_spd);
 
-    vec3 outgoing = vec3_reverse(ray_direction);
-    vec3 incoming = vec3_normalise(vec3_sub(scene->light_position, intersection->position));
-    bdsf(reflectance, intersection, incoming, outgoing);
-    spectral_sum(contribution, contribution, reflectance);
-    spectral_mul_by_spectrum(contribution, contribution, scene->light_spd);
-
-    f64  c = vec3_dot(incoming, intersection->normal);
-    spectral_mul_by_scalar(contribution, contribution, c);
+                f64  c = vec3_dot(incoming, intersection->normal);
+                spectral_mul_by_scalar(contribution, contribution, c);
+            }
+        }
+        ret = 1;
+    }
     free_spd(reflectance);
-
-    return 1;
+    return ret;
 }
 
 void cast_ray(spectrum dst, scene_data* scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)

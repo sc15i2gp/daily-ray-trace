@@ -41,6 +41,7 @@ typedef struct
     GEO_TYPE type;
     union
     {
+        vec3 position;
         struct
         {
             vec3 center;
@@ -59,6 +60,7 @@ typedef struct
 typedef struct
 {
     u32      is_black_body;
+    u32      is_emissive;
     f64      shininess;
     spectrum emission_spd;
     spectrum diffuse_spd;
@@ -71,19 +73,10 @@ typedef struct
     u32 num_surfaces;
     object_geometry *surfaces;
 
-    u32 num_emissive_surfaces;
-    object_geometry *emissive_surfaces;
-
     u32 num_surface_materials;
     object_material *surface_materials;
 
-    u32 num_emissive_materials;
-    object_material *emissive_materials;
-
     //Temp:
-
-    spectrum light_spd;
-    vec3     light_position;
 } scene_data;
 
 typedef struct
@@ -94,10 +87,7 @@ typedef struct
     u32  is_black_body;
     u32  is_emissive;
 
-    spectrum emission_spd;
-    spectrum diffuse_spd;
-    spectrum glossy_spd;
-    f64      shininess;
+    object_material *material;
 } scene_point;
 
 typedef struct
