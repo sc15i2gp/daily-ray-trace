@@ -194,7 +194,8 @@ void test_shape_intersection(u32 film_width, u32 film_height)
             f64 line_o_y = film_bottom_left.y + ((f64)y + 0.5) * film_p_height;
             vec3 line_o = {line_o_x, line_o_y, film_bottom_left.z};
             f64 l = line_sphere_intersection(line_o, line_d, sphere_c, sphere_r);
-            film[film_width*y + x] = 1.0 - l;
+            if(l != INFINITY) film[film_width*y + x] = 1.0 - l;
+            else              film[film_width*y + x] = INFINITY;
         }
     }
 
@@ -202,7 +203,7 @@ void test_shape_intersection(u32 film_width, u32 film_height)
     rgb_u8 *film_pixels = (rgb_u8*)VirtualAlloc(0, film_pixels_size, MEM_COMMIT, PAGE_READWRITE);
     for(u32 i = 0; i < film_pixel_count; ++i)
     {
-        if(!isnan(film[i]))
+        if(film[i] != INFINITY)
         {
             film_pixels[i].r = (u8)(255.0 * film[i]);
             film_pixels[i].g = (u8)(255.0 * film[i]);
@@ -243,7 +244,7 @@ void test_shape_intersection(u32 film_width, u32 film_height)
     }
     for(u32 i = 0; i < film_pixel_count; ++i)
     {
-        if(!isnan(film[i]))
+        if(film[i] != INFINITY)
         {
             film_pixels[i].r = (u8)(255.0 * film[i]);
             film_pixels[i].g = (u8)(255.0 * film[i]);
