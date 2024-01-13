@@ -60,17 +60,14 @@ typedef struct
 {
     u32      is_black_body;
     f64      shininess;
-    spectrum *emission_spd;
-    spectrum *diffuse_spd;
-    spectrum *glossy_spd;
+    new_spectrum emission_spd;
+    new_spectrum diffuse_spd;
+    new_spectrum glossy_spd;
 } object_material;
 
 //Can use a single index to access geometries and materials if emissive ones are stored together
 typedef struct
 {
-    u32      spd_capacity;
-    spectrum *spd_buffer;
-
     u32 num_surfaces;
     object_geometry *surfaces;
 
@@ -85,7 +82,7 @@ typedef struct
 
     //Temp:
 
-    spectrum light_spd;
+    new_spectrum light_spd;
     vec3     light_position;
 } scene_data;
 
@@ -97,9 +94,9 @@ typedef struct
     u32  is_black_body;
     u32  is_emissive;
 
-    spectrum *emission_spd;
-    spectrum *diffuse_spd;
-    spectrum *glossy_spd;
+    new_spectrum emission_spd;
+    new_spectrum diffuse_spd;
+    new_spectrum glossy_spd;
     f64      shininess;
 } scene_point;
 
@@ -118,6 +115,6 @@ typedef struct
 void init_scene(scene_data *scene);
 void init_camera(camera_data *, u32, u32, vec3, vec3, vec3, vec3, f64, f64, f64, f64);
 void print_camera(camera_data *);
-void render_image(spectrum* dst_pixels, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples);
+void render_image(f64* dst_pixels, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples);
 
 #include "daily_ray_trace.c"

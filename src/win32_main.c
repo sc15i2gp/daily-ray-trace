@@ -29,23 +29,21 @@
 
 //TODO:
 //  - Cornell Box scene
-//      - KEEP test.c UPDATED!
-//          - Fix intersection tests to no longer use NaN
-//      - Init scene
+//      - Dynamic spectrum allocation
 //      - Tidy main
 //          - Good memory management (or at least better)
 //          - Some kind of platform API
-//      - Dynamic spectrum allocation
-//          - Stop spectra having const capacity
-//          - Allocate all up front and request where needed
-//          - Automate slightly setting up for rgb <-> spd
-//          - Remove friction incurred by spectrum struct
-//          - Figure out how to handle arrays of spectra
+//          - Init/Setup/Preprare functions
+//              - Scene
+//              - Camera
+//              - Spectra
 //      - Light material
 //      - Points visible function
 //      - Shape and direction sampling
 //          - Sphere or plane with area light
 //      - Path tracing
+//  - Make spectrum naming consistent
+//      - spectrum is the type, spd should be the name
 //  - Figure out better strategy for spectra which doesn't leave massive gaps
 //      - (without recompiling)
 //  - Variance
@@ -54,6 +52,7 @@
 //      - Non-pinhole
 //  - Consider generating RNG up front
 //      - Also a test set of numbers for reliability
+//  - Test and profile builds
 //  - Test
 //      - RNG
 //      - Camera
@@ -153,43 +152,52 @@ typedef struct
 } spd_file_header;
 
 //Assume handle starts at pixel data in spd_file
-void spd_file_to_bmp(HANDLE spd_file, spd_file_header *header, const char *bmp_path, spectrum *cmf_x, spectrum *cmf_y, spectrum *cmf_z, spectrum *ref_white)
+void spd_file_to_bmp(HANDLE spd_file, spd_file_header *header, const char *bmp_path, new_spectrum cmf_x, new_spectrum cmf_y, new_spectrum cmf_z, new_spectrum ref_white)
 {
     u32 number_of_pixels = header->width_in_pixels * header->height_in_pixels;
     u32 pixels_size_rgb_u8 = number_of_pixels * sizeof(rgb_u8);
     rgb_u8 *pixels_rgb_u8 = (rgb_u8*)VirtualAlloc(NULL, pixels_size_rgb_u8, MEM_COMMIT, PAGE_READWRITE);
     DWORD bytes_read;
 
-    spectrum pixel_spd;
+    new_spectrum pixel_spd = alloc_spd();
     for(u32 pixel = 0; pixel < number_of_pixels; ++pixel)
     {
-        ReadFile(spd_file, &pixel_spd, sizeof(pixel_spd), &bytes_read, NULL);
-        rgb_f64 pixel_f64 = spectrum_to_rgb_f64(&pixel_spd, cmf_x, cmf_y, cmf_z, ref_white);
+        ReadFile(spd_file, pixel_spd.samples, spectrum_size, &bytes_read, NULL);
+        rgb_f64 pixel_f64 = new_spectrum_to_rgb_f64(pixel_spd, cmf_x, cmf_y, cmf_z, ref_white);
         pixels_rgb_u8[pixel] = rgb_f64_to_rgb_u8(pixel_f64);
     }
 
     write_pixels_to_bmp(pixels_rgb_u8, header->width_in_pixels, header->height_in_pixels, bmp_path);
+    free_spd(pixel_spd);
     VirtualFree(pixels_rgb_u8, 0, MEM_RELEASE);
 }
 
 int main(int argc, char **argv)
 {
-    //call_test_funcs();
 
     //Default args
     //Args (just set to default for now)
     const char *spectrum_output_path = "output\\output.spd";
     const char *bmp_output_path = "output\\output.bmp";
+    u32 image_width_in_pixels = 800;
+    u32 image_height_in_pixels = 600;
+    u32 number_of_pixel_samples = 1;
+    u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
+
     number_of_spectrum_samples = 69;
     smallest_wavelength = 380.0;
     largest_wavelength = 720.0;
     sample_interval = 5.0;
-    u32 image_width_in_pixels = 800;
-    u32 image_height_in_pixels = 600;
-    u32 spd_pixel_data_size = image_width_in_pixels * image_height_in_pixels * sizeof(spectrum);
-    u32 number_of_pixel_samples = 1;
-    u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
+    spectrum_size = number_of_spectrum_samples * sizeof(f64);
 
+    spd_table.capacity        = 16;
+    spd_table.allocated       = 0;
+    spd_table.is_allocated    = VirtualAlloc(NULL, spd_table.capacity * sizeof(u32), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    spd_table.spectrum_buffer = VirtualAlloc(NULL, spectrum_size * spd_table.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+
+#if 0
+    call_test_funcs();
+#else
     //Spectrum file contents:
     //- Number of spectra/pixels (dims)
     //- Number of samples per spectrum
@@ -212,7 +220,8 @@ int main(int argc, char **argv)
 
     //Alloc a certain amount of memory for pixel data
     //u32 allocated_pixels = spd_pixel_data_size / sizeof(spectrum);
-    spectrum *spd_pixels = (spectrum*)VirtualAlloc(NULL, spd_pixel_data_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    u32 spd_pixel_data_size = image_width_in_pixels * image_height_in_pixels * spectrum_size;
+    f64 *spd_pixels = VirtualAlloc(NULL, spd_pixel_data_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     printf("Size = %u\n", spd_pixel_data_size);
 
     camera_data camera;
@@ -230,26 +239,30 @@ int main(int argc, char **argv)
     scene_data scene;
     init_scene(&scene);
 
+    printf("Starting render...\n");
     render_image(spd_pixels, image_width_in_pixels, image_height_in_pixels, &scene, &camera, 1);
+    printf("Render complete.\n");
 
     WriteFile(spectrum_output_file, spd_pixels, spd_pixel_data_size, &bytes_written, NULL);
     CloseHandle(spectrum_output_file);
     VirtualFree(spd_pixels, 0, MEM_RELEASE);
 
     //spd file -> bmp
-    spectrum ref_white;
-    spectrum cmf_x, cmf_y, cmf_z;
+    new_spectrum ref_white = alloc_spd();
+    new_spectrum cmf_x     = alloc_spd();
+    new_spectrum cmf_y     = alloc_spd();
+    new_spectrum cmf_z     = alloc_spd();
 
-    const_spectrum(&ref_white, 1.0);
-    load_csv_file_to_spectrum(&cmf_x, "spectra\\cmf_x.csv");
-    load_csv_file_to_spectrum(&cmf_y, "spectra\\cmf_y.csv");
-    load_csv_file_to_spectrum(&cmf_z, "spectra\\cmf_z.csv");
+    new_const_spectrum(ref_white, 1.0);
+    new_load_csv_file_to_spectrum(cmf_x, "spectra\\cmf_x.csv");
+    new_load_csv_file_to_spectrum(cmf_y, "spectra\\cmf_y.csv");
+    new_load_csv_file_to_spectrum(cmf_z, "spectra\\cmf_z.csv");
 
     spectrum_output_file = CreateFile(spectrum_output_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     DWORD bytes_read;
     ReadFile(spectrum_output_file, &header, sizeof(header), &bytes_read, NULL);
-    spd_file_to_bmp(spectrum_output_file, &header, bmp_output_path, &cmf_x, &cmf_y, &cmf_z, &ref_white);
+    spd_file_to_bmp(spectrum_output_file, &header, bmp_output_path, cmf_x, cmf_y, cmf_z, ref_white);
     CloseHandle(spectrum_output_file);
-
+#endif
     return 0;
 }
