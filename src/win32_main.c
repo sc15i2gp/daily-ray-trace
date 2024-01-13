@@ -152,18 +152,18 @@ typedef struct
 } spd_file_header;
 
 //Assume handle starts at pixel data in spd_file
-void spd_file_to_bmp(HANDLE spd_file, spd_file_header *header, const char *bmp_path, new_spectrum cmf_x, new_spectrum cmf_y, new_spectrum cmf_z, new_spectrum ref_white)
+void spd_file_to_bmp(HANDLE spd_file, spd_file_header *header, const char *bmp_path, spectrum cmf_x, spectrum cmf_y, spectrum cmf_z, spectrum ref_white)
 {
     u32 number_of_pixels = header->width_in_pixels * header->height_in_pixels;
     u32 pixels_size_rgb_u8 = number_of_pixels * sizeof(rgb_u8);
     rgb_u8 *pixels_rgb_u8 = (rgb_u8*)VirtualAlloc(NULL, pixels_size_rgb_u8, MEM_COMMIT, PAGE_READWRITE);
     DWORD bytes_read;
 
-    new_spectrum pixel_spd = alloc_spd();
+    spectrum pixel_spd = alloc_spd();
     for(u32 pixel = 0; pixel < number_of_pixels; ++pixel)
     {
         ReadFile(spd_file, pixel_spd.samples, spectrum_size, &bytes_read, NULL);
-        rgb_f64 pixel_f64 = new_spectrum_to_rgb_f64(pixel_spd, cmf_x, cmf_y, cmf_z, ref_white);
+        rgb_f64 pixel_f64 = spectrum_to_rgb_f64(pixel_spd, cmf_x, cmf_y, cmf_z, ref_white);
         pixels_rgb_u8[pixel] = rgb_f64_to_rgb_u8(pixel_f64);
     }
 
@@ -248,15 +248,15 @@ int main(int argc, char **argv)
     VirtualFree(spd_pixels, 0, MEM_RELEASE);
 
     //spd file -> bmp
-    new_spectrum ref_white = alloc_spd();
-    new_spectrum cmf_x     = alloc_spd();
-    new_spectrum cmf_y     = alloc_spd();
-    new_spectrum cmf_z     = alloc_spd();
+    spectrum ref_white = alloc_spd();
+    spectrum cmf_x     = alloc_spd();
+    spectrum cmf_y     = alloc_spd();
+    spectrum cmf_z     = alloc_spd();
 
-    new_const_spectrum(ref_white, 1.0);
-    new_load_csv_file_to_spectrum(cmf_x, "spectra\\cmf_x.csv");
-    new_load_csv_file_to_spectrum(cmf_y, "spectra\\cmf_y.csv");
-    new_load_csv_file_to_spectrum(cmf_z, "spectra\\cmf_z.csv");
+    const_spectrum(ref_white, 1.0);
+    load_csv_file_to_spectrum(cmf_x, "spectra\\cmf_x.csv");
+    load_csv_file_to_spectrum(cmf_y, "spectra\\cmf_y.csv");
+    load_csv_file_to_spectrum(cmf_z, "spectra\\cmf_z.csv");
 
     spectrum_output_file = CreateFile(spectrum_output_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     DWORD bytes_read;

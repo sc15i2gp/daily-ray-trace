@@ -60,9 +60,9 @@ typedef struct
 {
     u32      is_black_body;
     f64      shininess;
-    new_spectrum emission_spd;
-    new_spectrum diffuse_spd;
-    new_spectrum glossy_spd;
+    spectrum emission_spd;
+    spectrum diffuse_spd;
+    spectrum glossy_spd;
 } object_material;
 
 //Can use a single index to access geometries and materials if emissive ones are stored together
@@ -82,7 +82,7 @@ typedef struct
 
     //Temp:
 
-    new_spectrum light_spd;
+    spectrum light_spd;
     vec3     light_position;
 } scene_data;
 
@@ -94,9 +94,9 @@ typedef struct
     u32  is_black_body;
     u32  is_emissive;
 
-    new_spectrum emission_spd;
-    new_spectrum diffuse_spd;
-    new_spectrum glossy_spd;
+    spectrum emission_spd;
+    spectrum diffuse_spd;
+    spectrum glossy_spd;
     f64      shininess;
 } scene_point;
 

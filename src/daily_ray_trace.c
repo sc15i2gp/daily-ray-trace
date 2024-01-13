@@ -50,30 +50,30 @@ void init_scene(scene_data *scene)
 
     //generate_blackbody_spectrum(&scene->light_spd, 4000.0L);
     scene->light_spd = alloc_spd();
-    new_const_spectrum(scene->light_spd, 1.0);
-    new_spectrum_normalise(scene->light_spd);
+    const_spectrum(scene->light_spd, 1.0);
+    spectrum_normalise(scene->light_spd);
 
-    new_spectrum white       = alloc_spd();
-    new_spectrum rgb_red     = alloc_spd();
-    new_spectrum rgb_green   = alloc_spd();
-    new_spectrum rgb_blue    = alloc_spd();
-    new_spectrum rgb_cyan    = alloc_spd();
-    new_spectrum rgb_magenta = alloc_spd();
-    new_spectrum rgb_yellow  = alloc_spd();
-    new_const_spectrum(white, 1.0);
-    new_load_csv_file_to_spectrum(rgb_red, "spectra\\red_rgb_to_spd.csv");
-    new_load_csv_file_to_spectrum(rgb_green, "spectra\\green_rgb_to_spd.csv");
-    new_load_csv_file_to_spectrum(rgb_blue, "spectra\\blue_rgb_to_spd.csv");
-    new_load_csv_file_to_spectrum(rgb_cyan, "spectra\\cyan_rgb_to_spd.csv");
-    new_load_csv_file_to_spectrum(rgb_magenta, "spectra\\magenta_rgb_to_spd.csv");
-    new_load_csv_file_to_spectrum(rgb_yellow, "spectra\\yellow_rgb_to_spd.csv");
+    spectrum white       = alloc_spd();
+    spectrum rgb_red     = alloc_spd();
+    spectrum rgb_green   = alloc_spd();
+    spectrum rgb_blue    = alloc_spd();
+    spectrum rgb_cyan    = alloc_spd();
+    spectrum rgb_magenta = alloc_spd();
+    spectrum rgb_yellow  = alloc_spd();
+    const_spectrum(white, 1.0);
+    load_csv_file_to_spectrum(rgb_red, "spectra\\red_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(rgb_green, "spectra\\green_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(rgb_blue, "spectra\\blue_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(rgb_cyan, "spectra\\cyan_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(rgb_magenta, "spectra\\magenta_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(rgb_yellow, "spectra\\yellow_rgb_to_spd.csv");
 
     rgb_f64 diffuse_rgb = {0.25, 1.0, 0.25};
-    new_rgb_f64_to_spectrum(diffuse_rgb, scene->surface_materials[0].diffuse_spd, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+    rgb_f64_to_spectrum(diffuse_rgb, scene->surface_materials[0].diffuse_spd, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
     rgb_f64 glossy_rgb  = {0.5, 1.0, 0.5};
-    new_rgb_f64_to_spectrum(glossy_rgb, scene->surface_materials[0].glossy_spd, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+    rgb_f64_to_spectrum(glossy_rgb, scene->surface_materials[0].glossy_spd, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
 
-    new_spectral_mul_by_scalar(scene->light_spd, scene->light_spd, 1.0);
+    spectral_mul_by_scalar(scene->light_spd, scene->light_spd, 1.0);
     scene->light_position.x = 0.0;
     scene->light_position.y = 1.0;
     scene->light_position.z = 1.0;
@@ -165,29 +165,29 @@ f64 f64_max(f64 f0, f64 f1)
     return (f0 > f1) ? f0 : f1;
 }
 
-void blinn_phong_diffuse_bdsf(new_spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
+void blinn_phong_diffuse_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
 {
-    new_spectral_mul_by_scalar(reflectance, p->glossy_spd, 1.0/PI);
+    spectral_mul_by_scalar(reflectance, p->glossy_spd, 1.0/PI);
 }
 
-void blinn_phong_glossy_bdsf(new_spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
+void blinn_phong_glossy_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
 {
     vec3 bisector         = vec3_normalise(vec3_sum(outgoing, incoming));
     f64  spec_coefficient = pow(f64_max(0.0, vec3_dot(p->normal, bisector)), p->shininess);
 
-    new_spectral_mul_by_scalar(reflectance, p->glossy_spd, spec_coefficient);
+    spectral_mul_by_scalar(reflectance, p->glossy_spd, spec_coefficient);
 }
 
 //Out = back towards camera
 //In  = towards light source/next intersection
-void bdsf(new_spectrum reflectance, scene_point *p, vec3 in, vec3 out)
+void bdsf(spectrum reflectance, scene_point *p, vec3 in, vec3 out)
 {
-    new_spectrum bdsf_result = alloc_spd();
-    new_zero_spectrum(reflectance);
+    spectrum bdsf_result = alloc_spd();
+    zero_spectrum(reflectance);
     blinn_phong_diffuse_bdsf(bdsf_result, p, in, out);
-    new_spectral_sum(reflectance, bdsf_result, reflectance);
+    spectral_sum(reflectance, bdsf_result, reflectance);
     blinn_phong_glossy_bdsf(bdsf_result, p, in, out);
-    new_spectral_sum(reflectance, bdsf_result, reflectance);
+    spectral_sum(reflectance, bdsf_result, reflectance);
     free_spd(bdsf_result);
 }
 
@@ -255,15 +255,15 @@ void find_scene_intersection(scene_data *scene, scene_point *p, vec3 ray_origin,
     }
 }
 
-u32 estimate_indirect_contribution(new_spectrum contribution, scene_point *intersection, scene_data *scene, vec3 ray_origin, vec3 ray_direction)
+u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersection, scene_data *scene, vec3 ray_origin, vec3 ray_direction)
 {
-    new_spectrum reflectance = alloc_spd();
+    spectrum reflectance = alloc_spd();
     intersection->is_black_body = 0;
     find_scene_intersection(scene, intersection, ray_origin, ray_direction);
 
     if(intersection->is_black_body)
     {
-        new_const_spectrum(contribution, 0.0);
+        const_spectrum(contribution, 0.0);
         free_spd(reflectance);
         return 0;
     }
@@ -271,17 +271,17 @@ u32 estimate_indirect_contribution(new_spectrum contribution, scene_point *inter
     vec3 outgoing = vec3_reverse(ray_direction);
     vec3 incoming = vec3_normalise(vec3_sub(scene->light_position, intersection->position));
     bdsf(reflectance, intersection, incoming, outgoing);
-    new_spectral_sum(contribution, contribution, reflectance);
-    new_spectral_mul_by_spectrum(contribution, contribution, scene->light_spd);
+    spectral_sum(contribution, contribution, reflectance);
+    spectral_mul_by_spectrum(contribution, contribution, scene->light_spd);
 
     f64  c = vec3_dot(incoming, intersection->normal);
-    new_spectral_mul_by_scalar(contribution, contribution, c);
+    spectral_mul_by_scalar(contribution, contribution, c);
     free_spd(reflectance);
 
     return 1;
 }
 
-void cast_ray(new_spectrum dst, scene_data* scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)
+void cast_ray(spectrum dst, scene_data* scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)
 {
     //Render blinn-phong sphere with point light
     scene_point p;
@@ -347,7 +347,7 @@ void render_image(f64 *dst_pixels, u32 dst_width, u32 dst_height, scene_data *sc
 
     u32 pixel_filter_sums_size = num_pixels * sizeof(f64);
     f64 *pixel_filter_sums     = (f64*)VirtualAlloc(NULL, pixel_filter_sums_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    new_spectrum contribution  = alloc_spd();
+    spectrum contribution  = alloc_spd();
 
     for(u32 sample = 0; sample < samples_per_pixel; ++sample)
     {
@@ -375,17 +375,17 @@ void render_image(f64 *dst_pixels, u32 dst_width, u32 dst_height, scene_data *sc
                 vec3 ray_direction        = vec3_normalise(vec3_sub(sampled_camera_point, ray_origin));
                 
                 //Only one dst pixel for now (EDIT: What does this comment mean?)
-                new_zero_spectrum(contribution);
+                zero_spectrum(contribution);
                 cast_ray(contribution, scene, ray_origin, ray_direction, max_cast_depth);
 
                 f64 pixel_filter_value = 1.0;
                 f64 pixel_weight_value = 1.0;
 
-                new_spectrum dst_pixel;
+                spectrum dst_pixel;
                 dst_pixel.samples = dst_pixels + number_of_spectrum_samples * ((y*dst_width) + x);
-                new_spectral_mul_by_scalar(contribution, contribution, pixel_filter_value);
-                new_spectral_mul_by_scalar(contribution, contribution, pixel_weight_value);
-                new_spectral_sum(dst_pixel, dst_pixel, contribution);
+                spectral_mul_by_scalar(contribution, contribution, pixel_filter_value);
+                spectral_mul_by_scalar(contribution, contribution, pixel_weight_value);
+                spectral_sum(dst_pixel, dst_pixel, contribution);
 
                 f64 *dst_filter = pixel_filter_sums + (y*dst_width) + x;
                 *dst_filter += pixel_filter_value;
@@ -395,8 +395,8 @@ void render_image(f64 *dst_pixels, u32 dst_width, u32 dst_height, scene_data *sc
     for(u32 pixel = 0; pixel < num_pixels; ++pixel)
     {
         f64 pixel_filter = 1.0 / pixel_filter_sums[pixel];
-        new_spectrum dst_pixel;
+        spectrum dst_pixel;
         dst_pixel.samples = dst_pixels + pixel * number_of_spectrum_samples;
-        new_spectral_mul_by_scalar(dst_pixel, dst_pixel, pixel_filter);
+        spectral_mul_by_scalar(dst_pixel, dst_pixel, pixel_filter);
     }
 }

@@ -50,28 +50,28 @@ u32 test_rgb_spectrum_conversion(f64 low_rgb, f64 high_rgb, f64 rgb_iterand)
 
     printf("Testing spectral conversion...\n");
     
-    new_spectrum white   = alloc_spd();
-    new_spectrum red     = alloc_spd();
-    new_spectrum green   = alloc_spd();
-    new_spectrum blue    = alloc_spd();
-    new_spectrum cyan    = alloc_spd();
-    new_spectrum magenta = alloc_spd();
-    new_spectrum yellow  = alloc_spd();
-    new_spectrum cmf_x   = alloc_spd();
-    new_spectrum cmf_y   = alloc_spd();
-    new_spectrum cmf_z   = alloc_spd();
-    new_spectrum s       = alloc_spd();
-    new_const_spectrum(white, 1.0);
-    new_zero_spectrum(s);
-    new_load_csv_file_to_spectrum(red, "spectra\\red_rgb_to_spd.csv");
-    new_load_csv_file_to_spectrum(green, "spectra\\green_rgb_to_spd.csv");
-    new_load_csv_file_to_spectrum(blue, "spectra\\blue_rgb_to_spd.csv");
-    new_load_csv_file_to_spectrum(cyan, "spectra\\cyan_rgb_to_spd.csv");
-    new_load_csv_file_to_spectrum(magenta, "spectra\\magenta_rgb_to_spd.csv");
-    new_load_csv_file_to_spectrum(yellow, "spectra\\yellow_rgb_to_spd.csv");
-    new_load_csv_file_to_spectrum(cmf_x, "spectra\\cmf_x.csv");
-    new_load_csv_file_to_spectrum(cmf_y, "spectra\\cmf_y.csv");
-    new_load_csv_file_to_spectrum(cmf_z, "spectra\\cmf_z.csv");
+    spectrum white   = alloc_spd();
+    spectrum red     = alloc_spd();
+    spectrum green   = alloc_spd();
+    spectrum blue    = alloc_spd();
+    spectrum cyan    = alloc_spd();
+    spectrum magenta = alloc_spd();
+    spectrum yellow  = alloc_spd();
+    spectrum cmf_x   = alloc_spd();
+    spectrum cmf_y   = alloc_spd();
+    spectrum cmf_z   = alloc_spd();
+    spectrum s       = alloc_spd();
+    const_spectrum(white, 1.0);
+    zero_spectrum(s);
+    load_csv_file_to_spectrum(red, "spectra\\red_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(green, "spectra\\green_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(blue, "spectra\\blue_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(cyan, "spectra\\cyan_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(magenta, "spectra\\magenta_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(yellow, "spectra\\yellow_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(cmf_x, "spectra\\cmf_x.csv");
+    load_csv_file_to_spectrum(cmf_y, "spectra\\cmf_y.csv");
+    load_csv_file_to_spectrum(cmf_z, "spectra\\cmf_z.csv");
 
     u32 rgb_it = ((u32)(high_rgb - low_rgb)/rgb_iterand) + 1U;
     u32 number_of_rgb_values = rgb_it * rgb_it * rgb_it;
@@ -90,8 +90,8 @@ u32 test_rgb_spectrum_conversion(f64 low_rgb, f64 high_rgb, f64 rgb_iterand)
             for(f64 b = low_rgb; b <= high_rgb; b += rgb_iterand)
             {
                 rgb.b = b;
-                new_rgb_f64_to_spectrum(rgb, s, white, red, green, blue, cyan, magenta, yellow);
-                results[rgb_value_index] = new_spectrum_to_rgb_f64(s, cmf_x, cmf_y, cmf_z, white);
+                rgb_f64_to_spectrum(rgb, s, white, red, green, blue, cyan, magenta, yellow);
+                results[rgb_value_index] = spectrum_to_rgb_f64(s, cmf_x, cmf_y, cmf_z, white);
                 inputs[rgb_value_index] = rgb;
                 ++rgb_value_index;
             }
