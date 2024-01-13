@@ -115,6 +115,7 @@ typedef struct
     f64  pixel_height;
 } camera_data;
 
+void init_scene(scene_data *scene);
 void init_camera(camera_data *, u32, u32, vec3, vec3, vec3, vec3, f64, f64, f64, f64);
 void print_camera(camera_data *);
 void render_image(spectrum* dst_pixels, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples);

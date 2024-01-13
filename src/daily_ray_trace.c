@@ -1,3 +1,79 @@
+void init_camera(camera_data *camera, u32 width_px, u32 height_px, vec3 position, vec3 up, vec3 right, vec3 forward, f64 fov, f64 focal_depth, f64 focal_length, f64 aperture_radius)
+{
+    camera->forward = forward;
+    camera->right   = right;
+    camera->up      = up;
+
+    f64 aperture_distance     = (focal_length * focal_depth) / (focal_length + focal_depth);
+    camera->aperture_position = vec3_sum(position, vec3_mul_by_f64(forward, aperture_distance));
+    camera->aperture_radius   = aperture_radius;
+
+    f64  fov_rad             = fov * (PI/180.0);
+    f64  aspect_ratio        = (f64)width_px / (f64)height_px;
+    f64  film_width          = 2.0 * aperture_distance * tan(fov_rad/2.0);
+    f64  film_height         = film_width / aspect_ratio;
+    vec3 film_right          = vec3_mul_by_f64(right, 0.5 * film_width);
+    vec3 film_top            = vec3_mul_by_f64(up,    0.5 * film_height);
+    camera->film_bottom_left = vec3_sub(vec3_sub(position, film_right), film_top);
+
+    camera->pixel_width  = film_width  / (f64)width_px;
+    camera->pixel_height = film_height / (f64)height_px;
+}
+
+void init_scene(scene_data *scene)
+{
+    scene->num_emissive_surfaces = 1;
+    scene->num_surfaces = 1;
+    scene->surfaces = VirtualAlloc(NULL, sizeof(object_geometry), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+
+    scene->surfaces[0].type   = GEO_TYPE_SPHERE;
+    scene->surfaces[0].center.x = 0.0;
+    scene->surfaces[0].center.y = 0.0;
+    scene->surfaces[0].center.z = 0.0;
+    scene->surfaces[0].radius = 0.3;
+    /*
+    vec3 pp = {-0.5, -0.5, -0.5};
+    vec3 pv = {-0.5, 0.5, -0.5};
+    vec3 pu = {0.5, -0.5, -0.5};
+    scene->surfaces[0].type = GEO_TYPE_PLANE;
+    scene->surfaces[0].origin = pp;
+    scene->surfaces[0].u = vec3_sub(pu, pp);
+    scene->surfaces[0].v = vec3_sub(pv, pp);
+    scene->surfaces[0].normal = vec3_normalise(vec3_cross(scene->surfaces[0].u, scene->surfaces[0].v));
+    */
+
+    scene->spd_capacity = 8;
+    scene->spd_buffer = VirtualAlloc(NULL, scene->spd_capacity * sizeof(spectrum), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    scene->num_surface_materials = 1;
+    scene->surface_materials = VirtualAlloc(NULL, scene->num_surface_materials * sizeof(object_material), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    scene->surface_materials[0].diffuse_spd = &scene->spd_buffer[0];
+    scene->surface_materials[0].glossy_spd = &scene->spd_buffer[1];
+    scene->surface_materials[0].shininess   = 1.0;
+
+    //generate_blackbody_spectrum(&scene->light_spd, 4000.0L);
+    const_spectrum(&scene->light_spd, 1.0);
+    spectrum_normalise(&scene->light_spd);
+
+    spectrum white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow;
+    const_spectrum(&white, 1.0);
+    load_csv_file_to_spectrum(&rgb_red, "spectra\\red_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&rgb_green, "spectra\\green_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&rgb_blue, "spectra\\blue_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&rgb_cyan, "spectra\\cyan_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&rgb_magenta, "spectra\\magenta_rgb_to_spd.csv");
+    load_csv_file_to_spectrum(&rgb_yellow, "spectra\\yellow_rgb_to_spd.csv");
+
+    rgb_f64 diffuse_rgb = {0.25, 1.0, 0.25};
+    rgb_f64_to_spectrum(diffuse_rgb, scene->surface_materials[0].diffuse_spd, &white, &rgb_red, &rgb_green, &rgb_blue, &rgb_cyan, &rgb_magenta, &rgb_yellow);
+    rgb_f64 glossy_rgb  = {0.5, 1.0, 0.5};
+    rgb_f64_to_spectrum(glossy_rgb, scene->surface_materials[0].glossy_spd, &white, &rgb_red, &rgb_green, &rgb_blue, &rgb_cyan, &rgb_magenta, &rgb_yellow);
+
+    spectral_mul_by_scalar(&scene->light_spd, &scene->light_spd, 1.0);
+    scene->light_position.x = 0.0;
+    scene->light_position.y = 1.0;
+    scene->light_position.z = 1.0;
+}
+
 /*
 vec3 cos_weighted_sample_hemisphere()
 {
@@ -240,28 +316,6 @@ void print_camera(camera_data *camera)
     printf("Aperture radius: %f\n", camera->aperture_radius);
     printf("Film bottom left: "); print_vector(camera->film_bottom_left); printf("\n");
     printf("Pixel width: %f Pixel height: %f\n", camera->pixel_width, camera->pixel_height);
-}
-
-void init_camera(camera_data *camera, u32 width_px, u32 height_px, vec3 position, vec3 up, vec3 right, vec3 forward, f64 fov, f64 focal_depth, f64 focal_length, f64 aperture_radius)
-{
-    camera->forward = forward;
-    camera->right   = right;
-    camera->up      = up;
-
-    f64 aperture_distance     = (focal_length * focal_depth) / (focal_length + focal_depth);
-    camera->aperture_position = vec3_sum(position, vec3_mul_by_f64(forward, aperture_distance));
-    camera->aperture_radius   = aperture_radius;
-
-    f64  fov_rad             = fov * (PI/180.0);
-    f64  aspect_ratio        = (f64)width_px / (f64)height_px;
-    f64  film_width          = 2.0 * aperture_distance * tan(fov_rad/2.0);
-    f64  film_height         = film_width / aspect_ratio;
-    vec3 film_right          = vec3_mul_by_f64(right, 0.5 * film_width);
-    vec3 film_top            = vec3_mul_by_f64(up,    0.5 * film_height);
-    camera->film_bottom_left = vec3_sub(vec3_sub(position, film_right), film_top);
-    
-    camera->pixel_width  = film_width  / (f64)width_px;
-    camera->pixel_height = film_height / (f64)height_px;
 }
 
 //TODO: Make work with non-pinhole camera

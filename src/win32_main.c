@@ -29,10 +29,21 @@
 
 //TODO:
 //  - Cornell Box scene
-//      - Variable geometry
-//          - Estimate indirect contribution function
-//          - Visibility and intersection functions
+//      - KEEP test.c UPDATED!
+//          - Fix intersection tests to no longer use NaN
+//      - Init scene
+//      - Fix VirtualFree calls (pass size when they shouldn't)
+//      - Tidy main
+//          - Good memory management (or at least better)
+//          - Some kind of platform API
 //      - Dynamic spectrum allocation
+//          - Stop spectra having const capacity
+//          - Allocate all up front and request where needed
+//          - Automate slightly setting up for rgb <-> spd
+//          - Remove friction incurred by spectrum struct
+//          - Figure out how to handle arrays of spectra
+//      - Light material
+//      - Points visible function
 //      - Shape and direction sampling
 //          - Sphere or plane with area light
 //      - Path tracing
@@ -51,8 +62,9 @@
 //      - e.g. what effect does raising/lowering shininess within a range do for glossiness
 //  - Output rendered scene info to files
 //      - e.g. light colours/spectra, material colours etc.
-//  - Good memory management
 //  - Automatic scene creation
+//  - Check plane normal issue
+//      - Should light shining on the back of a plane pass through? (Hint: Probably not)
 //  - Check whether shininess/bp bsdf is correct
 //      - High shininess seems like specular spot is too big
 //      - Very abrupt light cutoff in center of specular spot, with gradual fadeout beyond
@@ -166,29 +178,18 @@ int main(int argc, char **argv)
     //call_test_funcs();
 
     //Default args
-    const char *default_spectrum_output_path = "output\\output.spd";
-    const char *default_bmp_output_path = "output\\output.bmp";
-    u32 default_number_of_spectrum_samples = 69;
-    f64 default_smallest_wavelength = 380.0;
-    f64 default_largest_wavelength = 720.0;
-    f64 default_sample_interval = 5.0;
-    u32 default_image_width = 800;
-    u32 default_image_height = 600;
-    u32 default_spd_pixel_data_size = default_image_width * default_image_height * sizeof(spectrum);
-    u32 default_number_of_pixel_samples = 1;
-
     //Args (just set to default for now)
-    number_of_spectrum_samples = default_number_of_spectrum_samples;
-    smallest_wavelength = default_smallest_wavelength;
-    largest_wavelength = default_largest_wavelength;
-    sample_interval = default_sample_interval;
-    const char *spectrum_output_path = default_spectrum_output_path;
-    const char *bmp_output_path = default_bmp_output_path;
-    u32 image_width_in_pixels = default_image_width;
-    u32 image_height_in_pixels = default_image_height;
+    const char *spectrum_output_path = "output\\output.spd";
+    const char *bmp_output_path = "output\\output.bmp";
+    number_of_spectrum_samples = 69;
+    smallest_wavelength = 380.0;
+    largest_wavelength = 720.0;
+    sample_interval = 5.0;
+    u32 image_width_in_pixels = 800;
+    u32 image_height_in_pixels = 600;
+    u32 spd_pixel_data_size = image_width_in_pixels * image_height_in_pixels * sizeof(spectrum);
+    u32 number_of_pixel_samples = 1;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
-    u32 number_of_pixel_samples = default_number_of_pixel_samples;
-    u32 spd_pixel_data_size = default_spd_pixel_data_size;
 
     //Spectrum file contents:
     //- Number of spectra/pixels (dims)
@@ -211,11 +212,10 @@ int main(int argc, char **argv)
     WriteFile(spectrum_output_file, &header, sizeof(header), &bytes_written, NULL);
 
     //Alloc a certain amount of memory for pixel data
-    u32 allocated_pixels = spd_pixel_data_size / sizeof(spectrum);
+    //u32 allocated_pixels = spd_pixel_data_size / sizeof(spectrum);
     spectrum *spd_pixels = (spectrum*)VirtualAlloc(NULL, spd_pixel_data_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     printf("Size = %u\n", spd_pixel_data_size);
 
-#if 1
     camera_data camera;
     vec3 camera_pos     = {0.0, 0.0, 1.0};
     vec3 camera_up      = {0.0, 1.0, 0.0};
@@ -228,74 +228,11 @@ int main(int argc, char **argv)
     init_camera(&camera, image_width_in_pixels, image_height_in_pixels, camera_pos, camera_up, camera_right, camera_forward, fov, focal_depth, focal_length, aperture_rad);
     print_camera(&camera);
 
-    spectrum white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow;
-    const_spectrum(&white, 1.0);
-    load_csv_file_to_spectrum(&rgb_red, "spectra\\red_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&rgb_green, "spectra\\green_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&rgb_blue, "spectra\\blue_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&rgb_cyan, "spectra\\cyan_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&rgb_magenta, "spectra\\magenta_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(&rgb_yellow, "spectra\\yellow_rgb_to_spd.csv");
-
     scene_data scene;
-    scene.num_surfaces = 1;
-    scene.surfaces = VirtualAlloc(NULL, sizeof(object_geometry), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-
-    scene.surfaces[0].type   = GEO_TYPE_SPHERE;
-    scene.surfaces[0].center.x = 0.0;
-    scene.surfaces[0].center.y = 0.0;
-    scene.surfaces[0].center.z = 0.0;
-    scene.surfaces[0].radius = 0.3;
-    /*
-    vec3 pp = {-0.5, -0.5, -0.5};
-    vec3 pv = {-0.5, 0.5, -0.5};
-    vec3 pu = {0.5, -0.5, -0.5};
-    scene.surfaces[0].type = GEO_TYPE_PLANE;
-    scene.surfaces[0].origin = pp;
-    scene.surfaces[0].u = vec3_sub(pu, pp);
-    scene.surfaces[0].v = vec3_sub(pv, pp);
-    scene.surfaces[0].normal = vec3_normalise(vec3_cross(scene.surfaces[0].u, scene.surfaces[0].v));
-    */
-
-    scene.spd_capacity = 8;
-    scene.spd_buffer = VirtualAlloc(NULL, scene.spd_capacity * sizeof(spectrum), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    scene.num_surface_materials = 1;
-    scene.surface_materials = VirtualAlloc(NULL, scene.num_surface_materials * sizeof(object_material), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    scene.surface_materials[0].diffuse_spd = &scene.spd_buffer[0];
-    scene.surface_materials[0].glossy_spd  = &scene.spd_buffer[1];
-    scene.surface_materials[0].shininess   = 1.0;
-
-    rgb_f64 diffuse_rgb = {0.25, 1.0, 0.25};
-    rgb_f64_to_spectrum(diffuse_rgb, scene.surface_materials[0].diffuse_spd, &white, &rgb_red, &rgb_green, &rgb_blue, &rgb_cyan, &rgb_magenta, &rgb_yellow);
-    rgb_f64 glossy_rgb  = {0.5, 1.0, 0.5};
-    rgb_f64_to_spectrum(glossy_rgb, scene.surface_materials[0].glossy_spd, &white, &rgb_red, &rgb_green, &rgb_blue, &rgb_cyan, &rgb_magenta, &rgb_yellow);
-
-    const_spectrum(&scene.light_spd, 1.0);
-    //generate_blackbody_spectrum(&scene.light_spd, 4000.0L);
-    spectrum_normalise(&scene.light_spd);
-    spectral_mul_by_scalar(&scene.light_spd, &scene.light_spd, 1.0);
-    scene.light_position.x = 0.0;
-    scene.light_position.y = 1.0;
-    scene.light_position.z = 1.0;
+    init_scene(&scene);
 
     render_image(spd_pixels, image_width_in_pixels, image_height_in_pixels, &scene, &camera, 1);
-#else
-    spectrum d;
-    load_csv_file_to_spectrum(&d, "spectra\\red_rgb_to_spd.csv");
-    for(u32 sample = 0; sample < number_of_pixel_samples; ++sample)
-    {
-        for(u32 pixel = 0; pixel < number_of_image_pixels; ++pixel)
-        {
-            u32 spd_pixel = pixel % allocated_pixels;
-            copy_spectrum(&spd_pixels[spd_pixel], &d);
-            if(spd_pixel == allocated_pixels - 1)
-            {
-                WriteFile(spectrum_output_file, spd_pixels, spd_pixel_data_size, &bytes_written, NULL);
-            }
-        }
-        SetFilePointer(spectrum_output_file, sizeof(header), NULL, FILE_BEGIN);
-    }
-#endif
+
     WriteFile(spectrum_output_file, spd_pixels, spd_pixel_data_size, &bytes_written, NULL);
     CloseHandle(spectrum_output_file);
     VirtualFree(spd_pixels, spd_pixel_data_size, MEM_RELEASE);
@@ -303,6 +240,7 @@ int main(int argc, char **argv)
     //spd file -> bmp
     spectrum ref_white;
     spectrum cmf_x, cmf_y, cmf_z;
+
     const_spectrum(&ref_white, 1.0);
     load_csv_file_to_spectrum(&cmf_x, "spectra\\cmf_x.csv");
     load_csv_file_to_spectrum(&cmf_y, "spectra\\cmf_y.csv");
