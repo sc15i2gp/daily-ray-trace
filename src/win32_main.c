@@ -32,7 +32,6 @@
 //      - KEEP test.c UPDATED!
 //          - Fix intersection tests to no longer use NaN
 //      - Init scene
-//      - Fix VirtualFree calls (pass size when they shouldn't)
 //      - Tidy main
 //          - Good memory management (or at least better)
 //          - Some kind of platform API
@@ -138,7 +137,7 @@ u32 write_pixels_to_bmp(rgb_u8 *pixels, u32 width, u32 height, const char *path)
     bmp.info_header->biClrImportant = 0;
 
     u32 success = write_bmp_to_file(&bmp, path);
-    VirtualFree(raw_bmp, bmp_size, MEM_RELEASE);
+    VirtualFree(raw_bmp, 0, MEM_RELEASE);
 
     return success;
 }
@@ -170,7 +169,7 @@ void spd_file_to_bmp(HANDLE spd_file, spd_file_header *header, const char *bmp_p
     }
 
     write_pixels_to_bmp(pixels_rgb_u8, header->width_in_pixels, header->height_in_pixels, bmp_path);
-    VirtualFree(pixels_rgb_u8, pixels_size_rgb_u8, MEM_RELEASE);
+    VirtualFree(pixels_rgb_u8, 0, MEM_RELEASE);
 }
 
 int main(int argc, char **argv)
@@ -235,7 +234,7 @@ int main(int argc, char **argv)
 
     WriteFile(spectrum_output_file, spd_pixels, spd_pixel_data_size, &bytes_written, NULL);
     CloseHandle(spectrum_output_file);
-    VirtualFree(spd_pixels, spd_pixel_data_size, MEM_RELEASE);
+    VirtualFree(spd_pixels, 0, MEM_RELEASE);
 
     //spd file -> bmp
     spectrum ref_white;

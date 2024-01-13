@@ -37,7 +37,7 @@ void write_test_bmp(u32 colour, const char *test_bmp_path)
     if(!test_success)  printf("Writing test bmp failed.\n");
     else               printf("Writing test bmp succeeded.\n");
 
-    VirtualFree(raw_test_bmp, test_bmp_size, MEM_RELEASE);
+    VirtualFree(raw_test_bmp, 0, MEM_RELEASE);
 }
 
 u32 test_rgb_spectrum_conversion(f64 low_rgb, f64 high_rgb, f64 rgb_iterand)
@@ -261,8 +261,8 @@ void test_shape_intersection(u32 film_width, u32 film_height)
     }
     write_pixels_to_bmp(film_pixels, film_width, film_height, "output\\plane_test.bmp");
 
-    VirtualFree(film, film_size, MEM_RELEASE);
-    VirtualFree(film_pixels, film_pixels_size, MEM_RELEASE);
+    VirtualFree(film, 0, MEM_RELEASE);
+    VirtualFree(film_pixels, 0, MEM_RELEASE);
 }
 
 void call_test_funcs()
