@@ -29,33 +29,30 @@
 
 //TODO:
 //  - Cornell Box scene
-//      - Dynamic spectrum allocation
-//      - Tidy main
-//          - Good memory management (or at least better)
-//          - Some kind of platform API
-//          - Init/Setup/Preprare functions
-//              - Scene
-//              - Camera
-//              - Spectra
-//      - Light material
-//      - Points visible function
-//      - Shape and direction sampling
-//          - Sphere or plane with area light
 //      - Path tracing
+//          - Shape and direction sampling
+//              - Sphere or plane with area light
+//          - Full algorithm
+//  - Tidy main
+//      - Good memory management (or at least better)
+//      - Some kind of platform API
+//      - Init/Setup/Preprare functions
+//          - Scene
+//          - Camera
+//          - Spectra
 //  - Make spectrum naming consistent
 //      - spectrum is the type, spd should be the name
-//  - Figure out better strategy for spectra which doesn't leave massive gaps
-//      - (without recompiling)
+//  - Test and profile builds
+//  - Test
+//      - Try to aggressively test as much code as possible
+//      - RNG
+//      - Camera
 //  - Variance
 //  - Sort out camera
 //      - Surely the camera's film dimensions shouldn't be dictated by fov?
 //      - Non-pinhole
 //  - Consider generating RNG up front
 //      - Also a test set of numbers for reliability
-//  - Test and profile builds
-//  - Test
-//      - RNG
-//      - Camera
 //  - Visualisation/comparison methods for material parameters
 //      - e.g. what effect does raising/lowering shininess within a range do for glossiness
 //  - Output rendered scene info to files

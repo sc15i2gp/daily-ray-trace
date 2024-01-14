@@ -194,8 +194,39 @@ void bdsf(spectrum reflectance, scene_point *p, vec3 in, vec3 out)
 //  - Test object point's normal to see if it points away from the light
 //  - Do the normal test for everything else
 //Maybe even don't call this function if the light source is on the other side of the object
-u32 points_mutually_visible(vec3 p0, vec3 p1, object_geometry *surfaces)
+//Assumes p0 is from scene_point
+u32 points_mutually_visible(vec3 p0, vec3 p1, scene_data *scene)
 {
+    u32 visible = 1;
+    vec3 ray_dir_full  = vec3_sub(p1, p0);
+    vec3 ray_direction = vec3_normalise(ray_dir_full);
+    vec3 ray_origin    = vec3_sum(p0, vec3_mul_by_f64(ray_direction, 0.001));
+    f64 vis_dist = vec3_length(ray_dir_full);
+    f64 dist     = INFINITY;
+    for(u32 i = 0; i < scene->num_surfaces; ++i)
+    {
+        object_geometry *surface = &scene->surfaces[i];
+        switch(surface->type)
+        {
+            case GEO_TYPE_POINT: continue;
+            case GEO_TYPE_SPHERE:
+            {
+                dist = line_sphere_intersection(ray_origin, ray_direction, surface->center, surface->radius);
+                break;
+            };
+            case GEO_TYPE_PLANE:
+            {
+                dist = line_plane_intersection(ray_origin, ray_direction, surface->origin, surface->normal, surface->u, surface->v);
+                break;
+            };
+        }
+        if(dist < vis_dist)
+        {
+            visible = 0;
+            break;
+        }
+    }
+    return visible;
 }
 
 void find_scene_intersection(scene_data *scene, scene_point *p, vec3 ray_origin, vec3 ray_direction)
@@ -209,6 +240,7 @@ void find_scene_intersection(scene_data *scene, scene_point *p, vec3 ray_origin,
         object_geometry *surface = &scene->surfaces[i];
         switch(surface->type)
         {
+            case GEO_TYPE_POINT: continue;
             case GEO_TYPE_SPHERE:
             {
                 dist = line_sphere_intersection(ray_origin, ray_direction, surface->center, surface->radius);
@@ -271,14 +303,19 @@ u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersect
             if(light_material->is_emissive)
             {
                 object_geometry *light_surface = &scene->surfaces[i];
-                vec3 outgoing = vec3_reverse(ray_direction);
-                vec3 incoming = vec3_normalise(vec3_sub(light_surface->position, intersection->position));
-                bdsf(reflectance, intersection, incoming, outgoing);
-                spectral_sum(contribution, contribution, reflectance);
-                spectral_mul_by_spectrum(contribution, contribution, light_material->emission_spd);
+                vec3 light_position = light_surface->position; //TODO: Sample light position
+                if(points_mutually_visible(intersection->position, light_position, scene))
+                {
+                    vec3 outgoing = vec3_reverse(ray_direction);
+                    vec3 incoming = vec3_normalise(vec3_sub(light_position, intersection->position));
 
-                f64  c = vec3_dot(incoming, intersection->normal);
-                spectral_mul_by_scalar(contribution, contribution, c);
+                    bdsf(reflectance, intersection, incoming, outgoing);
+                    spectral_sum(contribution, contribution, reflectance);
+                    spectral_mul_by_spectrum(contribution, contribution, light_material->emission_spd);
+
+                    f64  c = vec3_dot(incoming, intersection->normal);
+                    spectral_mul_by_scalar(contribution, contribution, c);
+                }
             }
         }
         ret = 1;
