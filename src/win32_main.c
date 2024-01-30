@@ -33,6 +33,9 @@
 //          - Shape and direction sampling
 //              - Sphere or plane with area light
 //          - Full algorithm
+//          - Variance measuring
+//          - Russian roulette
+//  - Automatic scene creation
 //  - Tidy main
 //      - Good memory management (or at least better)
 //      - Some kind of platform API
@@ -40,6 +43,8 @@
 //          - Scene
 //          - Camera
 //          - Spectra
+//  - Switch between sampling directions and sampling areas?
+//      - Make the integral over surface area in the scene instead of over (hemi)sphere
 //  - Make spectrum naming consistent
 //      - spectrum is the type, spd should be the name
 //  - Test and profile builds
@@ -57,7 +62,6 @@
 //      - e.g. what effect does raising/lowering shininess within a range do for glossiness
 //  - Output rendered scene info to files
 //      - e.g. light colours/spectra, material colours etc.
-//  - Automatic scene creation
 //  - Check plane normal issue
 //      - Should light shining on the back of a plane pass through? (Hint: Probably not)
 //  - Check whether shininess/bp bsdf is correct

@@ -6,8 +6,8 @@
 
 #include "types.h"
 #include "spectrum.h"
-#include "rng.h"
 #include "geometry.h"
+#include "rng.h"
 #include "win32_platform.h"
 #include "test.h"
 
@@ -75,8 +75,6 @@ typedef struct
 
     u32 num_surface_materials;
     object_material *surface_materials;
-
-    //Temp:
 } scene_data;
 
 typedef struct
