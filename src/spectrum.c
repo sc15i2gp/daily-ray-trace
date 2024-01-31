@@ -33,7 +33,7 @@ f64 lerp(f64 x, f64 x0, f64 x1, f64 y0, f64 y1)
     return y0 + ((x - x0) * ((y1 - y0) / (x1 - x0)));
 }
 
-void init_spd_table(u32 capacity)
+void init_spd_table(u32 capacity, u32 num_samples, f64 low_wl, f64 hi_wl, f64 wl_interval)
 {
     number_of_spectrum_samples = 69;
     smallest_wavelength        = 380.0;

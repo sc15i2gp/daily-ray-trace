@@ -28,6 +28,26 @@
 //  - Xorshift rng
 
 //TODO:
+//  - Automatic scene creation
+//      - Scene text file
+//      - Use file in data driven scene creation
+//      - Scene contents:
+//          - Camera (for now probably)
+//              - Position
+//              - Orientation
+//              - Focal depth
+//              - Focal length
+//              - Aperture radius
+//          - Objects
+//              - Surface
+//                  - Type
+//                  - Data
+//              - Material
+//                  - is_blackbody?
+//                  - Emission spd: CSV file or blackbody temperature
+//                  - Diffuse  spd: CSV file or RGB colour
+//                  - Glossy   spd: CSV file or RGB colour
+//                  - Shininess: decimal number
 //  - Cornell Box scene
 //      - Path tracing
 //          - Shape and direction sampling
@@ -35,7 +55,6 @@
 //          - Full algorithm
 //          - Variance measuring
 //          - Russian roulette
-//  - Automatic scene creation
 //  - Tidy main
 //      - Good memory management (or at least better)
 //      - Some kind of platform API
@@ -45,8 +64,9 @@
 //          - Spectra
 //  - Switch between sampling directions and sampling areas?
 //      - Make the integral over surface area in the scene instead of over (hemi)sphere
-//  - Make spectrum naming consistent
+//  - Make naming consistent/good
 //      - spectrum is the type, spd should be the name
+//      - Add __ for global variables
 //  - Test and profile builds
 //      - Testmain
 //  - Test
@@ -141,7 +161,7 @@ int main(int argc, char **argv)
     u32 number_of_pixel_samples = 1;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
 
-    init_spd_table(16);
+    init_spd_table(16, 69, 380.0, 720.0, 5.0);
 
     //Spectrum file contents:
     //- Number of spectra/pixels (dims)
