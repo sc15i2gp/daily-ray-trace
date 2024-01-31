@@ -167,3 +167,11 @@ f64 line_triangle_intersection(vec3 line_o, vec3 line_d, vec3 triangle_a, vec3 t
 
     return l;
 }
+
+void create_plane_from_points(vec3 o_point, vec3 u_point, vec3 v_point, vec3 *plane_o, vec3 *plane_u, vec3 *plane_v, vec3 *plane_n)
+{
+    *plane_o = o_point;
+    *plane_u = vec3_sub(u_point, o_point);
+    *plane_v = vec3_sub(v_point, o_point);
+    *plane_n = vec3_normalise(vec3_cross(*plane_u, *plane_v));
+}

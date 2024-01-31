@@ -232,10 +232,11 @@ void test_shape_intersection(u32 film_width, u32 film_height)
     memset(film, 0, film_size);
     memset(film_pixels, 0, film_pixels_size);
 
-    vec3 plane_p = {-0.5, -0.5, 0.0};
-    vec3 plane_u = {1.0, 0.0, 0.0};
-    vec3 plane_v = {0.0, 1.0, 0.0};
-    vec3 plane_n = {0.0, 0.0, 1.0};
+    vec3 plane_p, plane_u, plane_v, plane_n;
+    vec3 p = {-0.5, -0.5, 0.0};
+    vec3 u = {0.5, -0.5, 0.0};
+    vec3 v = {-0.5, 0.5, 0.0};
+    create_plane_from_points(p, u, v, &plane_p, &plane_u, &plane_v, &plane_n);
 
     for(u32 y = 0; y < film_height; ++y)
     {
