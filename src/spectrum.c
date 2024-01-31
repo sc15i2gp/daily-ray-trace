@@ -33,6 +33,20 @@ f64 lerp(f64 x, f64 x0, f64 x1, f64 y0, f64 y1)
     return y0 + ((x - x0) * ((y1 - y0) / (x1 - x0)));
 }
 
+void init_spd_table(u32 capacity)
+{
+    number_of_spectrum_samples = 69;
+    smallest_wavelength        = 380.0;
+    largest_wavelength         = 720.0;
+    sample_interval            = 5.0;
+    spectrum_size = number_of_spectrum_samples * sizeof(f64);
+
+    spd_table.capacity        = capacity;
+    spd_table.allocated       = 0;
+    spd_table.is_allocated    = VirtualAlloc(NULL, spd_table.capacity * sizeof(u32), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    spd_table.spectrum_buffer = VirtualAlloc(NULL, spectrum_size * spd_table.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+}
+
 spectrum alloc_spd()
 {
     spectrum spd = {NULL};

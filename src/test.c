@@ -1,3 +1,5 @@
+#include "daily_ray_trace.h"
+
 void write_test_bmp(u32 colour, const char *test_bmp_path)
 {
     printf("Writing test bmp...");
@@ -281,4 +283,10 @@ void call_test_funcs()
 
     test_rgb_spectrum_conversion(0.0, 1.0, 0.1);
     test_shape_intersection(1600, 1600);
+}
+
+int main()
+{
+    init_spd_table(16);
+    call_test_funcs();
 }

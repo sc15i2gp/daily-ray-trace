@@ -48,6 +48,7 @@
 //  - Make spectrum naming consistent
 //      - spectrum is the type, spd should be the name
 //  - Test and profile builds
+//      - Testmain
 //  - Test
 //      - Try to aggressively test as much code as possible
 //      - RNG
@@ -97,51 +98,6 @@ rgb_u8 rgb_f64_to_rgb_u8(rgb_f64 in_rgb)
     return out_rgb;
 }
 
-u32 write_bmp_to_file(windows_bmp *bmp, const char *file_path)
-{
-    DWORD  bytes_written = 0;
-    HANDLE output_file   = CreateFile(file_path, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
-    if(output_file == INVALID_HANDLE_VALUE) return 0;
-
-    BOOL success = WriteFile(output_file, (void*)bmp->file_header, bmp->file_header->bfSize, &bytes_written, NULL);
-    CloseHandle(output_file);
-
-    return success;
-}
-
-u32 write_pixels_to_bmp(rgb_u8 *pixels, u32 width, u32 height, const char *path)
-{
-    u32 pixels_size = width * height * sizeof(u32);
-    u32 bmp_size = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + pixels_size;
-    windows_bmp bmp = {0};
-    u8 *raw_bmp = (u8*)VirtualAlloc(0, bmp_size, MEM_COMMIT, PAGE_READWRITE);
-    bmp.file_header = (BITMAPFILEHEADER*)raw_bmp;
-    bmp.info_header = (BITMAPINFOHEADER*)(raw_bmp + sizeof(BITMAPFILEHEADER));
-    bmp.pixels = (rgb_u8*)(raw_bmp + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER));
-
-    memcpy(bmp.pixels, pixels, pixels_size);
-    
-    bmp.file_header->bfType = 0x4d42;
-    bmp.file_header->bfSize = bmp_size;
-    bmp.file_header->bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
-    bmp.info_header->biSize = sizeof(BITMAPINFOHEADER);
-    bmp.info_header->biWidth = width;
-    bmp.info_header->biHeight = height;
-    bmp.info_header->biBitCount = 32;
-    bmp.info_header->biCompression = BI_RGB;
-    bmp.info_header->biSizeImage = 0;
-    bmp.info_header->biXPelsPerMeter = 3780;
-    bmp.info_header->biYPelsPerMeter = 3780;
-    bmp.info_header->biClrUsed = 0;
-    bmp.info_header->biClrImportant = 0;
-
-    u32 success = write_bmp_to_file(&bmp, path);
-    VirtualFree(raw_bmp, 0, MEM_RELEASE);
-
-    return success;
-}
-
 typedef struct
 {
     u32 id;
@@ -185,20 +141,8 @@ int main(int argc, char **argv)
     u32 number_of_pixel_samples = 1;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
 
-    number_of_spectrum_samples = 69;
-    smallest_wavelength = 380.0;
-    largest_wavelength = 720.0;
-    sample_interval = 5.0;
-    spectrum_size = number_of_spectrum_samples * sizeof(f64);
+    init_spd_table(16);
 
-    spd_table.capacity        = 16;
-    spd_table.allocated       = 0;
-    spd_table.is_allocated    = VirtualAlloc(NULL, spd_table.capacity * sizeof(u32), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    spd_table.spectrum_buffer = VirtualAlloc(NULL, spectrum_size * spd_table.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-
-#if 0
-    call_test_funcs();
-#else
     //Spectrum file contents:
     //- Number of spectra/pixels (dims)
     //- Number of samples per spectrum
@@ -264,6 +208,6 @@ int main(int argc, char **argv)
     ReadFile(spectrum_output_file, &header, sizeof(header), &bytes_read, NULL);
     spd_file_to_bmp(spectrum_output_file, &header, bmp_output_path, cmf_x, cmf_y, cmf_z, ref_white);
     CloseHandle(spectrum_output_file);
-#endif
+
     return 0;
 }

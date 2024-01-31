@@ -23,9 +23,10 @@ typedef struct
 }   spectrum_allocation_table;
 
 spectrum_allocation_table spd_table;
+void init_spd_table(u32 capacity);
 
 spectrum alloc_spd();
-void         free_spd(spectrum);
+void     free_spd(spectrum);
 
 void zero_spectrum(spectrum dst);
 void const_spectrum(spectrum dst, f64 f);

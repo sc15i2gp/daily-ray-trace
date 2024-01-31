@@ -9,12 +9,11 @@
 #include "geometry.h"
 #include "rng.h"
 #include "win32_platform.h"
-#include "test.h"
 
 #include "spectrum.c"
 #include "rng.c"
 #include "geometry.c"
-#include "test.c"
+#include "win32_platform.c"
 
 #ifndef NAN
 #error "NAN not supported, dingus!"
