@@ -37,7 +37,8 @@ typedef enum
 
 typedef struct
 {
-    GEO_TYPE type;
+    const char *name;
+    GEO_TYPE   type;
     union
     {
         vec3 position;
@@ -58,22 +59,23 @@ typedef struct
 
 typedef struct
 {
-    u32      is_black_body;
-    u32      is_emissive;
-    f64      shininess;
-    spectrum emission_spd;
-    spectrum diffuse_spd;
-    spectrum glossy_spd;
+    const char *name;
+    u32        is_black_body;
+    u32        is_emissive;
+    f64        shininess;
+    spectrum   emission_spd;
+    spectrum   diffuse_spd;
+    spectrum   glossy_spd;
 } object_material;
 
-//Can use a single index to access geometries and materials if emissive ones are stored together
 typedef struct
 {
     u32 num_surfaces;
     object_geometry *surfaces;
+    u32             *surface_material_indices;
 
-    u32 num_surface_materials;
-    object_material *surface_materials;
+    u32 num_scene_materials;
+    object_material *scene_materials;
 } scene_data;
 
 typedef struct
