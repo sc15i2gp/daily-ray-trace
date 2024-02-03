@@ -39,17 +39,15 @@ typedef struct
 {
     const char *name;
     GEO_TYPE   type;
+    vec3 position;
     union
     {
-        vec3 position;
         struct
         {
-            vec3 center;
             f64  radius;
         };
         struct
         {
-            vec3 origin;
             vec3 normal;
             vec3 u; //Bounds vector
             vec3 v; //Bounds vector

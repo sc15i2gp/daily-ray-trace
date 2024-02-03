@@ -28,9 +28,9 @@ void init_scene(scene_data *scene)
 
     scene->surfaces[0].name   = "Sphere";
     scene->surfaces[0].type   = GEO_TYPE_SPHERE;
-    scene->surfaces[0].center.x = 0.0;
-    scene->surfaces[0].center.y = 0.0;
-    scene->surfaces[0].center.z = 0.0;
+    scene->surfaces[0].position.x = 0.0;
+    scene->surfaces[0].position.y = 0.0;
+    scene->surfaces[0].position.z = 0.0;
     scene->surfaces[0].radius = 0.3;
 
     scene->surfaces[1].name = "Light_Source";
@@ -138,12 +138,12 @@ u32 points_mutually_visible(vec3 p0, vec3 p1, scene_data *scene)
             case GEO_TYPE_POINT: continue;
             case GEO_TYPE_SPHERE:
             {
-                dist = line_sphere_intersection(ray_origin, ray_direction, surface->center, surface->radius);
+                dist = line_sphere_intersection(ray_origin, ray_direction, surface->position, surface->radius);
                 break;
             };
             case GEO_TYPE_PLANE:
             {
-                dist = line_plane_intersection(ray_origin, ray_direction, surface->origin, surface->normal, surface->u, surface->v);
+                dist = line_plane_intersection(ray_origin, ray_direction, surface->position, surface->normal, surface->u, surface->v);
                 break;
             };
         }
@@ -176,12 +176,12 @@ u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersect
             case GEO_TYPE_POINT: continue;
             case GEO_TYPE_SPHERE:
             {
-                dist = line_sphere_intersection(ray_origin, ray_direction, surface->center, surface->radius);
+                dist = line_sphere_intersection(ray_origin, ray_direction, surface->position, surface->radius);
                 break;
             }
             case GEO_TYPE_PLANE:
             {
-                dist = line_plane_intersection(ray_origin, ray_direction, surface->origin, surface->normal, surface->u, surface->v);
+                dist = line_plane_intersection(ray_origin, ray_direction, surface->position, surface->normal, surface->u, surface->v);
                 break;
             }
         }
@@ -199,7 +199,7 @@ u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersect
         {
             case GEO_TYPE_SPHERE:
             {
-                intersection->normal = vec3_normalise(vec3_sub(intersection->position, intersection_surface->center));
+                intersection->normal = vec3_normalise(vec3_sub(intersection->position, intersection_surface->position));
                 break;
             }
             case GEO_TYPE_PLANE:
