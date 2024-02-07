@@ -1,57 +1,95 @@
-void init_camera(camera_data *camera, u32 width_px, u32 height_px, vec3 position, vec3 up, vec3 right, vec3 forward, f64 fov, f64 focal_depth, f64 focal_length, f64 aperture_radius)
+void load_scene(const char *scene_path, camera_data *camera, scene_data *scene, u32 width_px, u32 height_px)
 {
-    camera->forward = forward;
-    camera->right   = right;
-    camera->up      = up;
+    HANDLE scene_file_handle = CreateFile(scene_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
-    f64 aperture_distance     = (focal_length * focal_depth) / (focal_length + focal_depth);
-    camera->aperture_position = vec3_sum(position, vec3_mul_by_f64(forward, aperture_distance));
-    camera->aperture_radius   = aperture_radius;
+    DWORD bytes_read;
+    DWORD scene_file_size    = GetFileSize(scene_file_handle, NULL);
+    char  *scene_file_buffer = (char*)VirtualAlloc(0, scene_file_size, MEM_COMMIT, PAGE_READWRITE);
+    ReadFile(scene_file_handle, scene_file_buffer, scene_file_size, &bytes_read, NULL);
+    CloseHandle(scene_file_handle);
 
-    f64  fov_rad             = fov * (PI/180.0);
-    f64  aspect_ratio        = (f64)width_px / (f64)height_px;
-    f64  film_width          = 2.0 * aperture_distance * tan(fov_rad/2.0);
-    f64  film_height         = film_width / aspect_ratio;
-    vec3 film_right          = vec3_mul_by_f64(right, 0.5 * film_width);
-    vec3 film_top            = vec3_mul_by_f64(up,    0.5 * film_height);
-    camera->film_bottom_left = vec3_sub(vec3_sub(position, film_right), film_top);
-
-    camera->pixel_width  = film_width  / (f64)width_px;
-    camera->pixel_height = film_height / (f64)height_px;
+    camera_input_data camera_input;
+    scene_input_data  scene_input;
+    memset(&scene_input, 0, sizeof(scene_input));
+    memset(&camera_input, 0, sizeof(camera_input));
+    camera_input.width_px  = width_px;
+    camera_input.height_px = height_px;
+    parse_scene(scene_file_buffer, scene_file_size, &camera_input, &scene_input);
+    init_camera(camera, &camera_input);
+    init_scene(scene, &scene_input);
 }
 
-void init_scene(scene_data *scene)
+void init_camera(camera_data *camera, camera_input_data *input)
 {
-    scene->num_surfaces = 2;
-    scene->surfaces = VirtualAlloc(NULL, scene->num_surfaces * sizeof(object_geometry), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    scene->surface_material_indices = VirtualAlloc(NULL, scene->num_surfaces * sizeof(u32), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    camera->forward = input->forward;
+    camera->right   = input->right;
+    camera->up      = input->up;
 
-    scene->surfaces[0].name   = "Sphere";
-    scene->surfaces[0].type   = GEO_TYPE_SPHERE;
-    scene->surfaces[0].position.x = 0.0;
-    scene->surfaces[0].position.y = 0.0;
-    scene->surfaces[0].position.z = 0.0;
-    scene->surfaces[0].radius = 0.3;
+    f64 aperture_distance     = (input->flength * input->fdepth) / (input->flength + input->fdepth);
+    camera->aperture_position = vec3_sum(input->position, vec3_mul_by_f64(input->forward, aperture_distance));
+    camera->aperture_radius   = input->aperture;
 
-    scene->surfaces[1].name = "Light_Source";
-    scene->surfaces[1].type = GEO_TYPE_POINT;
-    scene->surfaces[1].position.x = 0.0;
-    scene->surfaces[1].position.y = 1.0;
-    scene->surfaces[1].position.z = 1.0;
+    f64  fov_rad             = input->fov * (PI/180.0);
+    f64  aspect_ratio        = (f64)input->width_px / (f64)input->height_px;
+    f64  film_width          = 2.0 * aperture_distance * tan(fov_rad/2.0);
+    f64  film_height         = film_width / aspect_ratio;
+    vec3 film_right          = vec3_mul_by_f64(input->right, 0.5 * film_width);
+    vec3 film_top            = vec3_mul_by_f64(input->up,    0.5 * film_height);
+    camera->film_bottom_left = vec3_sub(vec3_sub(input->position, film_right), film_top);
 
-    scene->num_scene_materials = 2;
-    scene->scene_materials = VirtualAlloc(NULL, scene->num_scene_materials * sizeof(object_material), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    scene->scene_materials[0].name = "Plastic";
-    scene->scene_materials[0].diffuse_spd = alloc_spd();
-    scene->scene_materials[0].glossy_spd  = alloc_spd();
-    scene->scene_materials[0].shininess   = 1.0;
-    scene->scene_materials[1].name = "Light";
-    scene->scene_materials[1].emission_spd = alloc_spd();
-    //const_spectrum(scene->scene_materials[1].emission_spd, 1.0);
-    generate_blackbody_spectrum(scene->scene_materials[1].emission_spd, 4000.0L);
-    spectrum_normalise(scene->scene_materials[1].emission_spd);
-    spectral_mul_by_scalar(scene->scene_materials[1].emission_spd, scene->scene_materials[1].emission_spd, 16);
-    scene->scene_materials[1].is_emissive = 1;
+    camera->pixel_width  = film_width  / (f64)input->width_px;
+    camera->pixel_height = film_height / (f64)input->height_px;
+}
+
+void init_spd(spectrum *dst, spd_input_data *input, spectrum white, spectrum rgb_red, spectrum rgb_green, spectrum rgb_blue, spectrum rgb_cyan, spectrum rgb_magenta, spectrum rgb_yellow)
+{
+    *dst = alloc_spd();
+    switch(input->method)
+    {
+        case SPD_METHOD_RGB:
+        {
+            rgb_f64_to_spectrum(input->rgb, *dst, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+            break;
+        }
+        case SPD_METHOD_CSV:
+        {
+            load_csv_file_to_spectrum(*dst, input->csv);
+            break;
+        }
+        case SPD_METHOD_BLACKBODY:
+        {
+            generate_blackbody_spectrum(*dst, input->blackbody_temp);
+            spectrum_normalise(*dst);
+            break;
+        }
+        default:
+        {
+            free_spd(*dst);
+            dst->samples = NULL;
+            return;
+        }
+    }
+    if(input->has_scale_factor)
+    {
+        spectral_mul_by_scalar(*dst, *dst, input->scale_factor);
+    }
+}
+
+void init_scene(scene_data* scene, scene_input_data *scene_input)
+{
+    scene->num_surfaces        = scene_input->num_surfaces;
+    scene->num_scene_materials = scene_input->num_scene_materials;
+
+    u32 surfaces_size         = scene->num_surfaces * sizeof(object_geometry);
+    u32 material_indices_size = scene->num_surfaces * sizeof(u32);
+    u32 surfaces_buffer_size  = surfaces_size + material_indices_size;
+    u32 materials_buffer_size = scene->num_scene_materials * sizeof(object_material);
+    char *surfaces_buffer  = VirtualAlloc(NULL, surfaces_buffer_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    char *materials_buffer = VirtualAlloc(NULL, materials_buffer_size, MEM_COMMIT  | MEM_RESERVE, PAGE_READWRITE);
+
+    scene->surfaces = (object_geometry*)surfaces_buffer;
+    scene->surface_material_indices = (u32*)(surfaces_buffer + surfaces_size);
+    scene->scene_materials = (object_material*)materials_buffer;
 
     spectrum white       = alloc_spd();
     spectrum rgb_red     = alloc_spd();
@@ -60,22 +98,28 @@ void init_scene(scene_data *scene)
     spectrum rgb_cyan    = alloc_spd();
     spectrum rgb_magenta = alloc_spd();
     spectrum rgb_yellow  = alloc_spd();
-    const_spectrum(white, 1.0);
+    const_spectrum(white, 1.0); //TODO: Parameterise
     load_csv_file_to_spectrum(rgb_red, "spectra\\red_rgb_to_spd.csv");
     load_csv_file_to_spectrum(rgb_green, "spectra\\green_rgb_to_spd.csv");
     load_csv_file_to_spectrum(rgb_blue, "spectra\\blue_rgb_to_spd.csv");
     load_csv_file_to_spectrum(rgb_cyan, "spectra\\cyan_rgb_to_spd.csv");
     load_csv_file_to_spectrum(rgb_magenta, "spectra\\magenta_rgb_to_spd.csv");
     load_csv_file_to_spectrum(rgb_yellow, "spectra\\yellow_rgb_to_spd.csv");
+    for(u32 i = 0; i < scene->num_scene_materials; ++i)
+    {
+        material_input_data *input = &scene_input->scene_materials[i];
+        object_material     *dst   = &scene->scene_materials[i];
 
-    rgb_f64 diffuse_rgb = {0.25, 1.0, 0.25};
-    rgb_f64_to_spectrum(diffuse_rgb, scene->scene_materials[0].diffuse_spd, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
-    rgb_f64 glossy_rgb  = {0.5, 1.0, 0.5};
-    rgb_f64_to_spectrum(glossy_rgb, scene->scene_materials[0].glossy_spd, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+        u32 name_len = strlen(input->name);
+        memcpy(dst->name, input->name, name_len);
+        dst->is_black_body = input->is_black_body;
+        dst->is_emissive   = input->is_emissive;
+        dst->shininess     = input->shininess;
 
-    scene->surface_material_indices[0] = 0;
-    scene->surface_material_indices[1] = 1;
-
+        init_spd(&dst->emission_spd, &input->emission_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+        init_spd(&dst->diffuse_spd, &input->diffuse_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+        init_spd(&dst->glossy_spd, &input->glossy_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+    }
     free_spd(white);
     free_spd(rgb_red);
     free_spd(rgb_green);
@@ -83,6 +127,40 @@ void init_scene(scene_data *scene)
     free_spd(rgb_cyan);
     free_spd(rgb_magenta);
     free_spd(rgb_yellow);
+
+    for(u32 i = 0; i < scene->num_surfaces; ++i)
+    {
+        surface_input_data *input = &scene_input->surfaces[i];
+        object_geometry    *dst   = &scene->surfaces[i];
+
+        u32 name_len = strlen(input->name);
+        memcpy(dst->name, input->name, name_len);
+        dst->type     = input->type;
+        dst->position = input->position;
+        
+        switch(dst->type)
+        {
+            case GEO_TYPE_SPHERE:
+            {
+                dst->radius = input->radius;
+                break;
+            }
+            case GEO_TYPE_PLANE:
+            {
+                create_plane_from_points(input->position, input->u, input->v, &dst->position, &dst->u, &dst->v, &dst->normal);
+                break;
+            }
+        }
+
+        for(u32 j = 0; j < scene->num_scene_materials; ++j)
+        {
+            if(strcmp(input->material_name, scene->scene_materials[j].name) == 0)
+            {
+                scene->surface_material_indices[i] = j;
+                break;
+            }
+        }
+    }
 }
 
 f64 f64_max(f64 f0, f64 f1)
@@ -309,13 +387,54 @@ void cast_ray(spectrum dst, scene_data* scene, vec3 ray_origin, vec3 ray_directi
 void print_camera(camera_data *camera)
 {
     printf("CAMERA:\n");
-    printf("Forward: "); print_vector(camera->forward); printf("\n");
-    printf("Right:   "); print_vector(camera->right);   printf("\n");
-    printf("Up:      "); print_vector(camera->up);      printf("\n");
+    printf("Forward: "); print_vector(camera->forward);  printf("\n");
+    printf("Right:   "); print_vector(camera->right);    printf("\n");
+    printf("Up:      "); print_vector(camera->up);       printf("\n");
     printf("Aperture position: "); print_vector(camera->aperture_position); printf("\n");
     printf("Aperture radius: %f\n", camera->aperture_radius);
     printf("Film bottom left: "); print_vector(camera->film_bottom_left); printf("\n");
     printf("Pixel width: %f Pixel height: %f\n", camera->pixel_width, camera->pixel_height);
+}
+
+void print_material(object_material *mat)
+{
+    printf("Material: %s\n", mat->name);
+    printf("Emission: %p\n", mat->emission_spd.samples);
+    printf("Diffuse:  %p\n", mat->diffuse_spd.samples);
+    printf("Glossy:   %p\n", mat->glossy_spd.samples);
+    printf("Shininess:%f\n", mat->shininess);
+    printf("Is black body: %u\n", mat->is_black_body);
+}
+
+void print_surface(object_geometry *surface, object_material *mat)
+{
+    const char *surface_type_name;
+    switch(surface->type)
+    {
+        case GEO_TYPE_POINT:  surface_type_name = "point";  break;
+        case GEO_TYPE_SPHERE: surface_type_name = "sphere"; break;
+        case GEO_TYPE_PLANE:  surface_type_name = "plane";  break;
+        default:              surface_type_name = "???";    break;
+    }
+    printf("Surface: %s\n", surface->name);
+    printf("Type:    %s\n", surface_type_name);
+    printf("Position:%f %f %f\n", surface->position.x, surface->position.y, surface->position.z);
+    printf("Material:%s\n", mat->name);
+}
+
+void print_scene(scene_data *scene)
+{
+    printf("SCENE:\n");
+    printf("Num materials: %u Num surfaces: %u\n", scene->num_scene_materials, scene->num_surfaces);
+    for(u32 i = 0; i < scene->num_scene_materials; ++i)
+    {
+        print_material(&scene->scene_materials[i]); printf("\n");
+    }
+    for(u32 i = 0; i < scene->num_surfaces; ++i)
+    {
+        print_surface(&scene->surfaces[i], &scene->scene_materials[scene->surface_material_indices[i]]);
+        printf("\n");
+    }
 }
 
 //TODO: Make work with non-pinhole camera

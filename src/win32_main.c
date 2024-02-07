@@ -26,28 +26,10 @@
 //          - spectrum -> rgb
 //  - Stop being ignorant about line-shape intersection methods and float precision
 //  - Xorshift rng
+//  - Textures
+//  - Participating media
 
 //TODO:
-//  - Automatic scene creation
-//      - Scene text file
-//      - Use file in data driven scene creation
-//      - Scene contents:
-//          - Camera (for now probably)
-//              - Position
-//              - Orientation
-//              - Focal depth
-//              - Focal length
-//              - Aperture radius
-//          - Objects
-//              - Surface
-//                  - Type
-//                  - Data
-//              - Material
-//                  - is_blackbody?
-//                  - Emission spd: CSV file or blackbody temperature
-//                  - Diffuse  spd: CSV file or RGB colour
-//                  - Glossy   spd: CSV file or RGB colour
-//                  - Shininess: decimal number
 //  - Cornell Box scene
 //      - Path tracing
 //          - Shape and direction sampling
@@ -55,29 +37,39 @@
 //          - Full algorithm
 //          - Variance measuring
 //          - Russian roulette
-//  - Tidy main
+//  - Tidy
+//      - Review file include structure
+//      - Review csv loading
+//          - Maybe move it out of spectrum
+//      - File loading functions
 //      - Good memory management (or at least better)
 //      - Some kind of platform API
+//      - Reading scene files code (e.g. is_word_char vs is_letter_char || '_')
 //      - Init/Setup/Preprare functions
 //          - Scene
 //          - Camera
 //          - Spectra
+//      - Minor: Change ++ to += 1
+//      - Remove fixed length arrays in scene structs
+//      - String type?
+//  - Logging
+//      - API
+//      - How much to log?
 //  - Switch between sampling directions and sampling areas?
 //      - Make the integral over surface area in the scene instead of over (hemi)sphere
 //  - Make naming consistent/good
 //      - spectrum is the type, spd should be the name
 //      - Add __ for global variables
-//  - Test and profile builds
-//      - Testmain
 //  - Test
 //      - Try to aggressively test as much code as possible
 //      - RNG
 //      - Camera
-//  - Variance
 //  - Sort out camera
 //      - Surely the camera's film dimensions shouldn't be dictated by fov?
 //      - Non-pinhole
-//  - Consider generating RNG up front
+//  - Better RNG
+//      - Better/alt methods
+//      - Consider generating RNG up front
 //      - Also a test set of numbers for reliability
 //  - Visualisation/comparison methods for material parameters
 //      - e.g. what effect does raising/lowering shininess within a range do for glossiness
@@ -85,9 +77,6 @@
 //      - e.g. light colours/spectra, material colours etc.
 //  - Check plane normal issue
 //      - Should light shining on the back of a plane pass through? (Hint: Probably not)
-//  - Check whether shininess/bp bsdf is correct
-//      - High shininess seems like specular spot is too big
-//      - Very abrupt light cutoff in center of specular spot, with gradual fadeout beyond
 
 //Figures to aim for:
 //  - Handle images with resolutions up to HD (1920x1080)
@@ -151,7 +140,6 @@ void spd_file_to_bmp(HANDLE spd_file, spd_file_header *header, const char *bmp_p
 
 int main(int argc, char **argv)
 {
-
     //Default args
     //Args (just set to default for now)
     const char *spectrum_output_path = "output\\output.spd";
@@ -190,19 +178,10 @@ int main(int argc, char **argv)
     printf("Size = %u\n", spd_pixel_data_size);
 
     camera_data camera;
-    vec3 camera_pos     = {0.0, 0.0, 1.0};
-    vec3 camera_up      = {0.0, 1.0, 0.0};
-    vec3 camera_right   = {1.0, 0.0, 0.0};
-    vec3 camera_forward = {0.0, 0.0, -1.0};
-    f64 fov          = 90.0;
-    f64 focal_depth  = 8.0;
-    f64 focal_length = 0.5;
-    f64 aperture_rad = 0.0;
-    init_camera(&camera, image_width_in_pixels, image_height_in_pixels, camera_pos, camera_up, camera_right, camera_forward, fov, focal_depth, focal_length, aperture_rad);
+    scene_data  scene;
+    load_scene("scenes\\first_scene.scn", &camera, &scene, 800, 600);
     print_camera(&camera);
-
-    scene_data scene;
-    init_scene(&scene);
+    print_scene(&scene);
 
     printf("Starting render...\n");
     render_image(spd_pixels, image_width_in_pixels, image_height_in_pixels, &scene, &camera, 1);

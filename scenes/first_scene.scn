@@ -1,0 +1,33 @@
+Camera
+position 0.0, 0.0,  1.0
+up       0.0, 1.0,  0.0
+right    1.0, 0.0,  0.0
+forward  0.0, 0.0, -1.0
+fov      90.0
+fdepth  8.0
+flength 0.5
+aperture 0.0
+
+Material
+name      plastic
+diffuse   rgb 0.25, 1.0, 0.25
+glossy    rgb 0.5,  1.0, 0.5
+shininess 1.0
+
+Material
+name          light
+emission      blackbody 4000.0 scale 16.0
+is_black_body true
+
+Surface
+name     sphere
+type     sphere
+position 0.0, 0.0, 0.0
+radius   0.3
+material plastic
+
+Surface
+name     light_source
+type     point
+position 0.0, 1.0, 1.0
+material light

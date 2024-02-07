@@ -4,16 +4,27 @@
 #include <stdint.h>
 #include <float.h>
 
+typedef enum
+{
+    GEO_TYPE_NONE,
+    GEO_TYPE_POINT,
+    GEO_TYPE_SPHERE,
+    GEO_TYPE_PLANE,
+    GEO_TYPE_COUNT
+} GEO_TYPE;
+
 #include "types.h"
 #include "spectrum.h"
 #include "geometry.h"
 #include "rng.h"
 #include "win32_platform.h"
+#include "read_scene.h"
 
 #include "spectrum.c"
 #include "rng.c"
 #include "geometry.c"
 #include "win32_platform.c"
+#include "read_scene.c"
 
 #ifndef NAN
 #error "NAN not supported, dingus!"
@@ -26,26 +37,14 @@
 //Keep emissive materials together
 //Keep geometries together
 
-typedef enum
-{
-    GEO_TYPE_NONE,
-    GEO_TYPE_POINT,
-    GEO_TYPE_SPHERE,
-    GEO_TYPE_PLANE,
-    GEO_TYPE_COUNT
-} GEO_TYPE;
-
 typedef struct
 {
-    const char *name;
+    char name[32];
     GEO_TYPE   type;
     vec3 position;
     union
     {
-        struct
-        {
-            f64  radius;
-        };
+        f64  radius;
         struct
         {
             vec3 normal;
@@ -57,7 +56,7 @@ typedef struct
 
 typedef struct
 {
-    const char *name;
+    char       name[32];
     u32        is_black_body;
     u32        is_emissive;
     f64        shininess;
@@ -99,9 +98,11 @@ typedef struct
     f64  pixel_height;
 } camera_data;
 
-void init_scene(scene_data *scene);
-void init_camera(camera_data *, u32, u32, vec3, vec3, vec3, vec3, f64, f64, f64, f64);
+void load_scene(const char *path, camera_data *camera, scene_data *scene, u32 width_px, u32 height_px);
+void init_scene(scene_data *scene, scene_input_data *scene_input);
+void init_camera(camera_data *, camera_input_data *);
 void print_camera(camera_data *);
+void print_scene(scene_data *);
 void render_image(f64* dst_pixels, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples);
 
 #include "daily_ray_trace.c"
