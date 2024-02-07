@@ -11,7 +11,7 @@ typedef enum
     GEO_TYPE_SPHERE,
     GEO_TYPE_PLANE,
     GEO_TYPE_COUNT
-} GEO_TYPE;
+}   geometry_type;
 
 #include "types.h"
 #include "spectrum.h"
@@ -39,9 +39,9 @@ typedef enum
 
 typedef struct
 {
-    char name[32];
-    GEO_TYPE   type;
-    vec3 position;
+    char          name[32];
+    geometry_type type;
+    vec3          position;
     union
     {
         f64  radius;

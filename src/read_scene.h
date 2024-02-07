@@ -50,10 +50,10 @@ typedef struct
 
 typedef struct
 {
-    char     name[32];
-    GEO_TYPE type;
-    vec3     position;
-    char     material_name[32];
+    char          name[32];
+    geometry_type type;
+    vec3          position;
+    char          material_name[32];
     union
     {
         f64 radius;
