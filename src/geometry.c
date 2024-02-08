@@ -137,10 +137,14 @@ f64 line_plane_intersection(vec3 line_o, vec3 line_d, vec3 plane_p, vec3 plane_n
 
     f64 plane_u_length          = vec3_length(plane_u);
     f64 plane_v_length          = vec3_length(plane_v);
-    f64 j_dot_plane_u           = vec3_dot(j, plane_u);
-    f64 j_dot_plane_v           = vec3_dot(j, plane_v);
 
-    if( 0.0 <= j_dot_plane_u && j_dot_plane_u <= plane_u_length &&
+    vec3 u_norm = vec3_normalise(plane_u);
+    vec3 v_norm = vec3_normalise(plane_v);
+    f64 j_dot_plane_u           = vec3_dot(j, u_norm);
+    f64 j_dot_plane_v           = vec3_dot(j, v_norm);
+
+    if( l >= 0.0 &&
+        0.0 <= j_dot_plane_u && j_dot_plane_u <= plane_u_length &&
         0.0 <= j_dot_plane_v && j_dot_plane_v <= plane_v_length)
     {
         return l;

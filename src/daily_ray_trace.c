@@ -296,7 +296,14 @@ u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersect
     //Compute contribution
     if(intersection->is_black_body)
     {
-        const_spectrum(contribution, 0.0);
+        if(intersection->is_emissive)
+        {
+            copy_spectrum(contribution, intersection->material->emission_spd);
+        }
+        else
+        {
+            const_spectrum(contribution, 0.0);
+        }
         ret = 0;
     }
     else
@@ -318,6 +325,27 @@ u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersect
                         f64 dist = vec3_length(vec3_sub(light_position, intersection->position));
                         light_pdf = 1.0;
                         attenuation_factor = 1.0 / (4.0 * PI * dist * dist);
+                        break;
+                    }
+                    case GEO_TYPE_SPHERE:
+                    {
+                        f64 u = rng();
+                        f64 v = rng();
+                        f64 r = sqrt(1.0 - u * u);
+                        f64 t = 2.0 * PI * v;
+                        vec3 sphere_point = {r * cos(t), r * sin(t), u};
+                        light_position = vec3_sum(light_surface->position, vec3_mul_by_f64(sphere_point, light_surface->radius));
+                        light_pdf = 1.0 / (4.0 * PI * light_surface->radius * light_surface->radius);
+                        break;
+                    }
+                    case GEO_TYPE_PLANE:
+                    {
+                        f64 u = rng();
+                        f64 v = rng();
+                        vec3 u_pos = vec3_mul_by_f64(light_surface->u, u);
+                        vec3 v_pos = vec3_mul_by_f64(light_surface->v, v);
+                        light_position = vec3_sum(vec3_sum(light_surface->position, u_pos), v_pos);
+                        light_pdf = vec3_length(vec3_cross(light_surface->u, light_surface->v));
                         break;
                     }
                 }
@@ -353,6 +381,7 @@ void cast_ray(spectrum dst, scene_data* scene, vec3 ray_origin, vec3 ray_directi
     spectrum throughput   = alloc_spd();
     spectrum reflectance  = alloc_spd();
     const_spectrum(throughput, 1.0);
+    memset(&intersection, 0, sizeof(scene_point));
     u32 ray_continues = estimate_indirect_contribution(contribution, &intersection, scene, ray_origin, in_direction);
     spectral_sum(dst, contribution, dst);
     for(u32 depth = 0; ray_continues && depth < max_depth; ++depth)
@@ -373,6 +402,7 @@ void cast_ray(spectrum dst, scene_data* scene, vec3 ray_origin, vec3 ray_directi
         spectral_mul_by_scalar(throughput, throughput, throughput_coefficient);
 
         //Estimate contribution
+        memset(&intersection, 0, sizeof(scene_point));
         ray_continues = estimate_indirect_contribution(contribution, &intersection, scene, intersection.position, in_direction);
 
         //Multiply contribution by throughput and acc

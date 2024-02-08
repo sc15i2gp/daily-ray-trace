@@ -38,6 +38,11 @@
 //          - Variance measuring
 //          - Russian roulette
 //  - Tidy
+//      - Fix plane intersection method
+//      - Do something better for sphere/hemisphere sampling
+//          - One problem is that sphere sampling always gens positive z
+//      - Change is_black_body to is_blackbody
+//      - Add const spd method to scene reading
 //      - Review file include structure
 //      - Review csv loading
 //          - Maybe move it out of spectrum
@@ -77,6 +82,7 @@
 //      - e.g. light colours/spectra, material colours etc.
 //  - Check plane normal issue
 //      - Should light shining on the back of a plane pass through? (Hint: Probably not)
+//  - Separate tool to do spd->bmp
 
 //Figures to aim for:
 //  - Handle images with resolutions up to HD (1920x1080)
@@ -144,12 +150,14 @@ int main(int argc, char **argv)
     //Args (just set to default for now)
     const char *spectrum_output_path = "output\\output.spd";
     const char *bmp_output_path = "output\\output.bmp";
+    //const char *scene_input_path = "scenes\\first_scene.scn";
+    const char *scene_input_path = "scenes\\init_cornell.scn";
     u32 image_width_in_pixels = 800;
     u32 image_height_in_pixels = 600;
     u32 number_of_pixel_samples = 1;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
 
-    init_spd_table(16, 69, 380.0, 720.0, 5.0);
+    init_spd_table(32, 69, 380.0, 720.0, 5.0);
 
     //Spectrum file contents:
     //- Number of spectra/pixels (dims)
@@ -179,7 +187,7 @@ int main(int argc, char **argv)
 
     camera_data camera;
     scene_data  scene;
-    load_scene("scenes\\first_scene.scn", &camera, &scene, 800, 600);
+    load_scene(scene_input_path, &camera, &scene, 800, 600);
     print_camera(&camera);
     print_scene(&scene);
 
