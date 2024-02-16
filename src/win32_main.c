@@ -38,8 +38,6 @@
 //  - Tidy
 //      - Remove fixed length arrays in scene structs
 //      - Change is_black_body to is_blackbody
-//      - Add const spd method to scene reading
-//      - Add csv file spd method to scene reading
 //      - Use less memory for output spd
 //      - Make naming consistent/good
 //          - spectrum is the type, spd should be the name
@@ -170,7 +168,7 @@ int main(int argc, char **argv)
     const char *scene_input_path = "scenes\\cornell_plane_light.scn";
     u32 image_width_in_pixels = 800;
     u32 image_height_in_pixels = 600;
-    u32 number_of_pixel_samples = 32;
+    u32 number_of_pixel_samples = 8;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
 
     init_spd_table(32, 69, 380.0, 720.0, 5.0);

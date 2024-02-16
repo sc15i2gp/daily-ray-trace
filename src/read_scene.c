@@ -74,7 +74,7 @@ u32 is_letter(char c)
 
 u32 is_word_char(char c)
 {
-    return is_letter(c) || c == '_' || c == '.';
+    return is_letter(c) || is_number(c) || c == '_' || c == '.';
 }
 
 u32 is_number_char(char c)
@@ -194,7 +194,7 @@ scene_token *lookahead_token()
 //TODO: Give more error info
 void parse_error()
 {
-    printf("ERROR: Parse error at: %p (%.4s) out of %p\n", tokeniser.scene_loc, tokeniser.scene_loc, tokeniser.scene_contents_end);
+    printf("ERROR: Parse error at: %p out of %p\n", tokeniser.scene_loc, tokeniser.scene_loc, tokeniser.scene_contents_end);
     printf("AT TOKEN: ");
     print_token(&tokeniser.current_token);
     printf("\n");
@@ -245,9 +245,10 @@ void parse_rgb(rgb_f64 *dst)
     parse_float(&dst->b);
 }
 
-void parse_filename(char *dst)
+void parse_word(char *dst)
 {
-    //TODO
+    scene_token *t = next_token();
+    memcpy(dst, t->loc, t->length);
 }
 
 void parse_spd_method(spd_input_data *dst)
@@ -264,7 +265,7 @@ void parse_spd_method(spd_input_data *dst)
         case TOKEN_csv:
         {
             dst->method = SPD_METHOD_CSV;
-            parse_filename(dst->csv);
+            parse_word(dst->csv);
             break;
         }
         case TOKEN_blackbody:
@@ -365,8 +366,7 @@ void parse_material(scene_input_data *scene)
         {
             case TOKEN_name:
             {
-                t = next_token();
-                memcpy(dst_material->name, t->loc, t->length);
+                parse_word(dst_material->name);
                 break;
             }
             case TOKEN_diffuse:
@@ -418,8 +418,7 @@ void parse_surface(scene_input_data *scene)
         {
             case TOKEN_name:
             {
-                t = next_token();
-                memcpy(dst_surface->name, t->loc, t->length);
+                parse_word(dst_surface->name);
                 break;
             }
             case TOKEN_type:
@@ -472,8 +471,7 @@ void parse_surface(scene_input_data *scene)
             }
             case TOKEN_material:
             {
-                t = next_token();
-                memcpy(dst_surface->material_name, t->loc, t->length);
+                parse_word(dst_surface->material_name);
                 break;
             }
             default:

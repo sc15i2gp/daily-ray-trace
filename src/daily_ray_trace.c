@@ -51,7 +51,14 @@ void init_spd(spectrum *dst, spd_input_data *input, spectrum white, spectrum rgb
         }
         case SPD_METHOD_CSV:
         {
-            load_csv_file_to_spectrum(*dst, input->csv);
+            char csv_name[256];
+            memset(csv_name, 0, 256);
+            const char *prefix = "spectra\\";
+            u32 prefix_size = strlen(prefix);
+            memcpy(csv_name, prefix, prefix_size);
+            memcpy(csv_name + prefix_size, input->csv, strlen(input->csv));
+            load_csv_file_to_spectrum(*dst, csv_name);
+            spectrum_normalise(*dst);
             break;
         }
         case SPD_METHOD_BLACKBODY:
