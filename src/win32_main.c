@@ -28,6 +28,7 @@
 //  - Xorshift rng
 //  - Textures
 //  - Participating media
+//  - Remove C std?
 
 //TODO:
 //  - Variance measuring
@@ -35,11 +36,9 @@
 //  - Natural vignetting
 //  - Russian roulette
 //  - Tidy
-//      - Minor: Change ++ to += 1
 //      - Remove fixed length arrays in scene structs
 //      - Change is_black_body to is_blackbody
 //      - Add const spd method to scene reading
-//      - Some kind of platform API
 //      - Use less memory for output spd
 //      - Make naming consistent/good
 //          - spectrum is the type, spd should be the name
@@ -67,6 +66,9 @@
 //      - Review file include structure
 //      - Fix matrix stuff, it must not be needed
 //      - Do general quality pass over code
+//      - Move some functions to utils file
+//          - Maths functions mostly such as clamp or max
+//      - Better error handling
 //  - Test
 //      - Try to aggressively test as much code as possible
 //      - RNG

@@ -43,3 +43,90 @@ u32 write_pixels_to_bmp(rgb_u8 *pixels, u32 width, u32 height, const char *path)
     return success;
 }
 
+void *alloc_pages(u32 num_pages)
+{
+    SYSTEM_INFO sys_inf;
+    GetSystemInfo(&sys_inf);
+    u32    page_size = sys_inf.dwPageSize;
+    u32    size = num_pages * page_size;
+    void   *p   = alloc(size);
+    return p;
+}
+
+void *alloc(u32 size)
+{
+    void   *p = VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    return p;
+}
+
+void unalloc(void *p, u32 p_size)
+{
+    VirtualFree(p, p_size, MEM_RELEASE);
+}
+
+file_handle open_file(const char *path, file_access_type access_type, file_open_type open_type)
+{
+    DWORD win_access_type = 0;
+    DWORD win_share_mode  = 0;
+    DWORD win_open_type   = 0;
+    switch(access_type)
+    {
+        case ACCESS_READ:
+        {
+            win_access_type = GENERIC_READ;
+            win_share_mode  = FILE_SHARE_READ;
+            break;
+        }
+        case ACCESS_WRITE:
+        {
+            win_access_type = GENERIC_WRITE;
+            win_share_mode  = FILE_SHARE_WRITE;
+            break;
+        }
+        case ACCESS_READWRITE:
+        {
+            win_access_type = GENERIC_READ    | GENERIC_WRITE;
+            win_share_mode  = FILE_SHARE_READ | FILE_SHARE_WRITE;
+            break;
+        }
+    }
+    switch(open_type)
+    {
+        case FILE_NEW:
+        {
+            win_open_type = CREATE_ALWAYS;
+            break;
+        }
+        case FILE_EXISTS:
+        {
+            win_open_type = OPEN_EXISTING;
+            break;
+        }
+    }
+    file_handle file = CreateFile(path, win_access_type, win_share_mode, NULL, win_open_type, FILE_ATTRIBUTE_NORMAL, NULL);
+
+    return file;
+}
+
+void close_file(file_handle file)
+{
+    CloseHandle(file);
+}
+
+u32 get_file_size(file_handle file)
+{
+    DWORD file_size = GetFileSize(file, NULL);
+    return (u32)file_size;
+}
+
+void read_file(file_handle file, u32 read_size, void *dst)
+{
+    DWORD bytes_read;
+    ReadFile(file, dst, read_size, &bytes_read, NULL);
+}
+
+void set_file_pointer(file_handle file, u32 loc)
+{
+    SetFilePointer(file, loc, NULL, FILE_BEGIN);
+}
+

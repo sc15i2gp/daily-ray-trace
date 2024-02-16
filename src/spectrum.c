@@ -43,8 +43,8 @@ void init_spd_table(u32 capacity, u32 num_samples, f64 low_wl, f64 hi_wl, f64 wl
 
     spd_table.capacity        = capacity;
     spd_table.allocated       = 0;
-    spd_table.is_allocated    = VirtualAlloc(NULL, spd_table.capacity * sizeof(u32), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    spd_table.spectrum_buffer = VirtualAlloc(NULL, spectrum_size * spd_table.capacity, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    spd_table.is_allocated    = alloc(spd_table.capacity * sizeof(u32));
+    spd_table.spectrum_buffer = alloc(spectrum_size * spd_table.capacity);
 }
 
 spectrum alloc_spd()
@@ -263,17 +263,14 @@ void generate_blackbody_spectrum(spectrum spd, f64 temperature)
 //  - A sample consists of two csvs: "wavelength, value"
 u32 load_csv_file_to_spectrum(spectrum dst, const char *csv_path)
 {
-    HANDLE csv_file_handle = CreateFile(csv_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if(csv_file_handle == INVALID_HANDLE_VALUE) return 0;
-
     printf("Opening csv file %s...\n", csv_path);
-    DWORD csv_bytes_read = 0;
-    DWORD csv_file_size = GetFileSize(csv_file_handle, NULL) + 1;
-    char *csv_file_buffer = (char*)VirtualAlloc(0, csv_file_size, MEM_COMMIT, PAGE_READWRITE);
+    file_handle csv_file_handle = open_file(csv_path, ACCESS_READ, FILE_EXISTS);
+    u32 csv_file_size = get_file_size(csv_file_handle) + 1;
+    char *csv_file_buffer = alloc(csv_file_size);
     printf("Reading csv file %s...\n", csv_path);
-    u32 success = ReadFile(csv_file_handle, csv_file_buffer, csv_file_size, &csv_bytes_read, NULL);
+    read_file(csv_file_handle, csv_file_size, csv_file_buffer);
     csv_file_buffer[csv_file_size] = 0;
-    CloseHandle(csv_file_handle);
+    close_file(csv_file_handle);
     printf("Closed csv file %s.\n", csv_path);
 
     f64 file_wavelengths[MAX_NUM_SPECTRUM_VALUES];
@@ -305,7 +302,7 @@ u32 load_csv_file_to_spectrum(spectrum dst, const char *csv_path)
         c = find_next_newline(c);
     }
     printf("Freeing char buffer...\n");
-    VirtualFree(csv_file_buffer, csv_file_size, MEM_RELEASE);
+    unalloc(csv_file_buffer, csv_file_size);
 
     printf("Number of samples read = %u\n", file_number_of_samples);
 
@@ -326,5 +323,6 @@ u32 load_csv_file_to_spectrum(spectrum dst, const char *csv_path)
         printf("%f | %f\n", sample_wl, dst[i]);
     }
 */
-    return success;
+    //return success;
+    return 1;
 }

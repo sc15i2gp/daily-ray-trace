@@ -1,12 +1,10 @@
 void load_scene(const char *scene_path, camera_data *camera, scene_data *scene, u32 width_px, u32 height_px)
 {
-    HANDLE scene_file_handle = CreateFile(scene_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-
-    DWORD bytes_read;
-    DWORD scene_file_size    = GetFileSize(scene_file_handle, NULL);
-    char  *scene_file_buffer = (char*)VirtualAlloc(0, scene_file_size, MEM_COMMIT, PAGE_READWRITE);
-    ReadFile(scene_file_handle, scene_file_buffer, scene_file_size, &bytes_read, NULL);
-    CloseHandle(scene_file_handle);
+    file_handle scene_file_handle = open_file(scene_path, ACCESS_READ, FILE_EXISTS);
+    u32 scene_file_size = get_file_size(scene_file_handle);
+    char * scene_file_buffer = alloc(scene_file_size);
+    read_file(scene_file_handle, scene_file_size, scene_file_buffer);
+    close_file(scene_file_handle);
 
     camera_input_data camera_input;
     scene_input_data  scene_input;
@@ -84,8 +82,8 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
     u32 material_indices_size = scene->num_surfaces * sizeof(u32);
     u32 surfaces_buffer_size  = surfaces_size + material_indices_size;
     u32 materials_buffer_size = scene->num_scene_materials * sizeof(object_material);
-    char *surfaces_buffer  = VirtualAlloc(NULL, surfaces_buffer_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    char *materials_buffer = VirtualAlloc(NULL, materials_buffer_size, MEM_COMMIT  | MEM_RESERVE, PAGE_READWRITE);
+    char *surfaces_buffer = alloc(surfaces_buffer_size);
+    char *materials_buffer = alloc(materials_buffer_size);
 
     scene->surfaces = (object_geometry*)surfaces_buffer;
     scene->surface_material_indices = (u32*)(surfaces_buffer + surfaces_size);
@@ -533,7 +531,7 @@ void render_image(f64 *dst_pixels, u32 dst_width, u32 dst_height, scene_data *sc
     u32 num_pixels = dst_width * dst_height;
 
     u32 pixel_filter_sums_size = num_pixels * sizeof(f64);
-    f64 *pixel_filter_sums     = (f64*)VirtualAlloc(NULL, pixel_filter_sums_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    f64 *pixel_filter_sums = alloc(pixel_filter_sums_size);
     spectrum contribution  = alloc_spd();
 
     for(u32 sample = 0; sample < samples_per_pixel; sample += 1)
