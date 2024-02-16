@@ -39,6 +39,7 @@
 //      - Remove fixed length arrays in scene structs
 //      - Change is_black_body to is_blackbody
 //      - Add const spd method to scene reading
+//      - Add csv file spd method to scene reading
 //      - Use less memory for output spd
 //      - Make naming consistent/good
 //          - spectrum is the type, spd should be the name

@@ -18,6 +18,7 @@ typedef enum
     SPD_METHOD_RGB,
     SPD_METHOD_CSV,
     SPD_METHOD_BLACKBODY,
+    SPD_METHOD_CONST,
     SPD_METHOD_COUNT
 } spd_input_method;
 
@@ -33,6 +34,7 @@ typedef struct
         rgb_f64 rgb;
         char    csv[64];
         f64     blackbody_temp;
+        f64     constant;
     };
 } spd_input_data;
 

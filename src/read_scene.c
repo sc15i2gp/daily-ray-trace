@@ -268,6 +268,12 @@ void parse_spd_method(spd_input_data *dst)
             parse_float(&dst->blackbody_temp);
             break;
         }
+        case TOKEN_constant:
+        {
+            dst->method = SPD_METHOD_CONST;
+            parse_float(&dst->constant);
+            break;
+        }
         default:
         {
             parse_error();

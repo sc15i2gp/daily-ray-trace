@@ -40,7 +40,7 @@ shininess 32.0
 
 Material
 name light
-emission rgb 1.0, 1.0, 1.0
+emission constant 1.0
 is_black_body true
 
 Surface

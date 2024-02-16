@@ -60,6 +60,11 @@ void init_spd(spectrum *dst, spd_input_data *input, spectrum white, spectrum rgb
             spectrum_normalise(*dst);
             break;
         }
+        case SPD_METHOD_CONST:
+        {
+            const_spectrum(*dst, input->constant);
+            break;
+        }
         default:
         {
             free_spd(*dst);
