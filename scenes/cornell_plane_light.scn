@@ -1,0 +1,99 @@
+Camera
+position 0.0, 0.0, 8.0
+up       0.0, 1.0, 0.0
+right    1.0, 0.0, 0.0
+forward  0.0, 0.0, -1.0
+fov      90.0
+fdepth   8.0
+flength  0.5
+aperture 0.0
+
+Material
+name      blue_plastic
+diffuse   rgb 0.2, 0.2, 0.8
+glossy    rgb 0.8, 0.8, 0.9
+shininess 32.0
+
+Material
+name      green_plastic
+diffuse   rgb 0.1, 0.35, 0.1
+glossy    rgb 0.45, 0.55, 0.45
+shininess 32.0
+
+Material
+name      red_plastic
+diffuse   rgb 0.5, 0.0, 0.0
+glossy    rgb 0.7, 0.6, 0.6
+shininess 32.0
+
+Material
+name      white_plastic
+diffuse   rgb 0.55, 0.55, 0.55
+glossy    rgb 0.7,  0.7,  0.7
+shininess 32.0
+
+Material
+name      teal_plastic
+diffuse   rgb 0.01, 0.5, 0.5
+glossy    rgb 0.01, 0.2, 0.2
+shininess 32.0
+
+Material
+name light
+emission rgb 1.0, 1.0, 1.0
+is_black_body true
+
+Surface
+name back_wall
+type plane
+position -3.0,  3.0, -3.0
+pointv    3.0,  3.0, -3.0
+pointu   -3.0, -3.0, -3.0
+material blue_plastic
+
+Surface
+name left_wall
+type plane
+position -3.0, 3.0, 3.0
+pointv -3.0, 3.0, -3.0
+pointu -3.0, -3.0, 3.0
+material red_plastic
+
+Surface
+name right_wall
+type plane
+position 3.0, 3.0, -3.0
+pointv 3.0, 3.0, 3.0
+pointu 3.0, -3.0, -3.0
+material green_plastic
+
+Surface
+name floor
+type plane
+position -3.0, -3.0, -3.0
+pointv 3.0, -3.0, -3.0
+pointu -3.0, -3.0, 3.0
+material white_plastic
+
+Surface
+name ceiling
+type plane
+position -3.0, 3.0, 3.0
+pointv 3.0, 3.0, 3.0
+pointu -3.0, 3.0, -3.0
+material white_plastic
+
+Surface
+name ball
+type sphere
+position 0.0, -2.0, -1.5
+radius   1.0
+material teal_plastic
+
+Surface
+name light_source
+type plane
+position -1.0, 2.9,  1.0
+pointu    1.0, 2.9,  1.0
+pointv   -1.0, 2.9, -1.0
+material light
