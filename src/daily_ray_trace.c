@@ -105,7 +105,7 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
     load_csv_file_to_spectrum(rgb_cyan, "spectra\\cyan_rgb_to_spd.csv");
     load_csv_file_to_spectrum(rgb_magenta, "spectra\\magenta_rgb_to_spd.csv");
     load_csv_file_to_spectrum(rgb_yellow, "spectra\\yellow_rgb_to_spd.csv");
-    for(u32 i = 0; i < scene->num_scene_materials; ++i)
+    for(u32 i = 0; i < scene->num_scene_materials; i += 1)
     {
         material_input_data *input = &scene_input->scene_materials[i];
         object_material     *dst   = &scene->scene_materials[i];
@@ -128,7 +128,7 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
     free_spd(rgb_magenta);
     free_spd(rgb_yellow);
 
-    for(u32 i = 0; i < scene->num_surfaces; ++i)
+    for(u32 i = 0; i < scene->num_surfaces; i += 1)
     {
         surface_input_data *input = &scene_input->surfaces[i];
         object_geometry    *dst   = &scene->surfaces[i];
@@ -152,7 +152,7 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
             }
         }
 
-        for(u32 j = 0; j < scene->num_scene_materials; ++j)
+        for(u32 j = 0; j < scene->num_scene_materials; j += 1)
         {
             if(strcmp(input->material_name, scene->scene_materials[j].name) == 0)
             {
@@ -208,7 +208,7 @@ u32 points_mutually_visible(vec3 p0, vec3 p1, scene_data *scene)
     vec3 ray_origin    = vec3_sum(p0, vec3_mul_by_f64(ray_direction, 0.001));
     f64 vis_dist = vec3_length(vec3_sub(p1, ray_origin)) - 0.001;
     f64 dist     = INFINITY;
-    for(u32 i = 0; i < scene->num_surfaces; ++i)
+    for(u32 i = 0; i < scene->num_surfaces; i += 1)
     {
         object_geometry *surface = &scene->surfaces[i];
         switch(surface->type)
@@ -239,7 +239,7 @@ void direct_light_contribution(spectrum contribution, scene_point *intersection,
     spectrum reflectance = alloc_spd();
     zero_spectrum(reflectance);
     zero_spectrum(contribution);
-    for(u32 i = 0; i < scene->num_surfaces; ++i)
+    for(u32 i = 0; i < scene->num_surfaces; i += 1)
     {
         object_material *light_material = &scene->scene_materials[scene->surface_material_indices[i]];
         if(light_material->is_emissive)
@@ -304,7 +304,7 @@ void find_ray_intersection(scene_point *intersection, scene_data *scene, vec3 ra
     object_geometry *intersection_surface = NULL;
     u32 intersection_index = -1;
     ray_origin = vec3_sum(ray_origin, vec3_mul_by_f64(ray_direction, 0.001));
-    for(u32 i = 0; i < scene->num_surfaces; ++i)
+    for(u32 i = 0; i < scene->num_surfaces; i += 1)
     {
         f64 dist = INFINITY;
         object_geometry *surface = &scene->surfaces[i];
@@ -509,11 +509,11 @@ void print_scene(scene_data *scene)
 {
     printf("SCENE:\n");
     printf("Num materials: %u Num surfaces: %u\n", scene->num_scene_materials, scene->num_surfaces);
-    for(u32 i = 0; i < scene->num_scene_materials; ++i)
+    for(u32 i = 0; i < scene->num_scene_materials; i += 1)
     {
         print_material(&scene->scene_materials[i]); printf("\n");
     }
-    for(u32 i = 0; i < scene->num_surfaces; ++i)
+    for(u32 i = 0; i < scene->num_surfaces; i += 1)
     {
         print_surface(&scene->surfaces[i], &scene->scene_materials[scene->surface_material_indices[i]]);
         printf("\n");
@@ -536,14 +536,14 @@ void render_image(f64 *dst_pixels, u32 dst_width, u32 dst_height, scene_data *sc
     f64 *pixel_filter_sums     = (f64*)VirtualAlloc(NULL, pixel_filter_sums_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     spectrum contribution  = alloc_spd();
 
-    for(u32 sample = 0; sample < samples_per_pixel; ++sample)
+    for(u32 sample = 0; sample < samples_per_pixel; sample += 1)
     {
         printf("Sample %u / %u\n", sample+1, samples_per_pixel);
         //Filter final contribution and write to dst
         //pixel value = sum(filter * weight * radiance)/sum(filter)
-        for(u32 y = 0; y < dst_height; ++y)
+        for(u32 y = 0; y < dst_height; y += 1)
         {
-            for(u32 x = 0; x < dst_width; ++x)
+            for(u32 x = 0; x < dst_width; x += 1)
             {
                 //Sample point on film plane
                 //vec3 sampled_pixel_point = camera->film_bottom_left + film_x * camera->right + film_y * camera->up;
@@ -580,7 +580,7 @@ void render_image(f64 *dst_pixels, u32 dst_width, u32 dst_height, scene_data *sc
             }
         }
     }
-    for(u32 pixel = 0; pixel < num_pixels; ++pixel)
+    for(u32 pixel = 0; pixel < num_pixels; pixel += 1)
     {
         f64 pixel_filter = 1.0 / pixel_filter_sums[pixel];
         spectrum dst_pixel;

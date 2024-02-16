@@ -30,71 +30,71 @@
 //  - Participating media
 
 //TODO:
+//  - Variance measuring
+//  - Input arguments
+//  - Natural vignetting
+//  - Russian roulette
 //  - Tidy
-//      - Fix plane intersection method
-//          - Negative normal causes problems
-//          - Switching u,v in scene files causes reduced noise and vantablack shadows
-//      - Fix points_mutually_visible
-//          - Kinda complicated with float precision stuff
-//      - I don't think is_blackbody and is_emissive are necessary in scene_point
-//          - Fix estimate_indirect_contribution, consider whether scene_point is needed at all
-//      - Do something better for sphere/hemisphere sampling
-//          - One problem is that sphere sampling always gens positive z
-//      - Change is_black_body to is_blackbody
-//      - Add const spd method to scene reading
-//      - Review file include structure
-//      - Review csv loading
-//          - Maybe move it out of spectrum
-//      - File loading functions
-//      - Good memory management (or at least better)
-//      - Some kind of platform API
-//      - Reading scene files code (e.g. is_word_char vs is_letter_char || '_')
-//      - Init/Setup/Preprare functions
-//          - Scene
-//          - Camera
-//          - Spectra
 //      - Minor: Change ++ to += 1
 //      - Remove fixed length arrays in scene structs
+//      - Change is_black_body to is_blackbody
+//      - Add const spd method to scene reading
+//      - Some kind of platform API
+//      - Use less memory for output spd
+//      - Make naming consistent/good
+//          - spectrum is the type, spd should be the name
+//          - Add __ for global variables
+//      - Fix plane intersection method
+//          - Negative normal causes problems
+//          - Normals in general for planes
+//          - Switching u,v in scene files causes reduced noise and vantablack shadows
+//          - Should light shining on the back of a plane pass through? (Hint: Probably not)
+//      - Fix points_mutually_visible
+//          - Kinda complicated with float precision stuff
+//          - Same with find_scene_intersection
+//      - I don't think is_blackbody and is_emissive are necessary in scene_point
+//      - Do something better for sphere/hemisphere sampling
+//          - One problem is that sphere sampling always gens positive z
+//          - Actually have competing direction sampling methods (e.g uniform sphere and cos weighted)
+//      - Review csv loading
+//          - Maybe move it out of spectrum
+//      - Good memory management (or at least better)
+//      - Reading scene files code (e.g. is_word_char vs is_letter_char || '_')
 //      - String type?
-//  - Logging
-//      - API
-//      - How much to log?
-//  - Switch between sampling directions and sampling areas?
-//      - Make the integral over surface area in the scene instead of over (hemi)sphere
-//  - Make naming consistent/good
-//      - spectrum is the type, spd should be the name
-//      - Add __ for global variables
+//      - Sort out camera
+//          - Surely the camera's film dimensions shouldn't be dictated by fov?
+//          - Non-pinhole
+//      - Review file include structure
+//      - Fix matrix stuff, it must not be needed
+//      - Do general quality pass over code
 //  - Test
 //      - Try to aggressively test as much code as possible
 //      - RNG
+//          - Quality tests
 //      - Camera
-//  - Sort out camera
-//      - Surely the camera's film dimensions shouldn't be dictated by fov?
-//      - Non-pinhole
-//  - Better RNG
-//      - Better/alt methods
-//      - Consider generating RNG up front
-//      - Also a test set of numbers for reliability
-//  - Visualisation/comparison methods for material parameters
-//      - e.g. what effect does raising/lowering shininess within a range do for glossiness
 //  - Output rendered scene info to files
 //      - e.g. light colours/spectra, material colours etc.
-//  - Check plane normal issue
-//      - Should light shining on the back of a plane pass through? (Hint: Probably not)
-//  - Separate tool to do spd->bmp
-//  - Non-blackbody emissive sources
-//  - Natural vignetting
+//  - Better RNG
+//      - Alternative methods
+//      - Consider generating RNG up front
+//      - Constant seed vs different seed every run
 //  - Sort out units
 //      - Units of spds, distances etc.
 //      - Also consider attenuation and what exactly surface + emissive spds mean
 //      - Actually, generally bone up on physics
-//  - Input arguments
-//  - Russian roulette
-//  - Variance measuring
-//  - New materials
-//      - Mirror
-//      - Glass
+//      - Maths too: Surface vs sphere integrals for light transport
+//  - Visualisation/comparison methods for material parameters
+//      - e.g. what effect does raising/lowering shininess within a range do for glossiness
+//      - Maybe have specific output directory for a given scene
+//  - Logging
+//      - API
+//      - How much to log?
 //      - Metal
+//  - Parallelism
+//  - Separate tool to do spd->bmp
+//  - Non-blackbody emissive sources
+//  - Change algorithm back to newer version
+//      - Some spectral calculations don't need to be done (e.g. after a ray has escaped)
 
 //Figures to aim for:
 //  - Handle images with resolutions up to HD (1920x1080)
@@ -144,7 +144,7 @@ void spd_file_to_bmp(HANDLE spd_file, spd_file_header *header, const char *bmp_p
     DWORD bytes_read;
 
     spectrum pixel_spd = alloc_spd();
-    for(u32 pixel = 0; pixel < number_of_pixels; ++pixel)
+    for(u32 pixel = 0; pixel < number_of_pixels; pixel += 1)
     {
         ReadFile(spd_file, pixel_spd.samples, spectrum_size, &bytes_read, NULL);
         rgb_f64 pixel_f64 = spectrum_to_rgb_f64(pixel_spd, cmf_x, cmf_y, cmf_z, ref_white);
@@ -167,7 +167,7 @@ int main(int argc, char **argv)
     const char *scene_input_path = "scenes\\cornell_plane_light.scn";
     u32 image_width_in_pixels = 800;
     u32 image_height_in_pixels = 600;
-    u32 number_of_pixel_samples = 8;
+    u32 number_of_pixel_samples = 32;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
 
     init_spd_table(32, 69, 380.0, 720.0, 5.0);

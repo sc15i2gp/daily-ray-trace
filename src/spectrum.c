@@ -4,7 +4,7 @@ char *find_next_newline(char *c)
     {
         if(*c == '\n') return c;
         if(*c == EOF || *c == 0) return NULL;
-        ++c;
+        c += 1;
     }
 }
 
@@ -14,7 +14,7 @@ char *find_next_number(char *c)
     {
         if(*c >= '0' && *c <= '9') return c;
         if(*c == EOF || *c == 0) return NULL;
-        ++c;
+        c += 1;
     }
 }
 
@@ -24,7 +24,7 @@ char *find_next_char(char *c, char desired)
     {
         if(*c == desired) return c;
         if(*c == EOF || *c == 0) return NULL;
-        ++c;
+        c += 1;
     }
 }
 
@@ -54,7 +54,7 @@ spectrum alloc_spd()
     {
         printf("WARN: RUNNING OUT OF SPECTRA %u\n", spd_table.allocated);
     }
-    for(u32 i = 0; i < spd_table.capacity; ++i)
+    for(u32 i = 0; i < spd_table.capacity; i += 1)
     {
         if(!spd_table.is_allocated[i])
         {
@@ -77,7 +77,7 @@ void free_spd(spectrum spd)
 
 void zero_spectrum(spectrum dst)
 {
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
     {
         dst.samples[i] = 0.0;
     }
@@ -85,24 +85,24 @@ void zero_spectrum(spectrum dst)
 
 void const_spectrum(spectrum dst, f64 value)
 {
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i) dst.samples[i] = value;
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1) dst.samples[i] = value;
 }
 
 void copy_spectrum(spectrum dst, spectrum src)
 {
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i) dst.samples[i] = src.samples[i];
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1) dst.samples[i] = src.samples[i];
 }
 
 void spectrum_normalise(spectrum dst)
 {
     f64 highest_value = 0.0;
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i) if(dst.samples[i] > highest_value) highest_value = dst.samples[i];
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i) dst.samples[i] /= highest_value;
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1) if(dst.samples[i] > highest_value) highest_value = dst.samples[i];
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1) dst.samples[i] /= highest_value;
 }
 
 void spectral_mul_by_spectrum(spectrum dst, spectrum src0, spectrum src1)
 {
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
     {
         dst.samples[i] = src0.samples[i] * src1.samples[i];
     }
@@ -110,7 +110,7 @@ void spectral_mul_by_spectrum(spectrum dst, spectrum src0, spectrum src1)
 
 void spectral_mul_by_scalar(spectrum dst, spectrum src, f64 d)
 {
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
     {
         dst.samples[i] = src.samples[i] * d;
     }
@@ -118,7 +118,7 @@ void spectral_mul_by_scalar(spectrum dst, spectrum src, f64 d)
 
 void spectral_acc(spectrum dst, spectrum src)
 {
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
     {
         dst.samples[i] += src.samples[i];
     }
@@ -126,7 +126,7 @@ void spectral_acc(spectrum dst, spectrum src)
 
 void spectral_acc_mul_by_scalar(spectrum dst, spectrum src, f64 d)
 {
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
     {
         dst.samples[i] += src.samples[i] * d;
     }
@@ -134,7 +134,7 @@ void spectral_acc_mul_by_scalar(spectrum dst, spectrum src, f64 d)
 
 void spectral_sum(spectrum dst, spectrum src0, spectrum src1)
 {
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
     {
         dst.samples[i] = src0.samples[i] + src1.samples[i];
     }
@@ -144,13 +144,13 @@ rgb_f64 spectrum_to_xyz(spectrum spd, spectrum cmf_x, spectrum cmf_y, spectrum c
 {
     rgb_f64 xyz = {0.0, 0.0, 0.0};
     f64 n = 0.0;
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
     {
         n += (cmf_y.samples[i] * ref_white.samples[i]);
     }
     n *= sample_interval;
 
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
     {
         xyz.x += (cmf_x.samples[i] * spd.samples[i] * ref_white.samples[i]);
         xyz.y += (cmf_y.samples[i] * spd.samples[i] * ref_white.samples[i]);
@@ -248,7 +248,7 @@ f128 compute_blackbody_power(f128 temperature, f128 wavelength)
 void generate_blackbody_spectrum(spectrum spd, f64 temperature)
 {
     f128 temp_long = (f128)temperature;
-    for(u32 i = 0; i < number_of_spectrum_samples; ++i)
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
     {
         f128 wavelength_in_nm = (f128)(smallest_wavelength + (i * sample_interval));
         f128 wavelength_in_m = wavelength_in_nm * 1e-9L;
@@ -289,13 +289,13 @@ u32 load_csv_file_to_spectrum(spectrum dst, const char *csv_path)
     printf("Counting number of samples in char buffer...\n");
     for(char *c = find_next_newline(csv_file_buffer); c != NULL; c = find_next_newline(c)) 
     {
-        ++c;
-        if(find_next_number(c)) ++file_number_of_samples;
+        c += 1;
+        if(find_next_number(c)) file_number_of_samples += 1;
     }
     //Read wavelengths and sample values
     printf("Reading sample data in char buffer...\n");
     char *c = find_next_newline(csv_file_buffer) + 1;
-    for(u32 i = 0; i < file_number_of_samples; ++i)
+    for(u32 i = 0; i < file_number_of_samples; i += 1)
     {
         c = find_next_number(c);
         file_wavelengths[i] = atof(c);
@@ -311,10 +311,10 @@ u32 load_csv_file_to_spectrum(spectrum dst, const char *csv_path)
 
     //Lerp values and write them to spectrum
     u32 file_wl_index = 0;
-    for(u32 sample = 0; sample < number_of_spectrum_samples; ++sample)
+    for(u32 sample = 0; sample < number_of_spectrum_samples; sample += 1)
     {
         f64 sample_wavelength = smallest_wavelength + ((f64)sample) * sample_interval;
-        for(; file_wavelengths[file_wl_index+1] < sample_wavelength; ++file_wl_index);
+        for(; file_wavelengths[file_wl_index+1] < sample_wavelength; file_wl_index += 1);
         dst.samples[sample] = lerp(sample_wavelength, file_wavelengths[file_wl_index], file_wavelengths[file_wl_index + 1], file_wavelength_values[file_wl_index], file_wavelength_values[file_wl_index+1]);
     }
 

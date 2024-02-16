@@ -80,14 +80,14 @@ u32 is_number_char(char c)
 u32 is_word_keyword(const char *word, const char *kw_candidate)
 {
     u32 word_length = 0;
-    for(const char *c = word; is_letter(*c) || (*c == '_'); ++c, ++word_length);
+    for(const char *c = word; is_letter(*c) || (*c == '_'); c += 1, word_length += 1);
     u32 kw_candidate_length = 0;
-    for(const char *c = kw_candidate; *c != 0; ++c, ++kw_candidate_length);
+    for(const char *c = kw_candidate; *c != 0; c += 1, kw_candidate_length += 1);
 
     if(word_length == kw_candidate_length)
     {
         u32 is_kw = 1;
-        for(u32 i = 0; i < word_length; ++i)
+        for(u32 i = 0; i < word_length; i += 1)
         {
             if(word[i] != kw_candidate[i])
             {
@@ -115,19 +115,19 @@ void read_token(scene_token *dst, char *src, char *src_end)
     else if(src[0] == '\n' || src[0] == '\r')
     {
         dst->type   = TOKEN_NEWLINE;
-        for(char *c = src; c < src_end && (*c == '\n' || *c == '\r'); ++c, ++dst->length);
+        for(char *c = src; c < src_end && (*c == '\n' || *c == '\r'); c += 1, dst->length += 1);
     }
     else if(is_number_char(src[0]))
     {
         dst->type  = TOKEN_FLOAT;
         dst->value = atof(src);
-        for(dst->length = 0; src < src_end && is_number_char(*src); ++src, ++dst->length);
+        for(dst->length = 0; src < src_end && is_number_char(*src); src += 1, dst->length += 1);
     }
     else if(is_letter(src[0]))
     {
         dst->type   = TOKEN_NONE;
-        for(char *c = src; c < src_end && (is_letter(*c) || *c == '_'); ++c, ++dst->length);
-        for(u32 i = 0; i < num_keywords; ++i)
+        for(char *c = src; c < src_end && (is_letter(*c) || *c == '_'); c += 1, dst->length += 1);
+        for(u32 i = 0; i < num_keywords; i += 1)
         {
             if(is_word_keyword(src, keyword_table[i]))
             {
@@ -142,7 +142,7 @@ void read_token(scene_token *dst, char *src, char *src_end)
     }
     else
     {
-        for(src; src < src_end && (!(is_letter(*src) || is_number_char(*src))); ++src);
+        for(src; src < src_end && (!(is_letter(*src) || is_number_char(*src))); src += 1);
         dst->type   = TOKEN_SPACE;
         dst->length = src - dst->loc;
     }
