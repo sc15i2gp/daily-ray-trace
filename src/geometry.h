@@ -1,8 +1,15 @@
 typedef struct
 {
-    f64 x;
-    f64 y;
-    f64 z;
+    union
+    {
+        struct
+        {
+            f64 x;
+            f64 y;
+            f64 z;
+        };
+        f64 xyz[3];
+    };
 } vec3;
 
 void print_vector(vec3);
@@ -19,3 +26,10 @@ f64  line_sphere_intersection(vec3 line_o, vec3 line_d, vec3 sphere_c, f64 spher
 f64  line_plane_intersection(vec3 line_o, vec3 line_d, vec3 plane_p, vec3 plane_n, vec3 plane_u, vec3 plane_v);
 f64  line_triangle_intersection(vec3 line_o, vec3 line_d, vec3 triangle_a, vec3 triangle_b, vec3 triangle_c, vec3 triangle_n);
 void create_plane_from_points(vec3 o_point, vec3 u_point, vec3 v_point, vec3 *plane_o, vec3 *plane_u, vec3 *plane_v, vec3 *plane_n);
+
+typedef struct
+{
+    vec3 columns[3];
+} mat3x3;
+
+vec3 row(mat3x3 m, u32 r);

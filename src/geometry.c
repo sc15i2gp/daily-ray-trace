@@ -179,3 +179,89 @@ void create_plane_from_points(vec3 o_point, vec3 u_point, vec3 v_point, vec3 *pl
     *plane_v = vec3_sub(v_point, o_point);
     *plane_n = vec3_normalise(vec3_cross(*plane_u, *plane_v));
 }
+
+vec3 row(mat3x3 m, u32 r)
+{
+    vec3 v;
+    v.x = m.columns[0].xyz[r];
+    v.y = m.columns[1].xyz[r];
+    v.z = m.columns[2].xyz[r];
+    return v;
+}
+
+vec3 mat3x3_vec3_mul(mat3x3 m, vec3 v)
+{
+    vec3 w;
+    for(u32 i = 0; i < 3; i += 1)
+    {
+        w.xyz[i] = vec3_dot(row(m, i), v);
+    }
+    return w;
+}
+
+mat3x3 mat3x3_sum(mat3x3 m, mat3x3 n)
+{
+    mat3x3 r;
+    for(u32 i = 0; i < 3; i += 1)
+    {
+        r.columns[i] = vec3_sum(m.columns[i], n.columns[i]);
+    }
+    return r;
+}
+
+mat3x3 mat3x3_mul(mat3x3 m, mat3x3 n)
+{
+    mat3x3 r;
+    
+    for(u32 i = 0; i < 3; i += 1)
+    {
+        for(u32 j = 0; j < 3; j += 1)
+        {
+            r.columns[i].xyz[j] = vec3_dot(row(m, i), n.columns[j]);
+        }
+    }
+    return r;
+}
+
+mat3x3 mat3x3_mul_by_f64(mat3x3 m, f64 f)
+{
+    for(u32 i = 0; i < 3; i += 1)
+    {
+        m.columns[i] = vec3_mul_by_f64(m.columns[i], f);
+    }
+    return m;
+}
+
+mat3x3 find_rotation_between_vectors(vec3 v, vec3 w)
+{
+    vec3 n = vec3_cross(v, w);
+    f64  s = vec3_length(n);
+    f64  c = vec3_dot(v, w);
+    
+    mat3x3 r = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
+    if(vec3_dot(n, n) == 0.0 && c <= 0.0)
+    {
+        r.columns[0].xyz[0] = -1.0;
+        r.columns[1].xyz[1] = -1.0;
+        r.columns[2].xyz[2] = -1.0;
+    }
+    else
+    {
+        mat3x3 m;
+        m.columns[0].xyz[0] = 0.0;
+        m.columns[0].xyz[1] = n.z;
+        m.columns[0].xyz[2] = -n.y;
+        m.columns[1].xyz[0] = -n.z;
+        m.columns[1].xyz[1] = 0.0;
+        m.columns[1].xyz[2] = n.x;
+        m.columns[2].xyz[0] = n.y;
+        m.columns[2].xyz[1] = -n.x;
+        m.columns[2].xyz[2] = 0.0;
+
+        mat3x3 i = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
+        mat3x3 mm = mat3x3_mul(m, m);
+        mm = mat3x3_mul_by_f64(mm, (1.0/(1.0+c)));
+        r = mat3x3_sum(mat3x3_sum(i, m), mm);
+    }
+    return r;
+}
