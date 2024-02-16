@@ -30,15 +30,14 @@
 //  - Participating media
 
 //TODO:
-//  - Cornell Box scene
-//      - Path tracing
-//          - Shape and direction sampling
-//              - Sphere or plane with area light
-//          - Full algorithm
-//          - Variance measuring
-//          - Russian roulette
 //  - Tidy
 //      - Fix plane intersection method
+//          - Negative normal causes problems
+//          - Switching u,v in scene files causes reduced noise and vantablack shadows
+//      - Fix points_mutually_visible
+//          - Kinda complicated with float precision stuff
+//      - I don't think is_blackbody and is_emissive are necessary in scene_point
+//          - Fix estimate_indirect_contribution, consider whether scene_point is needed at all
 //      - Do something better for sphere/hemisphere sampling
 //          - One problem is that sphere sampling always gens positive z
 //      - Change is_black_body to is_blackbody
@@ -83,6 +82,19 @@
 //  - Check plane normal issue
 //      - Should light shining on the back of a plane pass through? (Hint: Probably not)
 //  - Separate tool to do spd->bmp
+//  - Non-blackbody emissive sources
+//  - Natural vignetting
+//  - Sort out units
+//      - Units of spds, distances etc.
+//      - Also consider attenuation and what exactly surface + emissive spds mean
+//      - Actually, generally bone up on physics
+//  - Input arguments
+//  - Russian roulette
+//  - Variance measuring
+//  - New materials
+//      - Mirror
+//      - Glass
+//      - Metal
 
 //Figures to aim for:
 //  - Handle images with resolutions up to HD (1920x1080)
@@ -151,10 +163,11 @@ int main(int argc, char **argv)
     const char *spectrum_output_path = "output\\output.spd";
     const char *bmp_output_path = "output\\output.bmp";
     //const char *scene_input_path = "scenes\\first_scene.scn";
-    const char *scene_input_path = "scenes\\init_cornell.scn";
+    //const char *scene_input_path = "scenes\\init_cornell.scn";
+    const char *scene_input_path = "scenes\\cornell_plane_light.scn";
     u32 image_width_in_pixels = 800;
     u32 image_height_in_pixels = 600;
-    u32 number_of_pixel_samples = 1;
+    u32 number_of_pixel_samples = 8;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
 
     init_spd_table(32, 69, 380.0, 720.0, 5.0);
@@ -192,7 +205,7 @@ int main(int argc, char **argv)
     print_scene(&scene);
 
     printf("Starting render...\n");
-    render_image(spd_pixels, image_width_in_pixels, image_height_in_pixels, &scene, &camera, 1);
+    render_image(spd_pixels, image_width_in_pixels, image_height_in_pixels, &scene, &camera, number_of_pixel_samples);
     printf("Render complete.\n");
 
     WriteFile(spectrum_output_file, spd_pixels, spd_pixel_data_size, &bytes_written, NULL);

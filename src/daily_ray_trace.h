@@ -84,6 +84,7 @@ typedef struct
     u32  is_emissive;
 
     object_material *material;
+    object_geometry *surface;
 } scene_point;
 
 typedef struct

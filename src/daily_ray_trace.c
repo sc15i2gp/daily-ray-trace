@@ -206,7 +206,7 @@ u32 points_mutually_visible(vec3 p0, vec3 p1, scene_data *scene)
     vec3 ray_dir_full  = vec3_sub(p1, p0);
     vec3 ray_direction = vec3_normalise(ray_dir_full);
     vec3 ray_origin    = vec3_sum(p0, vec3_mul_by_f64(ray_direction, 0.001));
-    f64 vis_dist = vec3_length(ray_dir_full);
+    f64 vis_dist = vec3_length(vec3_sub(p1, ray_origin)) - 0.001;
     f64 dist     = INFINITY;
     for(u32 i = 0; i < scene->num_surfaces; ++i)
     {
@@ -234,17 +234,76 @@ u32 points_mutually_visible(vec3 p0, vec3 p1, scene_data *scene)
     return visible;
 }
 
-u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersection, scene_data *scene, vec3 ray_origin, vec3 ray_direction)
+void direct_light_contribution(spectrum contribution, scene_point *intersection, scene_data *scene, vec3 ray_direction)
 {
-    u32 ret;
     spectrum reflectance = alloc_spd();
-    intersection->is_black_body = 0;
-    ray_origin = vec3_sum(ray_origin, vec3_mul_by_f64(ray_direction, 0.001));
+    zero_spectrum(reflectance);
+    zero_spectrum(contribution);
+    for(u32 i = 0; i < scene->num_surfaces; ++i)
+    {
+        object_material *light_material = &scene->scene_materials[scene->surface_material_indices[i]];
+        if(light_material->is_emissive)
+        {
+            f64 light_pdf;
+            f64 attenuation_factor = 1.0;
+            object_geometry *light_surface = &scene->surfaces[i];
+            vec3 light_position; 
+            switch(light_surface->type)
+            {
+                case GEO_TYPE_POINT:
+                {
+                    light_position = light_surface->position;
+                    f64 dist = vec3_length(vec3_sub(light_position, intersection->position));
+                    light_pdf = 1.0;
+                    attenuation_factor = 1.0 / (4.0 * PI * dist * dist);
+                    break;
+                }
+                case GEO_TYPE_SPHERE:
+                {
+                    f64 u = rng();
+                    f64 v = rng();
+                    f64 r = sqrt(1.0 - u * u);
+                    f64 t = 2.0 * PI * v;
+                    vec3 sphere_point = {r * cos(t), r * sin(t), u};
+                    light_position = vec3_sum(light_surface->position, vec3_mul_by_f64(sphere_point, light_surface->radius));
+                    light_pdf = 1.0 / (4.0 * PI * light_surface->radius * light_surface->radius);
+                    break;
+                }
+                case GEO_TYPE_PLANE:
+                {
+                    f64 u = rng();
+                    f64 v = rng();
+                    vec3 u_pos = vec3_mul_by_f64(light_surface->u, u);
+                    vec3 v_pos = vec3_mul_by_f64(light_surface->v, v);
+                    light_position = vec3_sum(vec3_sum(light_surface->position, u_pos), v_pos);
+                    light_pdf = 1.0/vec3_length(vec3_cross(light_surface->u, light_surface->v));
+                    break;
+                }
+            }
+            if(points_mutually_visible(intersection->position, light_position, scene))
+            {
+                vec3 outgoing = vec3_reverse(ray_direction);
+                vec3 incoming = vec3_normalise(vec3_sub(light_position, intersection->position));
 
-    //Find scene intersection
+                bdsf(reflectance, intersection, incoming, outgoing);
+                spectral_sum(contribution, contribution, reflectance);
+                spectral_mul_by_spectrum(contribution, contribution, light_material->emission_spd);
+
+                f64 d = vec3_dot(incoming, intersection->normal);
+                f64 c = fabs(d) * attenuation_factor * (1.0/light_pdf);
+                spectral_mul_by_scalar(contribution, contribution, c);
+            }
+        }
+    }
+    free_spd(reflectance);
+}
+
+void find_ray_intersection(scene_point *intersection, scene_data *scene, vec3 ray_origin, vec3 ray_direction)
+{
     f64 min_dist = INFINITY;
     object_geometry *intersection_surface = NULL;
     u32 intersection_index = -1;
+    ray_origin = vec3_sum(ray_origin, vec3_mul_by_f64(ray_direction, 0.001));
     for(u32 i = 0; i < scene->num_surfaces; ++i)
     {
         f64 dist = INFINITY;
@@ -287,13 +346,21 @@ u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersect
             }
         }
         intersection->material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
+        intersection->is_black_body = intersection->material->is_black_body;
+        intersection->is_emissive   = intersection->material->is_emissive;
+        intersection->surface = &scene->surfaces[intersection_index];
     }
     else
     {
         intersection->is_black_body = 1;
+        intersection->is_emissive   = 0;
     }
+}
 
-    //Compute contribution
+u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersection, scene_data *scene, vec3 ray_origin, vec3 ray_direction)
+{
+    u32 ret;
+    find_ray_intersection(intersection, scene, ray_origin, ray_direction);
     if(intersection->is_black_body)
     {
         if(intersection->is_emissive)
@@ -308,107 +375,82 @@ u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersect
     }
     else
     {
-        for(u32 i = 0; i < scene->num_surfaces; ++i)
-        {
-            object_material *light_material = &scene->scene_materials[scene->surface_material_indices[i]];
-            if(light_material->is_emissive)
-            {
-                f64 light_pdf;
-                f64 attenuation_factor = 1.0;
-                object_geometry *light_surface = &scene->surfaces[i];
-                vec3 light_position; 
-                switch(light_surface->type)
-                {
-                    case GEO_TYPE_POINT:
-                    {
-                        light_position = light_surface->position;
-                        f64 dist = vec3_length(vec3_sub(light_position, intersection->position));
-                        light_pdf = 1.0;
-                        attenuation_factor = 1.0 / (4.0 * PI * dist * dist);
-                        break;
-                    }
-                    case GEO_TYPE_SPHERE:
-                    {
-                        f64 u = rng();
-                        f64 v = rng();
-                        f64 r = sqrt(1.0 - u * u);
-                        f64 t = 2.0 * PI * v;
-                        vec3 sphere_point = {r * cos(t), r * sin(t), u};
-                        light_position = vec3_sum(light_surface->position, vec3_mul_by_f64(sphere_point, light_surface->radius));
-                        light_pdf = 1.0 / (4.0 * PI * light_surface->radius * light_surface->radius);
-                        break;
-                    }
-                    case GEO_TYPE_PLANE:
-                    {
-                        f64 u = rng();
-                        f64 v = rng();
-                        vec3 u_pos = vec3_mul_by_f64(light_surface->u, u);
-                        vec3 v_pos = vec3_mul_by_f64(light_surface->v, v);
-                        light_position = vec3_sum(vec3_sum(light_surface->position, u_pos), v_pos);
-                        light_pdf = vec3_length(vec3_cross(light_surface->u, light_surface->v));
-                        break;
-                    }
-                }
-                if(points_mutually_visible(intersection->position, light_position, scene))
-                {
-                    vec3 outgoing = vec3_reverse(ray_direction);
-                    vec3 incoming = vec3_normalise(vec3_sub(light_position, intersection->position));
-
-                    bdsf(reflectance, intersection, incoming, outgoing);
-                    spectral_sum(contribution, contribution, reflectance);
-                    spectral_mul_by_spectrum(contribution, contribution, light_material->emission_spd);
-
-                    f64  c = vec3_dot(incoming, intersection->normal) * attenuation_factor * (1.0/light_pdf);
-                    spectral_mul_by_scalar(contribution, contribution, c);
-                }
-            }
-        }
+        direct_light_contribution(contribution, intersection, scene, ray_direction);
         ret = 1;
     }
-    free_spd(reflectance);
     return ret;
 }
 
-//In  direction = towards light/away from camera
-//Out direction = away from light/towards camera
-void cast_ray(spectrum dst, scene_data* scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)
+vec3 cos_weighted_sample_hemisphere(vec3 n)
 {
-    f64  throughput_coefficient = 1.0;
-    vec3 out_direction;
-    vec3 in_direction = ray_direction;
-    scene_point intersection;
+    vec3 p;
+    for(;;)
+    {
+        p = uniform_sample_disc();
+        if(vec3_dot(p, p) < 1.0) break;
+    }
+    p.z = sqrt(1.0 - vec3_dot(p, p));
+    vec3 i = {0.0, 0.0, 1.0};
+    mat3x3 r = find_rotation_between_vectors(i, n);
+    vec3 v = mat3x3_vec3_mul(r, p);
+    return v;
+}
+
+void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)
+{
     spectrum contribution = alloc_spd();
     spectrum throughput   = alloc_spd();
     spectrum reflectance  = alloc_spd();
+    spectrum tmp_spectrum = alloc_spd();
+    zero_spectrum(contribution);
+    zero_spectrum(reflectance);
     const_spectrum(throughput, 1.0);
+
+    vec3 out = ray_direction;
+    vec3 in;
+
+    scene_point intersection;
     memset(&intersection, 0, sizeof(scene_point));
-    u32 ray_continues = estimate_indirect_contribution(contribution, &intersection, scene, ray_origin, in_direction);
-    spectral_sum(dst, contribution, dst);
-    for(u32 depth = 0; ray_continues && depth < max_depth; ++depth)
+    for(u32 depth = 0; depth < max_depth; depth += 1)
     {
-        //Sample next direction
-        out_direction = vec3_reverse(in_direction);
-        do
+        find_ray_intersection(&intersection, scene, ray_origin, out);
+
+        object_material *mat = intersection.material;
+        if(intersection.is_black_body && !intersection.is_emissive) break;
+        else if(mat->is_black_body && mat->is_emissive)
         {
-            in_direction = uniform_sample_sphere();
+            spectral_mul_by_spectrum(tmp_spectrum, throughput, mat->emission_spd);
+            spectral_sum(dst, dst, tmp_spectrum);
+            break;
         }
-        while(vec3_dot(in_direction, intersection.normal) <= 0.0);
-        f64 dir_pdf = 1.0/(2.0*PI);
-        
-        //Update throughput
-        throughput_coefficient = abs(vec3_dot(in_direction, intersection.normal)) * 1.0/dir_pdf; 
-        bdsf(reflectance, &intersection, in_direction, out_direction);
-        spectral_mul_by_spectrum(throughput, reflectance, throughput);
-        spectral_mul_by_scalar(throughput, throughput, throughput_coefficient);
+        else
+        {
+            out = vec3_reverse(out);
+            direct_light_contribution(contribution, &intersection, scene, out);
+            spectral_mul_by_spectrum(tmp_spectrum, throughput, contribution);
+            spectral_sum(dst, dst, tmp_spectrum);
 
-        //Estimate contribution
-        memset(&intersection, 0, sizeof(scene_point));
-        ray_continues = estimate_indirect_contribution(contribution, &intersection, scene, intersection.position, in_direction);
+#if 0
+            do
+            {
+                in = uniform_sample_sphere();
+            }
+            while(vec3_dot(in, intersection.normal) <= 0.0);
+            f64 dir_pdf = 1.0/(2.0*PI);
+#else
+            in = cos_weighted_sample_hemisphere(intersection.normal);
+            f64 dir_pdf = vec3_dot(intersection.normal, in) / PI;
+#endif
+            f64 throughput_coefficient = fabs(vec3_dot(intersection.normal, in)) * (1.0/dir_pdf);
+            bdsf(reflectance, &intersection, in, out);
+            spectral_mul_by_scalar(reflectance, reflectance, throughput_coefficient);
+            spectral_mul_by_spectrum(throughput, throughput, reflectance);
 
-        //Multiply contribution by throughput and acc
-        spectral_mul_by_spectrum(contribution, contribution, throughput);
-        spectral_sum(dst, contribution, dst);
+            out = in;
+            ray_origin = intersection.position;
+        }
     }
+    free_spd(tmp_spectrum);
     free_spd(reflectance);
     free_spd(throughput);
     free_spd(contribution);
@@ -448,8 +490,19 @@ void print_surface(object_geometry *surface, object_material *mat)
     }
     printf("Surface: %s\n", surface->name);
     printf("Type:    %s\n", surface_type_name);
-    printf("Position:%f %f %f\n", surface->position.x, surface->position.y, surface->position.z);
     printf("Material:%s\n", mat->name);
+    printf("Position:%f %f %f\n", surface->position.x, surface->position.y, surface->position.z);
+    switch(surface->type)
+    {
+        case GEO_TYPE_SPHERE: printf("Radius:  %f\n", surface->radius); break;
+        case GEO_TYPE_PLANE:
+        {
+            printf("U:       %f %f %f\n", surface->u.x, surface->u.y, surface->u.z);
+            printf("V:       %f %f %f\n", surface->v.x, surface->v.y, surface->v.z);
+            printf("N:       %f %f %f\n", surface->normal.x, surface->normal.y, surface->normal.z);
+            break;
+        }
+    }
 }
 
 void print_scene(scene_data *scene)
@@ -485,6 +538,7 @@ void render_image(f64 *dst_pixels, u32 dst_width, u32 dst_height, scene_data *sc
 
     for(u32 sample = 0; sample < samples_per_pixel; ++sample)
     {
+        printf("Sample %u / %u\n", sample+1, samples_per_pixel);
         //Filter final contribution and write to dst
         //pixel value = sum(filter * weight * radiance)/sum(filter)
         for(u32 y = 0; y < dst_height; ++y)
