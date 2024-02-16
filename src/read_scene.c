@@ -72,6 +72,11 @@ u32 is_letter(char c)
     return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
 }
 
+u32 is_word_char(char c)
+{
+    return is_letter(c) || c == '_' || c == '.';
+}
+
 u32 is_number_char(char c)
 {
     return is_number(c) || c == '.' || c == '-';
@@ -80,7 +85,7 @@ u32 is_number_char(char c)
 u32 is_word_keyword(const char *word, const char *kw_candidate)
 {
     u32 word_length = 0;
-    for(const char *c = word; is_letter(*c) || (*c == '_'); c += 1, word_length += 1);
+    for(const char *c = word; is_word_char(*c); c += 1, word_length += 1);
     u32 kw_candidate_length = 0;
     for(const char *c = kw_candidate; *c != 0; c += 1, kw_candidate_length += 1);
 
@@ -126,7 +131,7 @@ void read_token(scene_token *dst, char *src, char *src_end)
     else if(is_letter(src[0]))
     {
         dst->type   = TOKEN_NONE;
-        for(char *c = src; c < src_end && (is_letter(*c) || *c == '_'); c += 1, dst->length += 1);
+        for(char *c = src; c < src_end && is_word_char(*c); c += 1, dst->length += 1);
         for(u32 i = 0; i < num_keywords; i += 1)
         {
             if(is_word_keyword(src, keyword_table[i]))
