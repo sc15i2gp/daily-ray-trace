@@ -1,14 +1,9 @@
 u32 write_bmp_to_file(windows_bmp *bmp, const char *file_path)
 {
-    DWORD  bytes_written = 0;
-    HANDLE output_file   = CreateFile(file_path, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    file_handle output_file = open_file(file_path, ACCESS_WRITE, FILE_NEW);
 
-    if(output_file == INVALID_HANDLE_VALUE) return 0;
-
-    BOOL success = WriteFile(output_file, (void*)bmp->file_header, bmp->file_header->bfSize, &bytes_written, NULL);
-    CloseHandle(output_file);
-
-    return success;
+    write_file(output_file, bmp->file_header->bfSize, bmp->file_header);
+    close_file(output_file);
 }
 
 u32 write_pixels_to_bmp(rgb_u8 *pixels, u32 width, u32 height, const char *path)
@@ -16,7 +11,7 @@ u32 write_pixels_to_bmp(rgb_u8 *pixels, u32 width, u32 height, const char *path)
     u32 pixels_size = width * height * sizeof(u32);
     u32 bmp_size = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + pixels_size;
     windows_bmp bmp = {0};
-    u8 *raw_bmp = (u8*)VirtualAlloc(0, bmp_size, MEM_COMMIT, PAGE_READWRITE);
+    u8 *raw_bmp = alloc(bmp_size);
     bmp.file_header = (BITMAPFILEHEADER*)raw_bmp;
     bmp.info_header = (BITMAPINFOHEADER*)(raw_bmp + sizeof(BITMAPFILEHEADER));
     bmp.pixels = (rgb_u8*)(raw_bmp + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER));
@@ -38,7 +33,7 @@ u32 write_pixels_to_bmp(rgb_u8 *pixels, u32 width, u32 height, const char *path)
     bmp.info_header->biClrImportant = 0;
 
     u32 success = write_bmp_to_file(&bmp, path);
-    VirtualFree(raw_bmp, 0, MEM_RELEASE);
+    unalloc(raw_bmp, 0);
 
     return success;
 }
@@ -123,6 +118,12 @@ void read_file(file_handle file, u32 read_size, void *dst)
 {
     DWORD bytes_read;
     ReadFile(file, dst, read_size, &bytes_read, NULL);
+}
+
+void write_file(file_handle file, u32 write_size, void *src)
+{
+    DWORD bytes_written;
+    WriteFile(file, src, write_size, &bytes_written, NULL);
 }
 
 void set_file_pointer(file_handle file, u32 loc)

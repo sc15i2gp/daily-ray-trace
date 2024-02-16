@@ -30,6 +30,7 @@ file_handle open_file(const char *path, file_access_type access, file_open_type 
 void close_file(file_handle file);
 u32 get_file_size(file_handle file);
 void read_file(file_handle file, u32 read_size, void *buffer);
+void write_file(file_handle file, u32 write_size, void *buffer);
 void set_file_pointer(file_handle file, u32 loc);
 
 u32 write_bmp_to_file(windows_bmp*, const char*);
