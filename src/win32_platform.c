@@ -177,15 +177,18 @@ void spd_file_to_bmp(const char *spd_path, const char *bmp_path)
     u32 pixels_size_rgb_u8 = num_pixels * sizeof(rgb_u8);
     rgb_u8 *pixels_rgb_u8 = alloc(pixels_size_rgb_u8);
     spectrum pixel_spd = alloc_spd();
-    u32 pixel_size = spectrum_size + sizeof(f64);
+    u32 pixel_size = (header.has_filter_values) ? spectrum_size + sizeof(f64) : spectrum_size;
     f64 *pixel_buffer = alloc(pixel_size);
     for(u32 pixel = 0; pixel < num_pixels; pixel += 1)
     {
         read_file(spd_file, pixel_size, pixel_buffer);
         spectrum pixel_spd;
         pixel_spd.samples = pixel_buffer;
-        f64 pixel_filter = pixel_buffer[number_of_spectrum_samples];
-        spectral_div_by_scalar(pixel_spd, pixel_spd, pixel_filter);
+        if(header.has_filter_values)
+        {
+            f64 pixel_filter = pixel_buffer[number_of_spectrum_samples];
+            spectral_div_by_scalar(pixel_spd, pixel_spd, pixel_filter);
+        }
         rgb_f64 pixel_f64 = spectrum_to_rgb_f64(pixel_spd, cmf_x, cmf_y, cmf_z, ref_white);
         pixels_rgb_u8[pixel] = rgb_f64_to_rgb_u8(pixel_f64);
     }

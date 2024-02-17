@@ -550,6 +550,7 @@ void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_
     spd_file_header header;
     memset(&header, 0, sizeof(header));
     header.id = 0xedfeefbe;
+    header.has_filter_values = 1;
     header.width_in_pixels = dst_width;
     header.height_in_pixels = dst_height;
     header.number_of_wavelengths = number_of_spectrum_samples;
