@@ -538,6 +538,11 @@ vec3 sample_camera(camera_data *camera)
     return p;
 }
 
+//Data to output to file(s):
+//  - Pixel spectra: sum(filter * weight * incident radiance)
+//  - Variance spectra
+//  - Filter sums
+
 void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples_per_pixel)
 {
     file_handle output_spd_file = open_file(output_path, ACCESS_READWRITE, FILE_NEW);
@@ -608,15 +613,19 @@ void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_
             }
         }
     }
+
+    spectrum dst_pixel;
+    u32 dst_pixel_size = spectrum_size + sizeof(f64);
+    f64 *dst_pixel_buffer = alloc(dst_pixel_size);
     for(u32 pixel = 0; pixel < num_pixels; pixel += 1)
     {
-        f64 pixel_filter = 1.0 / pixel_filter_sums[pixel];
-        spectrum dst_pixel;
-        dst_pixel.samples = dst_pixels + pixel * number_of_spectrum_samples;
-        spectral_mul_by_scalar(dst_pixel, dst_pixel, pixel_filter);
+        f64 dst_pixel_filter = pixel_filter_sums[pixel];
+        f64 *src_spd = dst_pixels + pixel * number_of_spectrum_samples;
+        memcpy(dst_pixel_buffer, src_spd, spectrum_size);
+        dst_pixel_buffer[number_of_spectrum_samples] = dst_pixel_filter;
+        write_file(output_spd_file, dst_pixel_size, dst_pixel_buffer);
     }
-
-    write_file(output_spd_file, spd_pixel_data_size, dst_pixels);
     close_file(output_spd_file);
     unalloc(dst_pixels, 0);
+    unalloc(pixel_filter_sums, 0);
 }
