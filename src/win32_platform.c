@@ -4,6 +4,8 @@ u32 write_bmp_to_file(windows_bmp *bmp, const char *file_path)
 
     write_file(output_file, bmp->file_header->bfSize, bmp->file_header);
     close_file(output_file);
+
+    return 1;
 }
 
 u32 write_pixels_to_bmp(rgb_u8 *pixels, u32 width, u32 height, const char *path)

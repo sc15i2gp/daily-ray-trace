@@ -441,6 +441,7 @@ void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_directi
             spectral_sum(dst, dst, tmp_spectrum);
 
 #if 0
+            //in = uniform_sample_sphere(intersection.normal);
             do
             {
                 in = uniform_sample_sphere();
@@ -578,11 +579,11 @@ void render_image(f64 *dst_pixels, u32 dst_width, u32 dst_height, scene_data *sc
 
                 f64 pixel_filter_value = 1.0;
                 f64 pixel_weight_value = 1.0;
+                f64 vignette_factor    = vec3_dot(ray_direction, camera->forward);
 
                 spectrum dst_pixel;
                 dst_pixel.samples = dst_pixels + number_of_spectrum_samples * ((y*dst_width) + x);
-                spectral_mul_by_scalar(contribution, contribution, pixel_filter_value);
-                spectral_mul_by_scalar(contribution, contribution, pixel_weight_value);
+                spectral_mul_by_scalar(contribution, contribution, vignette_factor * pixel_filter_value);
                 spectral_sum(dst_pixel, dst_pixel, contribution);
 
                 f64 *dst_filter = pixel_filter_sums + (y*dst_width) + x;

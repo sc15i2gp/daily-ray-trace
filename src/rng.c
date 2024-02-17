@@ -11,6 +11,19 @@ void seed_rng(u32 seed)
     srand(seed);
 }
 
+/*
+vec3 uniform_sample_sphere(vec3 n)
+{
+    vec3 v;
+    do
+    {
+        v = uniform_sample_sphere();
+    }
+    while(vec3_dot(v, n) <= 0.0);
+    f64 dir_pdf = 1.0/(2.0*PI);
+}
+*/
+
 vec3 uniform_sample_sphere()
 {
     f64  u      = rng();
