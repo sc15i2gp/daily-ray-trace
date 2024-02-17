@@ -543,6 +543,15 @@ vec3 sample_camera(camera_data *camera)
 //  - Variance spectra
 //  - Filter sums
 
+//dst_buffer = some number of spds
+//for each sample to be taken
+//  take scene sample
+//  write it to dst buffer
+//  if dst buffer is full
+//      write dst buffer to output file
+//  if file pointer is at end of pixel data
+//      set file pointer back to beginning of pixel data
+
 void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples_per_pixel)
 {
     file_handle output_spd_file = open_file(output_path, ACCESS_READWRITE, FILE_NEW);
@@ -556,20 +565,19 @@ void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_
     header.number_of_wavelengths = number_of_spectrum_samples;
     header.min_wavelength = smallest_wavelength;
     header.wavelength_interval = sample_interval;
-
     write_file(output_spd_file, sizeof(header), &header);
 
-    u32 spd_pixel_data_size = dst_width * dst_height * spectrum_size;
+    u32 num_pixels = dst_width * dst_height;
+
+    u32 spd_pixel_num_f64 = number_of_spectrum_samples + 1;
+    u32 spd_pixel_size = spd_pixel_num_f64 * sizeof(f64);
+    u32 spd_pixel_data_size = num_pixels * spd_pixel_size;
     f64 *dst_pixels = alloc(spd_pixel_data_size);
     printf("Size = %u\n", spd_pixel_data_size);
 
-    const u32 max_cast_depth = 4;
-    u32 num_pixels = dst_width * dst_height;
-
-    u32 pixel_filter_sums_size = num_pixels * sizeof(f64);
-    f64 *pixel_filter_sums = alloc(pixel_filter_sums_size);
     spectrum contribution  = alloc_spd();
 
+    const u32 max_cast_depth = 4;
     for(u32 sample = 0; sample < samples_per_pixel; sample += 1)
     {
         printf("Sample %u / %u\n", sample+1, samples_per_pixel);
@@ -605,28 +613,22 @@ void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_
                 f64 vignette_factor    = vec3_dot(ray_direction, camera->forward);
 
                 spectrum dst_pixel;
-                dst_pixel.samples = dst_pixels + number_of_spectrum_samples * ((y*dst_width) + x);
+                dst_pixel.samples = dst_pixels + spd_pixel_num_f64 * ((y*dst_width) + x);
                 spectral_mul_by_scalar(contribution, contribution, vignette_factor * pixel_filter_value);
                 spectral_sum(dst_pixel, dst_pixel, contribution);
 
-                f64 *dst_filter = pixel_filter_sums + (y*dst_width) + x;
+                f64 *dst_filter = dst_pixel.samples + number_of_spectrum_samples;
                 *dst_filter += pixel_filter_value;
             }
         }
     }
 
-    spectrum dst_pixel;
     u32 dst_pixel_size = spectrum_size + sizeof(f64);
-    f64 *dst_pixel_buffer = alloc(dst_pixel_size);
     for(u32 pixel = 0; pixel < num_pixels; pixel += 1)
     {
-        f64 dst_pixel_filter = pixel_filter_sums[pixel];
-        f64 *src_spd = dst_pixels + pixel * number_of_spectrum_samples;
-        memcpy(dst_pixel_buffer, src_spd, spectrum_size);
-        dst_pixel_buffer[number_of_spectrum_samples] = dst_pixel_filter;
-        write_file(output_spd_file, dst_pixel_size, dst_pixel_buffer);
+        f64 *dst_pixel = dst_pixels + spd_pixel_num_f64 * pixel;
+        write_file(output_spd_file, dst_pixel_size, dst_pixel);
     }
     close_file(output_spd_file);
     unalloc(dst_pixels, 0);
-    unalloc(pixel_filter_sums, 0);
 }
