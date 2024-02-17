@@ -552,6 +552,38 @@ vec3 sample_camera(camera_data *camera)
 //  if file pointer is at end of pixel data
 //      set file pointer back to beginning of pixel data
 
+void sample_scene(spectrum contribution, f64 *filter, u32 x, u32 y, scene_data *scene, camera_data *camera, u32 max_cast_depth)
+{
+    zero_spectrum(contribution);
+
+    //Sample point on film plane
+    //vec3 sampled_pixel_point = camera->film_bottom_left + film_x * camera->right + film_y * camera->up;
+    f64 p_sample_x = 0.5; //TODO: Replace this with some scheme (e.g. completely random, stratified etc.)
+    f64 p_sample_y = 0.5;
+    f64 film_x     = ((f64)x + p_sample_x) * camera->pixel_width;
+    f64 film_y     = ((f64)y + p_sample_y) * camera->pixel_height;
+
+    vec3 sampled_pixel_point_bottom = vec3_mul_by_f64(camera->up,    film_y);
+    vec3 sampled_pixel_point_left   = vec3_mul_by_f64(camera->right, film_x);
+    vec3 sampled_pixel_point_bl     = vec3_sum(sampled_pixel_point_left, sampled_pixel_point_bottom);
+    vec3 sampled_pixel_point        = vec3_sum(sampled_pixel_point_bl,   camera->film_bottom_left);
+
+    //Sample camera lens
+    vec3 sampled_camera_point = sample_camera(camera);
+    vec3 ray_origin           = sampled_pixel_point;
+    vec3 ray_direction        = vec3_normalise(vec3_sub(sampled_camera_point, ray_origin));
+    
+    //Only one dst pixel for now (EDIT: What does this comment mean?)
+    cast_ray(contribution, scene, ray_origin, ray_direction, max_cast_depth);
+
+    f64 pixel_filter_value = 1.0;
+    f64 pixel_weight_value = 1.0;
+    f64 vignette_factor    = vec3_dot(ray_direction, camera->forward);
+    spectral_mul_by_scalar(contribution, contribution, vignette_factor * pixel_filter_value);
+
+    *filter = pixel_filter_value;
+}
+
 void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples_per_pixel)
 {
     file_handle output_spd_file = open_file(output_path, ACCESS_READWRITE, FILE_NEW);
@@ -575,8 +607,10 @@ void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_
     f64 *dst_pixels = alloc(spd_pixel_data_size);
     printf("Size = %u\n", spd_pixel_data_size);
 
-    spectrum contribution  = alloc_spd();
-
+    f64 *contribution_buffer = alloc(spd_pixel_size);
+    spectrum contribution;
+    contribution.samples = contribution_buffer;
+    f64 *filter = &contribution_buffer[number_of_spectrum_samples];
     const u32 max_cast_depth = 4;
     for(u32 sample = 0; sample < samples_per_pixel; sample += 1)
     {
@@ -587,38 +621,13 @@ void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_
         {
             for(u32 x = 0; x < dst_width; x += 1)
             {
-                //Sample point on film plane
-                //vec3 sampled_pixel_point = camera->film_bottom_left + film_x * camera->right + film_y * camera->up;
-                f64 p_sample_x = 0.5; //TODO: Replace this with some scheme (e.g. completely random, stratified etc.)
-                f64 p_sample_y = 0.5;
-                f64 film_x     = ((f64)x + p_sample_x) * camera->pixel_width;
-                f64 film_y     = ((f64)y + p_sample_y) * camera->pixel_height;
+                sample_scene(contribution, filter, x, y, scene, camera, max_cast_depth);
+                f64 *dst_pixel = dst_pixels + spd_pixel_num_f64 * ((y*dst_width) + x);
 
-                vec3 sampled_pixel_point_bottom = vec3_mul_by_f64(camera->up,    film_y);
-                vec3 sampled_pixel_point_left   = vec3_mul_by_f64(camera->right, film_x);
-                vec3 sampled_pixel_point_bl     = vec3_sum(sampled_pixel_point_left, sampled_pixel_point_bottom);
-                vec3 sampled_pixel_point        = vec3_sum(sampled_pixel_point_bl,   camera->film_bottom_left);
-
-                //Sample camera lens
-                vec3 sampled_camera_point = sample_camera(camera);
-                vec3 ray_origin           = sampled_pixel_point;
-                vec3 ray_direction        = vec3_normalise(vec3_sub(sampled_camera_point, ray_origin));
-                
-                //Only one dst pixel for now (EDIT: What does this comment mean?)
-                zero_spectrum(contribution);
-                cast_ray(contribution, scene, ray_origin, ray_direction, max_cast_depth);
-
-                f64 pixel_filter_value = 1.0;
-                f64 pixel_weight_value = 1.0;
-                f64 vignette_factor    = vec3_dot(ray_direction, camera->forward);
-
-                spectrum dst_pixel;
-                dst_pixel.samples = dst_pixels + spd_pixel_num_f64 * ((y*dst_width) + x);
-                spectral_mul_by_scalar(contribution, contribution, vignette_factor * pixel_filter_value);
-                spectral_sum(dst_pixel, dst_pixel, contribution);
-
-                f64 *dst_filter = dst_pixel.samples + number_of_spectrum_samples;
-                *dst_filter += pixel_filter_value;
+                spectrum dst_pixel_spd;
+                dst_pixel_spd.samples = dst_pixel;
+                spectral_sum(dst_pixel_spd, dst_pixel_spd, contribution);
+                dst_pixel[number_of_spectrum_samples] += *filter;
             }
         }
     }
