@@ -39,16 +39,6 @@ typedef enum
 
 typedef struct
 {
-    u32 id;
-    u32 width_in_pixels;
-    u32 height_in_pixels;
-    u32 number_of_wavelengths;
-    f64 min_wavelength;
-    f64 wavelength_interval;
-} spd_file_header;
-
-typedef struct
-{
     char          name[32];
     geometry_type type;
     vec3          position;

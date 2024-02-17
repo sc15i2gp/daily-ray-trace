@@ -133,3 +133,54 @@ void set_file_pointer(file_handle file, u32 loc)
     SetFilePointer(file, loc, NULL, FILE_BEGIN);
 }
 
+f64 clamp(f64 f, f64 min, f64 max)
+{
+    f = (f < min) ? min : f;
+    f = (f > max) ? max : f;
+    return f;
+}
+
+rgb_u8 rgb_f64_to_rgb_u8(rgb_f64 in_rgb)
+{
+    rgb_u8 out_rgb;
+    in_rgb.r = clamp(in_rgb.r, 0.0, 1.0);
+    in_rgb.g = clamp(in_rgb.g, 0.0, 1.0);
+    in_rgb.b = clamp(in_rgb.b, 0.0, 1.0);
+    out_rgb.r = (u8)(in_rgb.r * 255.0);
+    out_rgb.g = (u8)(in_rgb.g * 255.0);
+    out_rgb.b = (u8)(in_rgb.b * 255.0);
+
+    return out_rgb;
+}
+
+void spd_file_to_bmp(const char *spd_path, const char *bmp_path)
+{ 
+    spectrum ref_white = alloc_spd();
+    spectrum cmf_x     = alloc_spd();
+    spectrum cmf_y     = alloc_spd();
+    spectrum cmf_z     = alloc_spd();
+
+    const_spectrum(ref_white, 1.0);
+    load_csv_file_to_spectrum(cmf_x, "spectra\\cmf_x.csv");
+    load_csv_file_to_spectrum(cmf_y, "spectra\\cmf_y.csv");
+    load_csv_file_to_spectrum(cmf_z, "spectra\\cmf_z.csv");
+
+    spd_file_header header;
+    file_handle spd_file = open_file(spd_path, ACCESS_READ, FILE_EXISTS);
+    read_file(spd_file, sizeof(header), &header);
+
+    u32 num_pixels = header.width_in_pixels * header.height_in_pixels;
+    u32 pixels_size_rgb_u8 = num_pixels * sizeof(rgb_u8);
+    rgb_u8 *pixels_rgb_u8 = alloc(pixels_size_rgb_u8);
+    spectrum pixel_spd = alloc_spd();
+    for(u32 pixel = 0; pixel < num_pixels; pixel += 1)
+    {
+        read_file(spd_file, spectrum_size, pixel_spd.samples);
+        rgb_f64 pixel_f64 = spectrum_to_rgb_f64(pixel_spd, cmf_x, cmf_y, cmf_z, ref_white);
+        pixels_rgb_u8[pixel] = rgb_f64_to_rgb_u8(pixel_f64);
+    }
+
+    write_pixels_to_bmp(pixels_rgb_u8, header.width_in_pixels, header.height_in_pixels, bmp_path);
+    free_spd(pixel_spd);
+    unalloc(pixels_rgb_u8, 0);
+}
