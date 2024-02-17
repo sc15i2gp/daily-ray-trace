@@ -538,8 +538,25 @@ vec3 sample_camera(camera_data *camera)
     return p;
 }
 
-void render_image(f64 *dst_pixels, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples_per_pixel)
+void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples_per_pixel)
 {
+    file_handle output_spd_file = open_file(output_path, ACCESS_READWRITE, FILE_NEW);
+
+    spd_file_header header;
+    memset(&header, 0, sizeof(header));
+    header.id = 0xedfeefbe;
+    header.width_in_pixels = dst_width;
+    header.height_in_pixels = dst_height;
+    header.number_of_wavelengths = number_of_spectrum_samples;
+    header.min_wavelength = smallest_wavelength;
+    header.wavelength_interval = sample_interval;
+
+    write_file(output_spd_file, sizeof(header), &header);
+
+    u32 spd_pixel_data_size = dst_width * dst_height * spectrum_size;
+    f64 *dst_pixels = alloc(spd_pixel_data_size);
+    printf("Size = %u\n", spd_pixel_data_size);
+
     const u32 max_cast_depth = 4;
     u32 num_pixels = dst_width * dst_height;
 
@@ -598,4 +615,8 @@ void render_image(f64 *dst_pixels, u32 dst_width, u32 dst_height, scene_data *sc
         dst_pixel.samples = dst_pixels + pixel * number_of_spectrum_samples;
         spectral_mul_by_scalar(dst_pixel, dst_pixel, pixel_filter);
     }
+
+    write_file(output_spd_file, spd_pixel_data_size, dst_pixels);
+    close_file(output_spd_file);
+    unalloc(dst_pixels, 0);
 }

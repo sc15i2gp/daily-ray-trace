@@ -33,7 +33,6 @@
 //TODO:
 //  - Variance measuring
 //  - Input arguments
-//  - Natural vignetting
 //  - Russian roulette
 //  - Tidy
 //      - Remove fixed length arrays in scene structs
@@ -125,16 +124,6 @@ rgb_u8 rgb_f64_to_rgb_u8(rgb_f64 in_rgb)
     return out_rgb;
 }
 
-typedef struct
-{
-    u32 id;
-    u32 width_in_pixels;
-    u32 height_in_pixels;
-    u32 number_of_wavelengths;
-    f64 min_wavelength;
-    f64 wavelength_interval;
-} spd_file_header;
-
 //Assume handle starts at pixel data in spd_file
 void spd_file_to_bmp(file_handle spd_file, spd_file_header *header, const char *bmp_path, spectrum cmf_x, spectrum cmf_y, spectrum cmf_z, spectrum ref_white)
 {
@@ -165,49 +154,20 @@ int main(int argc, char **argv)
     const char *scene_input_path = "scenes\\cornell_plane_light.scn";
     u32 image_width_in_pixels = 800;
     u32 image_height_in_pixels = 600;
-    u32 number_of_pixel_samples = 8;
+    u32 number_of_pixel_samples = 2;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
 
     init_spd_table(32, 69, 380.0, 720.0, 5.0);
 
-    //Spectrum file contents:
-    //- Number of spectra/pixels (dims)
-    //- Number of samples per spectrum
-    //- Wavelength low, high and interval
-    //- Spectral data
-    file_handle spectrum_output_file = open_file(spectrum_output_path, ACCESS_READWRITE, FILE_NEW);
-
-    spd_file_header header;
-    memset(&header, 0, sizeof(header));
-    header.id = 0xedfeefbe;
-    header.width_in_pixels = image_width_in_pixels;
-    header.height_in_pixels = image_height_in_pixels;
-    header.number_of_wavelengths = number_of_spectrum_samples;
-    header.min_wavelength = smallest_wavelength;
-    header.wavelength_interval = sample_interval;
-
-    //Write spd file header
-    write_file(spectrum_output_file, sizeof(header), &header);
-
-    //Alloc a certain amount of memory for pixel data
-    //u32 allocated_pixels = spd_pixel_data_size / sizeof(spectrum);
-    u32 spd_pixel_data_size = image_width_in_pixels * image_height_in_pixels * spectrum_size;
-    f64 *spd_pixels = alloc(spd_pixel_data_size);
-    printf("Size = %u\n", spd_pixel_data_size);
-
     camera_data camera;
     scene_data  scene;
-    load_scene(scene_input_path, &camera, &scene, 800, 600);
+    load_scene(scene_input_path, &camera, &scene, image_width_in_pixels, image_height_in_pixels);
     print_camera(&camera);
     print_scene(&scene);
 
     printf("Starting render...\n");
-    render_image(spd_pixels, image_width_in_pixels, image_height_in_pixels, &scene, &camera, number_of_pixel_samples);
+    render_image(spectrum_output_path, image_width_in_pixels, image_height_in_pixels, &scene, &camera, number_of_pixel_samples);
     printf("Render complete.\n");
-
-    write_file(spectrum_output_file, spd_pixel_data_size, spd_pixels);
-    close_file(spectrum_output_file);
-    unalloc(spd_pixels, 0);
 
     //spd file -> bmp
     spectrum ref_white = alloc_spd();
@@ -220,7 +180,8 @@ int main(int argc, char **argv)
     load_csv_file_to_spectrum(cmf_y, "spectra\\cmf_y.csv");
     load_csv_file_to_spectrum(cmf_z, "spectra\\cmf_z.csv");
 
-    spectrum_output_file = open_file(spectrum_output_path, ACCESS_READ, FILE_EXISTS);
+    spd_file_header header;
+    file_handle spectrum_output_file = open_file(spectrum_output_path, ACCESS_READ, FILE_EXISTS);
     read_file(spectrum_output_file, sizeof(header), &header);
     spd_file_to_bmp(spectrum_output_file, &header, bmp_output_path, cmf_x, cmf_y, cmf_z, ref_white);
     close_file(spectrum_output_file);

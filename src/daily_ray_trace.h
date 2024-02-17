@@ -39,6 +39,16 @@ typedef enum
 
 typedef struct
 {
+    u32 id;
+    u32 width_in_pixels;
+    u32 height_in_pixels;
+    u32 number_of_wavelengths;
+    f64 min_wavelength;
+    f64 wavelength_interval;
+} spd_file_header;
+
+typedef struct
+{
     char          name[32];
     geometry_type type;
     vec3          position;
@@ -104,6 +114,6 @@ void init_scene(scene_data *scene, scene_input_data *scene_input);
 void init_camera(camera_data *, camera_input_data *);
 void print_camera(camera_data *);
 void print_scene(scene_data *);
-void render_image(f64* dst_pixels, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples);
+void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples);
 
 #include "daily_ray_trace.c"
