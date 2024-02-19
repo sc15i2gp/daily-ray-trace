@@ -32,16 +32,18 @@
 
 //TODO:
 //  - Variance measuring
-//      - Move writing to output spd file to render_image
-//      - Remove file pointer assumption from spd to bmp
-//      - Move spd file to bmp out of main
-//      - Write filter values to output spd file
-//      - Reduce memory used for file output
 //      - Compute variances and write them to their own spd file
 //  - Input arguments
 //  - Russian roulette
 //  - Tidy
+//      - Make render_image more flexible with file writing and sample taking
+//          - e.g. no reliance on sample ordering, could do the same couple of pixels
+//              a few times in a row then flush
+//      - Separate tool to do spd->bmp
+//          - At least remove assumptions such as previously called init_spd_table
+//      - Platform maybe shouldn't need to know how to filter pixels when converting spd image file
 //      - Function prototypes and struct definitions in header files
+//      - Code order in files
 //      - Include reference white and cmfs in spd file?
 //      - Remove fixed length arrays in scene structs
 //      - Track open files and allocations in platform, properly free stuff upon program completion
@@ -63,6 +65,8 @@
 //      - Review csv loading
 //          - Maybe move it out of spectrum
 //      - Good memory management (or at least better)
+//          - Use less memory for output file buffers
+//          - Can also be a win for multithreading if multiple threads use different parts of files
 //      - Reading scene files code (e.g. is_word_char vs is_letter_char || '_')
 //      - String type?
 //      - Sort out camera
@@ -79,6 +83,7 @@
 //      - RNG
 //          - Quality tests
 //      - Camera
+//  - Do general performance pass over code
 //  - Output rendered scene info to files
 //      - e.g. light colours/spectra, material colours etc.
 //  - Better RNG
@@ -98,7 +103,6 @@
 //      - How much to log?
 //      - Metal
 //  - Parallelism
-//  - Separate tool to do spd->bmp
 //  - Non-blackbody emissive sources
 //  - Change algorithm back to newer version
 //      - Some spectral calculations don't need to be done (e.g. after a ray has escaped)
@@ -117,13 +121,17 @@ int main(int argc, char **argv)
     //Default args
     //Args (just set to default for now)
     const char *spectrum_output_path = "output\\output.spd";
+    const char *average_output_path  = "output\\average.spd";
+    const char *variance_output_path = "output\\variance.spd";
     const char *bmp_output_path = "output\\output.bmp";
+    const char *avg_output_path = "output\\average.bmp";
+    const char *var_output_path = "output\\variance.bmp";
     //const char *scene_input_path = "scenes\\first_scene.scn";
     //const char *scene_input_path = "scenes\\init_cornell.scn";
     const char *scene_input_path = "scenes\\cornell_plane_light.scn";
     u32 image_width_in_pixels = 800;
     u32 image_height_in_pixels = 600;
-    u32 number_of_pixel_samples = 32;
+    u32 number_of_pixel_samples = 8;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
 
     init_spd_table(32, 69, 380.0, 720.0, 5.0);
@@ -135,10 +143,14 @@ int main(int argc, char **argv)
     print_scene(&scene);
 
     printf("Starting render...\n");
-    render_image(spectrum_output_path, image_width_in_pixels, image_height_in_pixels, &scene, &camera, number_of_pixel_samples);
+    render_image(spectrum_output_path, average_output_path, variance_output_path, image_width_in_pixels, image_height_in_pixels, &scene, &camera, number_of_pixel_samples);
     printf("Render complete.\n");
 
+    printf("Converting...\n");
     spd_file_to_bmp(spectrum_output_path, bmp_output_path);
+    spd_file_to_bmp(average_output_path, avg_output_path);
+    spd_file_to_bmp(variance_output_path, var_output_path);
+    printf("Converted.\n");
 
     return 0;
 }

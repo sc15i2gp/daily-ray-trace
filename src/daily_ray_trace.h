@@ -104,6 +104,6 @@ void init_scene(scene_data *scene, scene_input_data *scene_input);
 void init_camera(camera_data *, camera_input_data *);
 void print_camera(camera_data *);
 void print_scene(scene_data *);
-void render_image(const char *output_path, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples);
+void render_image(const char *output_path, const char *output_avg_path, const char *output_var_path, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples);
 
 #include "daily_ray_trace.c"
