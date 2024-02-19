@@ -148,6 +148,14 @@ void spectral_div_by_scalar(spectrum dst, spectrum src0, f64 d)
     }
 }
 
+void spectral_sub(spectrum dst, spectrum src0, spectrum src1)
+{
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
+    {
+        dst.samples[i] = src0.samples[i] - src1.samples[i];
+    }
+}
+
 rgb_f64 spectrum_to_xyz(spectrum spd, spectrum cmf_x, spectrum cmf_y, spectrum cmf_z, spectrum ref_white)
 {
     rgb_f64 xyz = {0.0, 0.0, 0.0};

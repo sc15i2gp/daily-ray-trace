@@ -38,6 +38,7 @@ void spectral_acc(spectrum dst, spectrum src); //dst += src
 void spectral_acc_mul_by_scalar(spectrum dst, spectrum src0, f64 src1); //dst += src0 * src1
 void spectral_sum(spectrum dst, spectrum src0, spectrum src1); //dst = src0 + src1
 void spectral_div_by_scalar(spectrum dst, spectrum src0, f64 src1); //dst = src0/src1
+void spectral_sub(spectrum dst, spectrum src0, spectrum src1); //dst = src0 - src1
 
 rgb_f64 spectrum_to_xyz(spectrum dst, spectrum cmf_x, spectrum cmf_y, spectrum cmf_z, spectrum ref_white);
 rgb_f64 spectrum_to_rgb_f64(spectrum spd, spectrum cmf_x, spectrum cmf_y, spectrum cmf_z, spectrum ref_white);
