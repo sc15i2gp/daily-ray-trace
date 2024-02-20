@@ -133,13 +133,6 @@ void set_file_pointer(file_handle file, u32 loc)
     SetFilePointer(file, loc, NULL, FILE_BEGIN);
 }
 
-f64 clamp(f64 f, f64 min, f64 max)
-{
-    f = (f < min) ? min : f;
-    f = (f > max) ? max : f;
-    return f;
-}
-
 rgb_u8 rgb_f64_to_rgb_u8(rgb_f64 in_rgb)
 {
     rgb_u8 out_rgb;

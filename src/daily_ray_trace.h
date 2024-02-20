@@ -14,12 +14,14 @@ typedef enum
 }   geometry_type;
 
 #include "types.h"
+#include "utils.h"
 #include "spectrum.h"
 #include "geometry.h"
 #include "rng.h"
 #include "win32_platform.h"
 #include "read_scene.h"
 
+#include "utils.c"
 #include "spectrum.c"
 #include "rng.c"
 #include "geometry.c"
