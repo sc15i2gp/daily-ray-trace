@@ -519,3 +519,102 @@ void parse_scene(char *scene_file_contents, u32 scene_file_size, camera_input_da
     }
 }
 
+char *find_next_newline(char *c)
+{
+    while(1)
+    {
+        if(*c == '\n') return c;
+        if(*c == EOF || *c == 0) return NULL;
+        c += 1;
+    }
+}
+
+char *find_next_number(char *c)
+{
+    while(1)
+    {
+        if(*c >= '0' && *c <= '9') return c;
+        if(*c == EOF || *c == 0) return NULL;
+        c += 1;
+    }
+}
+
+char *find_next_char(char *c, char desired)
+{
+    while(1)
+    {
+        if(*c == desired) return c;
+        if(*c == EOF || *c == 0) return NULL;
+        c += 1;
+    }
+}
+
+//CSV file structure:
+//  - First line ignored (for headings)
+//  - Each line is a single sample
+//  - A sample consists of two csvs: "wavelength, value"
+u32 load_csv_file_to_spectrum(spectrum dst, const char *csv_path)
+{
+    printf("Opening csv file %s...\n", csv_path);
+    file_handle csv_file_handle = open_file(csv_path, ACCESS_READ, FILE_EXISTS);
+    u32 csv_file_size = get_file_size(csv_file_handle) + 1;
+    char *csv_file_buffer = alloc(csv_file_size);
+    printf("Reading csv file %s...\n", csv_path);
+    read_file(csv_file_handle, csv_file_size, csv_file_buffer);
+    csv_file_buffer[csv_file_size] = 0;
+    close_file(csv_file_handle);
+    printf("Closed csv file %s.\n", csv_path);
+
+    f64 file_wavelengths[MAX_NUM_SPECTRUM_VALUES];
+    f64 file_wavelength_values[MAX_NUM_SPECTRUM_VALUES];
+    memset(file_wavelengths, 0.0, sizeof(file_wavelengths));
+    memset(file_wavelength_values, 0.0, sizeof(file_wavelength_values));
+    u32 file_number_of_samples = 0;
+
+    //TODO: Add support for files with wavelengths in um
+    //NOTE: Currently only supporting wavelengths in nm
+    
+    //Count number of samples in csv file
+    printf("Counting number of samples in char buffer...\n");
+    for(char *c = find_next_newline(csv_file_buffer); c != NULL; c = find_next_newline(c)) 
+    {
+        c += 1;
+        if(find_next_number(c)) file_number_of_samples += 1;
+    }
+    //Read wavelengths and sample values
+    printf("Reading sample data in char buffer...\n");
+    char *c = find_next_newline(csv_file_buffer) + 1;
+    for(u32 i = 0; i < file_number_of_samples; i += 1)
+    {
+        c = find_next_number(c);
+        file_wavelengths[i] = atof(c);
+        c = find_next_char(c, ',');
+        c = find_next_number(c);
+        file_wavelength_values[i] = atof(c);
+        c = find_next_newline(c);
+    }
+    printf("Freeing char buffer...\n");
+    unalloc(csv_file_buffer, csv_file_size);
+
+    printf("Number of samples read = %u\n", file_number_of_samples);
+
+    //Lerp values and write them to spectrum
+    u32 file_wl_index = 0;
+    for(u32 sample = 0; sample < number_of_spectrum_samples; sample += 1)
+    {
+        f64 sample_wavelength = smallest_wavelength + ((f64)sample) * sample_interval;
+        for(; file_wavelengths[file_wl_index+1] < sample_wavelength; file_wl_index += 1);
+        dst.samples[sample] = lerp(sample_wavelength, file_wavelengths[file_wl_index], file_wavelengths[file_wl_index + 1], file_wavelength_values[file_wl_index], file_wavelength_values[file_wl_index+1]);
+    }
+
+    /*
+    printf("Wavelength | Value\n");
+    for(u32 i = 0; i < file_number_of_samples; ++i)
+    {
+        f64 sample_wl = smallest_wavelength + ((f64)i) * sample_interval;
+        printf("%f | %f\n", sample_wl, dst[i]);
+    }
+*/
+    //return success;
+    return 1;
+}

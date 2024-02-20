@@ -45,4 +45,3 @@ rgb_f64 spectrum_to_rgb_f64(spectrum spd, spectrum cmf_x, spectrum cmf_y, spectr
 void rgb_f64_to_spectrum(rgb_f64 rgb, spectrum dst, spectrum white, spectrum red, spectrum green, spectrum blue, spectrum cyan, spectrum magenta, spectrum yellow);
 
 void generate_blackbody_spectrum(spectrum dst, f64 temperature);
-u32 load_csv_file_to_spectrum(spectrum dst, const char *path);

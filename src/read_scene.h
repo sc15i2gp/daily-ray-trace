@@ -78,3 +78,4 @@ typedef struct
 } scene_input_data;
 
 void parse_scene(char *scene_contents, u32 scene_size, camera_input_data *, scene_input_data *);
+u32 load_csv_file_to_spectrum(spectrum dst, const char *path);
