@@ -88,7 +88,7 @@ void init_spd(spectrum *dst, spd_input_data *input, spectrum white, spectrum rgb
 void init_scene(scene_data* scene, scene_input_data *scene_input)
 {
     scene->num_surfaces        = scene_input->num_surfaces;
-    scene->num_scene_materials = scene_input->num_scene_materials;
+    scene->num_scene_materials = scene_input->num_scene_materials + 1;
 
     u32 surfaces_size         = scene->num_surfaces * sizeof(object_geometry);
     u32 material_indices_size = scene->num_surfaces * sizeof(u32);
@@ -115,10 +115,16 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
     load_csv_file_to_spectrum(rgb_cyan, "spectra\\cyan_rgb_to_spd.csv");
     load_csv_file_to_spectrum(rgb_magenta, "spectra\\magenta_rgb_to_spd.csv");
     load_csv_file_to_spectrum(rgb_yellow, "spectra\\yellow_rgb_to_spd.csv");
+    object_material *escape_material = &scene->scene_materials[0];
+    const char *escape_material_name = "escape";
+    u32 escape_material_name_length = strlen(escape_material_name);
+    memcpy(escape_material->name, escape_material_name, escape_material_name_length);
+    escape_material->is_black_body = 1;
+    escape_material->is_emissive   = 0;
     for(u32 i = 0; i < scene->num_scene_materials; i += 1)
     {
         material_input_data *input = &scene_input->scene_materials[i];
-        object_material     *dst   = &scene->scene_materials[i];
+        object_material     *dst   = &scene->scene_materials[i+1];
 
         u32 name_len = strlen(input->name);
         memcpy(dst->name, input->name, name_len);
@@ -356,14 +362,11 @@ void find_ray_intersection(scene_point *intersection, scene_data *scene, vec3 ra
             }
         }
         intersection->material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
-        intersection->is_black_body = intersection->material->is_black_body;
-        intersection->is_emissive   = intersection->material->is_emissive;
         intersection->surface = &scene->surfaces[intersection_index];
     }
     else
     {
-        intersection->is_black_body = 1;
-        intersection->is_emissive   = 0;
+        intersection->material = &scene->scene_materials[0];
     }
 }
 
@@ -371,11 +374,12 @@ u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersect
 {
     u32 ret;
     find_ray_intersection(intersection, scene, ray_origin, ray_direction);
-    if(intersection->is_black_body)
+    object_material *mat = intersection->material;
+    if(mat->is_black_body)
     {
-        if(intersection->is_emissive)
+        if(mat->is_emissive)
         {
-            copy_spectrum(contribution, intersection->material->emission_spd);
+            copy_spectrum(contribution, mat->emission_spd);
         }
         else
         {
@@ -426,7 +430,7 @@ void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_directi
         find_ray_intersection(&intersection, scene, ray_origin, out);
 
         object_material *mat = intersection.material;
-        if(intersection.is_black_body && !intersection.is_emissive) break;
+        if(mat->is_black_body && !mat->is_emissive) break;
         else if(mat->is_black_body && mat->is_emissive)
         {
             spectral_mul_by_spectrum(tmp_spectrum, throughput, mat->emission_spd);

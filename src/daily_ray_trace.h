@@ -82,9 +82,6 @@ typedef struct
     vec3 position;
     vec3 normal;
 
-    u32  is_black_body;
-    u32  is_emissive;
-
     object_material *material;
     object_geometry *surface;
 } scene_point;
