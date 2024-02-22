@@ -410,6 +410,15 @@ vec3 cos_weighted_sample_hemisphere(vec3 n)
     return v;
 }
 
+vec3 uniform_sample_hemisphere(vec3 n)
+{
+    vec3 v = uniform_sample_sphere();
+    vec3 i = {0.0, 0.0, 1.0};
+    mat3x3 r = find_rotation_between_vectors(i, n);
+    v = mat3x3_vec3_mul(r, v);
+    return v;
+}
+
 void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)
 {
     spectrum contribution = alloc_spd();
@@ -443,19 +452,15 @@ void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_directi
             direct_light_contribution(contribution, &intersection, scene, out);
             spectral_mul_by_spectrum(tmp_spectrum, throughput, contribution);
             spectral_sum(dst, dst, tmp_spectrum);
-
+            if(vec3_dot(out, intersection.normal) < 0.0) intersection.normal = vec3_reverse(intersection.normal);
 #if 0
-            //in = uniform_sample_sphere(intersection.normal);
-            do
-            {
-                in = uniform_sample_sphere();
-            }
-            while(vec3_dot(in, intersection.normal) <= 0.0);
-            f64 dir_pdf = 1.0/(2.0*PI);
-#else
             in = cos_weighted_sample_hemisphere(intersection.normal);
             f64 dir_pdf = vec3_dot(intersection.normal, in) / PI;
+#else
+            in = uniform_sample_hemisphere(intersection.normal);
+            f64 dir_pdf = 1.0 / (2.0 * PI);
 #endif
+
             f64 throughput_coefficient = fabs(vec3_dot(intersection.normal, in)) * (1.0/dir_pdf);
             bdsf(reflectance, &intersection, in, out);
             spectral_mul_by_scalar(reflectance, reflectance, throughput_coefficient);
