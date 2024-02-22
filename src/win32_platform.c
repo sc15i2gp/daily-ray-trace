@@ -191,3 +191,20 @@ void spd_file_to_bmp(const char *spd_path, const char *bmp_path)
     unalloc(pixel_buffer, 0);
     unalloc(pixels_rgb_u8, 0);
 }
+
+void print_config_arguments(config_arguments *config)
+{
+    printf("Num pixel samples:   %u\n", config->num_pixel_samples);
+    printf("Output width:        %u\n", config->output_width);
+    printf("Output height:       %u\n", config->output_height);
+    printf("Min wavelength:      %f\n", config->min_wl);
+    printf("Max wavelength:      %f\n", config->max_wl);
+    printf("Wavelength interval: %f\n", config->wl_interval);
+    printf("Input scene path:    %s\n", config->input_scene);
+    printf("Output spd path:     %s\n", config->output_spd);
+    printf("Average spd path:    %s\n", config->average_spd);
+    printf("Variance spd path:   %s\n", config->variance_spd);
+    printf("Output bmp path:     %s\n", config->output_bmp);
+    printf("Average bmp path:    %s\n", config->average_bmp);
+    printf("Variance bmp path:   %s\n", config->variance_bmp);
+}

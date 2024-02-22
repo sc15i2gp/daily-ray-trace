@@ -79,3 +79,5 @@ typedef struct
 
 void parse_scene(char *scene_contents, u32 scene_size, camera_input_data *, scene_input_data *);
 u32 load_csv_file_to_spectrum(spectrum dst, const char *path);
+
+void parse_config(char *config_contents, u32 config_contents_size, config_arguments *config);

@@ -27,6 +27,7 @@ typedef struct
     char             *loc;
     u32              length;
     f64              value;
+    u32              uint;
 } scene_token;
 
 void print_token(scene_token *t)
@@ -74,7 +75,7 @@ u32 is_letter(char c)
 
 u32 is_word_char(char c)
 {
-    return is_letter(c) || is_number(c) || c == '_' || c == '.';
+    return is_letter(c) || is_number(c) || c == '_' || c == '.' || c == '\\';
 }
 
 u32 is_number_char(char c)
@@ -206,6 +207,14 @@ void parse_float(f64 *dst)
     scene_token *t = next_token();
     if(t->type != TOKEN_FLOAT) parse_error();
     *dst = t->value;
+}
+
+//TODO: Get rid of this shit
+void parse_uint(u32 *dst)
+{
+    f64 f;
+    parse_float(&f);
+    *dst = (u32)(f);
 }
 
 void parse_bool(u32 *dst)
@@ -508,6 +517,91 @@ void parse_scene(char *scene_file_contents, u32 scene_file_size, camera_input_da
             case TOKEN_Surface:
             {
                 parse_surface(scene);
+                break;
+            }
+            default:
+            {
+                parse_error();
+                break;
+            }
+        }
+    }
+}
+
+void parse_config(char *config_contents, u32 config_contents_size, config_arguments *config)
+{
+    tokeniser.scene_contents        = config_contents;
+    tokeniser.scene_loc             = config_contents;
+    tokeniser.scene_contents_length = config_contents_size;
+    tokeniser.scene_contents_end    = config_contents + config_contents_size;
+
+    for(scene_token *t = next_token(); t->type != TOKEN_END; t = next_token())
+    {
+        switch(t->type)
+        {
+            case TOKEN_num_pixel_samples:
+            {
+                parse_uint(&config->num_pixel_samples);
+                break;
+            }
+            case TOKEN_output_width:
+            {
+                parse_uint(&config->output_width);
+                break;
+            }
+            case TOKEN_output_height:
+            {
+                parse_uint(&config->output_height);
+                break;
+            }
+            case TOKEN_min_wl:
+            {
+                parse_float(&config->min_wl);
+                break;
+            }
+            case TOKEN_max_wl:
+            {
+                parse_float(&config->max_wl);
+                break;
+            }
+            case TOKEN_wl_interval:
+            {
+                parse_float(&config->wl_interval);
+                break;
+            }
+            case TOKEN_input_scene:
+            {
+                parse_word(config->input_scene);
+                break;
+            }
+            case TOKEN_output_spd:
+            {
+                parse_word(config->output_spd);
+                break;
+            }
+            case TOKEN_average_spd:
+            {
+                parse_word(config->average_spd);
+                break;
+            }
+            case TOKEN_variance_spd:
+            {
+                parse_word(config->variance_spd);
+                break;
+            }
+            case TOKEN_output_bmp:
+            {
+                parse_word(config->output_bmp);
+                break;
+            }
+            case TOKEN_average_bmp:
+            {
+                parse_word(config->average_bmp);
+                break;
+            }
+            case TOKEN_variance_bmp:
+            {
+                parse_word(config->variance_bmp);
                 break;
             }
             default:

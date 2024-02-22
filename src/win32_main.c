@@ -51,6 +51,8 @@
 //  - Non-pinhole camera
 //  - Tidy
 //      - Include reference white and cmfs in spd file?
+//      - Different keywords lists for scene and config
+//          - Maybe different method for config
 //      - Make render_image more flexible with file writing and sample taking
 //          - e.g. no reliance on sample ordering, could do the same couple of pixels
 //              a few times in a row then flush
@@ -122,38 +124,38 @@
 
 int main(int argc, char **argv)
 {
-    //Default args
-    //Args (just set to default for now)
-    const char *spectrum_output_path = "output\\output.spd";
-    const char *average_output_path  = "output\\average.spd";
-    const char *variance_output_path = "output\\variance.spd";
-    const char *bmp_output_path = "output\\output.bmp";
-    const char *avg_output_path = "output\\average.bmp";
-    const char *var_output_path = "output\\variance.bmp";
-    //const char *scene_input_path = "scenes\\first_scene.scn";
-    //const char *scene_input_path = "scenes\\init_cornell.scn";
-    const char *scene_input_path = "scenes\\cornell_plane_light.scn";
-    u32 image_width_in_pixels = 800;
-    u32 image_height_in_pixels = 600;
-    u32 number_of_pixel_samples = 2;
-    u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
+    const char *config_path = "config.cfg";
+    file_handle config_file = open_file(config_path, ACCESS_READ, FILE_EXISTS);
+    u32 config_file_size = get_file_size(config_file);
+    char *config_buffer = alloc(config_file_size);
+    read_file(config_file, config_file_size, config_buffer);
+    close_file(config_file);
 
-    init_spd_table(32, 380.0, 720.0, 5.0);
+    config_arguments args;
+    memset(&args, 0, sizeof(args));
+    parse_config(config_buffer, config_file_size, &args);
+
+    printf("CONFIG ARGS:\n");
+    print_config_arguments(&args);
+    printf("\n");
+
+    u32 spd_table_capacity = 32; //Should this be in config?
+    init_spd_table(spd_table_capacity, args.min_wl, args.max_wl, args.wl_interval);
 
     camera_data camera;
     scene_data  scene;
-    load_scene(scene_input_path, &camera, &scene, image_width_in_pixels, image_height_in_pixels);
+    load_scene(args.input_scene, &camera, &scene, args.output_width, args.output_height);
     print_camera(&camera);
     print_scene(&scene);
 
     printf("Starting render...\n");
-    render_image(spectrum_output_path, average_output_path, variance_output_path, image_width_in_pixels, image_height_in_pixels, &scene, &camera, number_of_pixel_samples);
+    render_image(args.output_spd, args.average_spd, args.variance_spd, args.output_width, args.output_height, &scene, &camera, args.num_pixel_samples);
     printf("Render complete.\n");
 
     printf("Converting...\n");
-    spd_file_to_bmp(spectrum_output_path, bmp_output_path);
-    spd_file_to_bmp(average_output_path, avg_output_path);
-    spd_file_to_bmp(variance_output_path, var_output_path);
+    spd_file_to_bmp(args.output_spd, args.output_bmp);
+    spd_file_to_bmp(args.average_spd, args.average_bmp);
+    spd_file_to_bmp(args.variance_spd, args.variance_bmp);
     printf("Converted.\n");
 
     return 0;
