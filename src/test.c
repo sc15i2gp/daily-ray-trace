@@ -287,6 +287,6 @@ void call_test_funcs()
 
 int main()
 {
-    init_spd_table(16, 69, 380.0, 720.0, 5.0);
+    init_spd_table(16, 380.0, 720.0, 5.0);
     call_test_funcs();
 }

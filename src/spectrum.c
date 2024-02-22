@@ -1,9 +1,10 @@
-void init_spd_table(u32 capacity, u32 num_samples, f64 low_wl, f64 hi_wl, f64 wl_interval)
+void init_spd_table(u32 capacity, f64 low_wl, f64 hi_wl, f64 wl_interval)
 {
-    number_of_spectrum_samples = 69;
-    smallest_wavelength        = 380.0;
-    largest_wavelength         = 720.0;
-    sample_interval            = 5.0;
+    u32 num_samples = (u32)(((hi_wl - low_wl)/wl_interval) + 1.0);
+    number_of_spectrum_samples = num_samples;
+    smallest_wavelength        = low_wl;
+    largest_wavelength         = hi_wl;
+    sample_interval            = wl_interval;
     spectrum_size = number_of_spectrum_samples * sizeof(f64);
 
     spd_table.capacity        = capacity;

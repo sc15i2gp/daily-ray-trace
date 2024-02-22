@@ -31,25 +31,29 @@
 //  - Remove C std?
 
 //TODO:
-//  - Variance measuring
-//      - Compute variances and write them to their own spd file
-//  - Input arguments
-//  - Russian roulette
+//  - Config file for input args
+//  - Better memory management
+//      - Have platform track allocations and open files (and free on shutdown)
+//      - Memory arena(s)
+//      - Remove fixed length arrays in scene structs
+//  - Codify spd table entries
+//      - cmfs
+//      - rgb to spds
+//      - white/ref white
+//  - spd to bmp
+//      - Separate tool spd->bmp (in case of crash or something) which can either be called in drt or
+//        invoked as a standalone program
+//      - Platform probably shouldn't have to know about filtering pixels or cmfs
+//  - Materials:
+//      - Mirror
+//      - Gold
+//      - Glass
+//  - Non-pinhole camera
 //  - Tidy
+//      - Include reference white and cmfs in spd file?
 //      - Make render_image more flexible with file writing and sample taking
 //          - e.g. no reliance on sample ordering, could do the same couple of pixels
 //              a few times in a row then flush
-//      - Separate tool to do spd->bmp
-//          - At least remove assumptions such as previously called init_spd_table
-//      - Platform maybe shouldn't need to know how to filter pixels when converting spd image file
-//      - Function prototypes and struct definitions in header files
-//      - Code order in files
-//      - Include reference white and cmfs in spd file?
-//      - Remove fixed length arrays in scene structs
-//      - Track open files and allocations in platform, properly free stuff upon program completion
-//      - Make naming consistent/good
-//          - spectrum is the type, spd should be the name
-//          - Add __ for global variables
 //      - Fix plane intersection method
 //          - Negative normal causes problems
 //          - Normals in general for planes
@@ -58,26 +62,21 @@
 //      - Fix points_mutually_visible
 //          - Kinda complicated with float precision stuff
 //          - Same with find_scene_intersection
-//      - I don't think is_blackbody and is_emissive are necessary in scene_point
 //      - Do something better for sphere/hemisphere sampling
 //          - One problem is that sphere sampling always gens positive z
 //          - Actually have competing direction sampling methods (e.g uniform sphere and cos weighted)
-//      - Review csv loading
-//          - Maybe move it out of spectrum
-//      - Good memory management (or at least better)
-//          - Use less memory for output file buffers
-//          - Can also be a win for multithreading if multiple threads use different parts of files
-//      - Reading scene files code (e.g. is_word_char vs is_letter_char || '_')
-//      - String type?
 //      - Sort out camera
 //          - Surely the camera's film dimensions shouldn't be dictated by fov?
-//          - Non-pinhole
-//      - Review file include structure
+//      - String type?
 //      - Fix matrix stuff, it must not be needed
 //      - Do general quality pass over code
-//      - Move some functions to utils file
-//          - Maths functions mostly such as clamp or max
-//      - Better error handling
+//        - Function prototypes and struct definitions in header files
+//        - Code order in files
+//        - Review file include structure
+//        - Reading scene files code (e.g. is_word_char vs is_letter_char || '_')
+//        - Make naming consistent/good
+//              - spectrum is the type, spd should be the name
+//              - Add __ for global variables
 //  - Test
 //      - Try to aggressively test as much code as possible
 //      - RNG
@@ -102,8 +101,13 @@
 //      - API
 //      - How much to log?
 //      - Metal
+//  - Error handling
+//  - Input arguments
 //  - Parallelism
 //  - Non-blackbody emissive sources
+//  - Splitting
+//      - Shadow rays/multiple direct light sampling
+//      - Multiple estimate_indirect_contributions per path point
 //  - Change algorithm back to newer version
 //      - Some spectral calculations don't need to be done (e.g. after a ray has escaped)
 
@@ -131,10 +135,10 @@ int main(int argc, char **argv)
     const char *scene_input_path = "scenes\\cornell_plane_light.scn";
     u32 image_width_in_pixels = 800;
     u32 image_height_in_pixels = 600;
-    u32 number_of_pixel_samples = 8;
+    u32 number_of_pixel_samples = 2;
     u32 number_of_image_pixels = image_width_in_pixels * image_height_in_pixels;
 
-    init_spd_table(32, 69, 380.0, 720.0, 5.0);
+    init_spd_table(32, 380.0, 720.0, 5.0);
 
     camera_data camera;
     scene_data  scene;
