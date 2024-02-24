@@ -23,8 +23,8 @@ typedef enum
 
 #include "utils.c"
 #include "spectrum.c"
-#include "rng.c"
 #include "geometry.c"
+#include "rng.c"
 #include "win32_platform.c"
 #include "read_scene.c"
 
@@ -56,6 +56,10 @@ typedef struct
     };
 } object_geometry;
 
+typedef struct scene_point scene_point;
+typedef void (*bdsf_func)(spectrum, scene_point*, vec3, vec3);
+typedef void (*dir_func)(vec3*, f64*, vec3);
+
 typedef struct
 {
     char       name[32];
@@ -65,6 +69,9 @@ typedef struct
     spectrum   emission_spd;
     spectrum   diffuse_spd;
     spectrum   glossy_spd;
+    u32        num_bdsfs;
+    bdsf_func  *bdsfs;
+    dir_func   sample_direction;
 } object_material;
 
 typedef struct
@@ -77,14 +84,14 @@ typedef struct
     object_material *scene_materials;
 } scene_data;
 
-typedef struct
+struct scene_point
 {
     vec3 position;
     vec3 normal;
 
     object_material *material;
     object_geometry *surface;
-} scene_point;
+};
 
 typedef struct
 {

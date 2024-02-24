@@ -11,19 +11,6 @@ void seed_rng(u32 seed)
     srand(seed);
 }
 
-/*
-vec3 uniform_sample_sphere(vec3 n)
-{
-    vec3 v;
-    do
-    {
-        v = uniform_sample_sphere();
-    }
-    while(vec3_dot(v, n) <= 0.0);
-    f64 dir_pdf = 1.0/(2.0*PI);
-}
-*/
-
 vec3 uniform_sample_sphere()
 {
     f64  u      = rng();
@@ -61,4 +48,28 @@ vec3 uniform_sample_disc()
     v.y = r * sin(t);
 
     return v;
+}
+
+void uniform_sample_hemisphere(vec3 *v, f64 *pdf, vec3 n)
+{
+    *v = uniform_sample_sphere();
+    vec3 i = {0.0, 0.0, 1.0};
+    mat3x3 r = find_rotation_between_vectors(i, n);
+    *v   = mat3x3_vec3_mul(r, *v);
+    *pdf = 1.0 / (2.0 * PI);
+}
+
+void cos_weighted_sample_hemisphere(vec3 *v, f64 *pdf, vec3 n)
+{
+    vec3 p;
+    for(;;)
+    {
+        p = uniform_sample_disc();
+        if(vec3_dot(p, p) < 1.0) break;
+    }
+    p.z = sqrt(1.0 - vec3_dot(p, p));
+    vec3 i = {0.0, 0.0, 1.0};
+    mat3x3 r = find_rotation_between_vectors(i, n);
+    *v   = mat3x3_vec3_mul(r, p);
+    *pdf = vec3_dot(n, *v) / PI;
 }

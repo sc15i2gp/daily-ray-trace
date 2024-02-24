@@ -128,9 +128,10 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
 
         u32 name_len = strlen(input->name);
         memcpy(dst->name, input->name, name_len);
-        dst->is_black_body = input->is_black_body;
-        dst->is_emissive   = input->is_emissive;
-        dst->shininess     = input->shininess;
+        dst->is_black_body    = input->is_black_body;
+        dst->is_emissive      = input->is_emissive;
+        dst->shininess        = input->shininess;
+        dst->sample_direction = cos_weighted_sample_hemisphere;
 
         init_spd(&dst->emission_spd, &input->emission_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
         init_spd(&dst->diffuse_spd, &input->diffuse_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
@@ -395,30 +396,6 @@ u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersect
     return ret;
 }
 
-vec3 cos_weighted_sample_hemisphere(vec3 n)
-{
-    vec3 p;
-    for(;;)
-    {
-        p = uniform_sample_disc();
-        if(vec3_dot(p, p) < 1.0) break;
-    }
-    p.z = sqrt(1.0 - vec3_dot(p, p));
-    vec3 i = {0.0, 0.0, 1.0};
-    mat3x3 r = find_rotation_between_vectors(i, n);
-    vec3 v = mat3x3_vec3_mul(r, p);
-    return v;
-}
-
-vec3 uniform_sample_hemisphere(vec3 n)
-{
-    vec3 v = uniform_sample_sphere();
-    vec3 i = {0.0, 0.0, 1.0};
-    mat3x3 r = find_rotation_between_vectors(i, n);
-    v = mat3x3_vec3_mul(r, v);
-    return v;
-}
-
 void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)
 {
     spectrum contribution = alloc_spd();
@@ -453,13 +430,9 @@ void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_directi
             spectral_mul_by_spectrum(tmp_spectrum, throughput, contribution);
             spectral_sum(dst, dst, tmp_spectrum);
             if(vec3_dot(out, intersection.normal) < 0.0) intersection.normal = vec3_reverse(intersection.normal);
-#if 0
-            in = cos_weighted_sample_hemisphere(intersection.normal);
-            f64 dir_pdf = vec3_dot(intersection.normal, in) / PI;
-#else
-            in = uniform_sample_hemisphere(intersection.normal);
-            f64 dir_pdf = 1.0 / (2.0 * PI);
-#endif
+
+            f64 dir_pdf;
+            mat->sample_direction(&in, &dir_pdf, intersection.normal);
 
             f64 throughput_coefficient = fabs(vec3_dot(intersection.normal, in)) * (1.0/dir_pdf);
             bdsf(reflectance, &intersection, in, out);
