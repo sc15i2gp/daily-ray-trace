@@ -9,3 +9,8 @@ f64 clamp(f64 f, f64 min, f64 max)
     f = (f > max) ? max : f;
     return f;
 }
+
+f64 f64_max(f64 f0, f64 f1)
+{
+    return (f0 > f1) ? f0 : f1;
+}

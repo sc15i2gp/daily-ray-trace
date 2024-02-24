@@ -131,10 +131,13 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
         dst->is_black_body    = input->is_black_body;
         dst->is_emissive      = input->is_emissive;
         dst->shininess        = input->shininess;
-        dst->sample_direction = cos_weighted_sample_hemisphere;
-        dst->num_bdsfs        = 2;
-        dst->bdsfs[0]         = bp_diffuse_bdsf;
-        dst->bdsfs[1]         = bp_glossy_bdsf;
+
+        dst->sample_direction = input->sample_direction_function;
+        dst->num_bdsfs        = input->num_bdsfs;
+        for(u32 j = 0; j < dst->num_bdsfs; j += 1)
+        {
+            dst->bdsfs[j] = input->bdsfs[j];
+        }
 
         init_spd(&dst->emission_spd, &input->emission_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
         init_spd(&dst->diffuse_spd, &input->diffuse_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
@@ -181,24 +184,6 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
             }
         }
     }
-}
-
-f64 f64_max(f64 f0, f64 f1)
-{
-    return (f0 > f1) ? f0 : f1;
-}
-
-void bp_diffuse_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
-{
-    spectral_mul_by_scalar(reflectance, p->material->diffuse_spd, 1.0/PI);
-}
-
-void bp_glossy_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
-{
-    vec3 bisector         = vec3_normalise(vec3_sum(outgoing, incoming));
-    f64  spec_coefficient = pow(f64_max(0.0, vec3_dot(p->normal, bisector)), p->material->shininess);
-
-    spectral_mul_by_scalar(reflectance, p->material->glossy_spd, spec_coefficient);
 }
 
 //Out = back towards camera

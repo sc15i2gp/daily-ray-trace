@@ -31,11 +31,6 @@
 //  - Remove C std?
 
 //TODO:
-//  - New materials support
-//      - bdsfs material property in scene file
-//      - sample_direction material property in scene file
-//      - need some way of matching function names given for these and their actual functions
-//        in C code.
 //  - Materials
 //      - Mirror
 //      - Gold

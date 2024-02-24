@@ -304,6 +304,44 @@ void parse_spd_method(spd_input_data *dst)
     }
 }
 
+//TODO: Change this garbage
+void parse_bdsfs(u32 *num_bdsfs, bdsf_func *bdsfs)
+{
+    char bdsf_name[64];
+    *num_bdsfs = 0;
+    scene_token *l = lookahead_token();
+    while(l->type != TOKEN_dir_func)
+    {
+        memset(bdsf_name, 0, 64);
+        parse_word(bdsf_name);
+        for(u32 i = 0; i < num_bdsfs_defined; i += 1)
+        {
+            if(strcmp(bdsf_name, bdsf_name_list[i]) == 0)
+            {
+                bdsfs[*num_bdsfs] = bdsf_list[i];
+                break;
+            }
+        }
+        *num_bdsfs += 1;
+        l = lookahead_token();
+    }
+}
+
+void parse_dir_func(dir_func *sample_direction_function)
+{
+    char dir_func_name[64];
+    memset(dir_func_name, 0, 64);
+    parse_word(dir_func_name);
+    for(u32 i = 0; i < num_dir_funcs_defined; i += 1)
+    {
+        if(strcmp(dir_func_name, dir_func_name_list[i]) == 0)
+        {
+            *sample_direction_function = dir_func_list[i];
+            break;
+        }
+    }
+}
+
 void parse_camera(camera_input_data *camera)
 {
     scene_token *l = lookahead_token();
@@ -402,6 +440,16 @@ void parse_material(scene_input_data *scene)
             case TOKEN_shininess:
             {
                 parse_float(&dst_material->shininess);
+                break;
+            }
+            case TOKEN_bdsfs:
+            {
+                parse_bdsfs(&dst_material->num_bdsfs, dst_material->bdsfs);
+                break;
+            }
+            case TOKEN_dir_func:
+            {
+                parse_dir_func(&dst_material->sample_direction_function);
                 break;
             }
             default:

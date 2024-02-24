@@ -48,6 +48,10 @@ typedef struct
     spd_input_data emission_input;
     spd_input_data diffuse_input;
     spd_input_data glossy_input;
+
+    u32 num_bdsfs;
+    bdsf_func bdsfs[16];
+    dir_func  sample_direction_function;
 } material_input_data;
 
 typedef struct

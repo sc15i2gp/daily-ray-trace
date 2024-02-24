@@ -13,31 +13,16 @@ typedef enum
     GEO_TYPE_COUNT
 }   geometry_type;
 
+typedef struct scene_point scene_point;
+
 #include "types.h"
 #include "utils.h"
 #include "spectrum.h"
 #include "geometry.h"
 #include "rng.h"
 #include "win32_platform.h"
+#include "bdsf.h"
 #include "read_scene.h"
-
-#include "utils.c"
-#include "spectrum.c"
-#include "geometry.c"
-#include "rng.c"
-#include "win32_platform.c"
-#include "read_scene.c"
-
-#ifndef NAN
-#error "NAN not supported, dingus!"
-#endif
-
-//Object in scene consists of surface geometry and material
-//Need to iterate over geometries
-//Need to iterate over emissive surfaces
-//Need to be able to associate a geometry and a material
-//Keep emissive materials together
-//Keep geometries together
 
 typedef struct
 {
@@ -56,10 +41,6 @@ typedef struct
     };
 } object_geometry;
 
-typedef struct scene_point scene_point;
-typedef void (*bdsf_func)(spectrum, scene_point*, vec3, vec3);
-typedef void (*dir_func)(vec3*, f64*, vec3);
-
 typedef struct
 {
     char       name[32];
@@ -74,6 +55,34 @@ typedef struct
     dir_func   sample_direction;
 } object_material;
 
+struct scene_point
+{
+    vec3 position;
+    vec3 normal;
+
+    object_material *material;
+    object_geometry *surface;
+};
+
+#include "utils.c"
+#include "spectrum.c"
+#include "geometry.c"
+#include "rng.c"
+#include "win32_platform.c"
+#include "bdsf.c"
+#include "read_scene.c"
+
+#ifndef NAN
+#error "NAN not supported, dingus!"
+#endif
+
+//Object in scene consists of surface geometry and material
+//Need to iterate over geometries
+//Need to iterate over emissive surfaces
+//Need to be able to associate a geometry and a material
+//Keep emissive materials together
+//Keep geometries together
+
 typedef struct
 {
     u32 num_surfaces;
@@ -83,15 +92,6 @@ typedef struct
     u32 num_scene_materials;
     object_material *scene_materials;
 } scene_data;
-
-struct scene_point
-{
-    vec3 position;
-    vec3 normal;
-
-    object_material *material;
-    object_geometry *surface;
-};
 
 typedef struct
 {
@@ -104,9 +104,6 @@ typedef struct
     f64  pixel_width;
     f64  pixel_height;
 } camera_data;
-
-void bp_diffuse_bdsf(spectrum, scene_point*, vec3, vec3);
-void bp_glossy_bdsf(spectrum, scene_point*, vec3, vec3);
 
 void load_scene(const char *path, camera_data *camera, scene_data *scene, u32 width_px, u32 height_px);
 void init_scene(scene_data *scene, scene_input_data *scene_input);
