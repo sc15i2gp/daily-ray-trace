@@ -31,7 +31,16 @@
 //  - Remove C std?
 
 //TODO:
-//  - Config file for input args
+//  - New materials support
+//      - bdsfs material property in scene file
+//      - sample_direction material property in scene file
+//      - need some way of matching function names given for these and their actual functions
+//        in C code.
+//  - Materials
+//      - Mirror
+//      - Gold
+//      - Glass
+//  - Non-pinhole camera
 //  - Better memory management
 //      - Have platform track allocations and open files (and free on shutdown)
 //      - Memory arena(s)
@@ -44,29 +53,9 @@
 //      - Separate tool spd->bmp (in case of crash or something) which can either be called in drt or
 //        invoked as a standalone program
 //      - Platform probably shouldn't have to know about filtering pixels or cmfs
-//  - Materials:
-//      - Mirror
-//      - Gold
-//      - Glass
-//  - Non-pinhole camera
+//  - Profiling
 //  - Tidy
-//      - Include reference white and cmfs in spd file?
-//      - Different keywords lists for scene and config
-//          - Maybe different method for config
-//      - Make render_image more flexible with file writing and sample taking
-//          - e.g. no reliance on sample ordering, could do the same couple of pixels
-//              a few times in a row then flush
-//      - Fix plane intersection method
-//          - Negative normal causes problems
-//          - Normals in general for planes
-//          - Switching u,v in scene files causes reduced noise and vantablack shadows
-//          - Should light shining on the back of a plane pass through? (Hint: Probably not)
-//      - Fix points_mutually_visible
-//          - Kinda complicated with float precision stuff
-//          - Same with find_scene_intersection
-//      - Do something better for sphere/hemisphere sampling
-//          - One problem is that sphere sampling always gens positive z
-//          - Actually have competing direction sampling methods (e.g uniform sphere and cos weighted)
+//      - Include reference white in spd file
 //      - Sort out camera
 //          - Surely the camera's film dimensions shouldn't be dictated by fov?
 //      - String type?
