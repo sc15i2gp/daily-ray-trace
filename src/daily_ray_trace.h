@@ -70,7 +70,7 @@ typedef struct
     spectrum   diffuse_spd;
     spectrum   glossy_spd;
     u32        num_bdsfs;
-    bdsf_func  *bdsfs;
+    bdsf_func  bdsfs[16];
     dir_func   sample_direction;
 } object_material;
 
@@ -104,6 +104,9 @@ typedef struct
     f64  pixel_width;
     f64  pixel_height;
 } camera_data;
+
+void bp_diffuse_bdsf(spectrum, scene_point*, vec3, vec3);
+void bp_glossy_bdsf(spectrum, scene_point*, vec3, vec3);
 
 void load_scene(const char *path, camera_data *camera, scene_data *scene, u32 width_px, u32 height_px);
 void init_scene(scene_data *scene, scene_input_data *scene_input);

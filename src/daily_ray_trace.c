@@ -132,6 +132,9 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
         dst->is_emissive      = input->is_emissive;
         dst->shininess        = input->shininess;
         dst->sample_direction = cos_weighted_sample_hemisphere;
+        dst->num_bdsfs        = 2;
+        dst->bdsfs[0]         = bp_diffuse_bdsf;
+        dst->bdsfs[1]         = bp_glossy_bdsf;
 
         init_spd(&dst->emission_spd, &input->emission_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
         init_spd(&dst->diffuse_spd, &input->diffuse_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
@@ -185,12 +188,12 @@ f64 f64_max(f64 f0, f64 f1)
     return (f0 > f1) ? f0 : f1;
 }
 
-void blinn_phong_diffuse_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
+void bp_diffuse_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
 {
     spectral_mul_by_scalar(reflectance, p->material->diffuse_spd, 1.0/PI);
 }
 
-void blinn_phong_glossy_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
+void bp_glossy_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
 {
     vec3 bisector         = vec3_normalise(vec3_sum(outgoing, incoming));
     f64  spec_coefficient = pow(f64_max(0.0, vec3_dot(p->normal, bisector)), p->material->shininess);
@@ -204,10 +207,14 @@ void bdsf(spectrum reflectance, scene_point *p, vec3 in, vec3 out)
 {
     spectrum bdsf_result = alloc_spd();
     zero_spectrum(reflectance);
-    blinn_phong_diffuse_bdsf(bdsf_result, p, in, out);
-    spectral_sum(reflectance, bdsf_result, reflectance);
-    blinn_phong_glossy_bdsf(bdsf_result, p, in, out);
-    spectral_sum(reflectance, bdsf_result, reflectance);
+    
+    object_material *mat = p->material;
+    for(u32 i = 0; i < mat->num_bdsfs; i += 1)
+    {
+        bdsf_func f = mat->bdsfs[i];
+        f(bdsf_result, p, in, out);
+        spectral_sum(reflectance, bdsf_result, reflectance);
+    }
     free_spd(bdsf_result);
 }
 
