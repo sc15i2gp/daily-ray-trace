@@ -46,41 +46,41 @@ is_black_body true
 Surface
 name back_wall
 type plane
-position -3.0,  3.0, -3.0
-pointu    3.0,  3.0, -3.0
-pointv   -3.0, -3.0, -3.0
+position -6.0,  6.0, -6.0
+pointu    6.0,  6.0, -6.0
+pointv   -6.0, -6.0, -6.0
 material blue_plastic
 
 Surface
 name left_wall
 type plane
-position -3.0, 3.0, 3.0
-pointu -3.0, 3.0, -3.0
-pointv -3.0, -3.0, 3.0
+position -6.0, 6.0, 6.0
+pointu -6.0, 6.0, -6.0
+pointv -6.0, -6.0, 6.0
 material red_plastic
 
 Surface
 name right_wall
 type plane
-position 3.0, 3.0, -3.0
-pointu 3.0, 3.0, 3.0
-pointv 3.0, -3.0, -3.0
+position 6.0, 6.0, -6.0
+pointu 6.0, 6.0, 6.0
+pointv 6.0, -6.0, -6.0
 material green_plastic
 
 Surface
 name floor
 type plane
-position -3.0, -3.0, -3.0
-pointu 3.0, -3.0, -3.0
-pointv -3.0, -3.0, 3.0
+position -6.0, -6.0, -6.0
+pointu 6.0, -6.0, -6.0
+pointv -6.0, -6.0, 6.0
 material white_plastic
 
 Surface
 name ceiling
 type plane
-position -3.0, 3.0, 3.0
-pointu 3.0, 3.0, 3.0
-pointv -3.0, 3.0, -3.0
+position -6.0, 6.0, 6.0
+pointu 6.0, 6.0, 6.0
+pointv -6.0, 6.0, -6.0
 material white_plastic
 
 Surface
