@@ -49,6 +49,12 @@ bdsfs     bp_diffuse_bdsf, bp_glossy_bdsf
 dir_func  cos_weighted_sample_hemisphere
 
 Material
+name mirror
+mirror rgb 1.0, 1.0, 1.0
+bdsfs mirror_bdsf
+dir_func sample_specular_direction
+
+Material
 name light
 emission constant 1.0
 is_black_body true
@@ -99,6 +105,14 @@ type sphere
 position 0.0, -2.0, -1.5
 radius   1.0
 material teal_plastic
+
+Surface
+name mirror_plane
+type plane
+position -1.0, 1.0, -2.4
+pointv 1.0, 1.0, -2.4
+pointu -1.0, -1.0, -2.9
+material mirror
 
 Surface
 name light_source

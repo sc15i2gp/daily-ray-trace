@@ -432,6 +432,11 @@ void parse_material(scene_input_data *scene)
                 dst_material->is_emissive = 1;
                 break;
             }
+            case TOKEN_mirror:
+            {
+                parse_spd_method(&dst_material->mirror_input);
+                break;
+            }
             case TOKEN_is_black_body:
             {
                 parse_bool(&dst_material->is_black_body);

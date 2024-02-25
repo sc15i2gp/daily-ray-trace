@@ -50,7 +50,12 @@
 //      - Platform probably shouldn't have to know about filtering pixels or cmfs
 //  - Profiling
 //  - Tidy
+//      - All file stuff needs reviewing...BADLY!!
 //      - Include reference white in spd file
+//      - Sort out normal issues
+//          - Either come up with consistent scheme (possibly on alg rewrite)
+//          - or make functions that don't care which way normals are
+//          - e.g. plane normals, mirror reflect functions
 //      - Sort out camera
 //          - Surely the camera's film dimensions shouldn't be dictated by fov?
 //      - String type?

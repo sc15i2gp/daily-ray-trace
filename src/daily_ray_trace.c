@@ -142,6 +142,7 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
         init_spd(&dst->emission_spd, &input->emission_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
         init_spd(&dst->diffuse_spd, &input->diffuse_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
         init_spd(&dst->glossy_spd, &input->glossy_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+        init_spd(&dst->mirror_spd, &input->mirror_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
     }
     free_spd(white);
     free_spd(rgb_red);
@@ -424,7 +425,7 @@ void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_directi
             if(vec3_dot(out, intersection.normal) < 0.0) intersection.normal = vec3_reverse(intersection.normal);
 
             f64 dir_pdf;
-            mat->sample_direction(&in, &dir_pdf, intersection.normal);
+            mat->sample_direction(&in, &dir_pdf, intersection.normal, out);
 
             f64 throughput_coefficient = fabs(vec3_dot(intersection.normal, in)) * (1.0/dir_pdf);
             bdsf(reflectance, &intersection, in, out);

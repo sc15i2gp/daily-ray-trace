@@ -3,6 +3,11 @@ void print_vector(vec3 v)
     printf("%f %f %f", v.x, v.y, v.z);
 }
 
+u32 vec3_equal(vec3 a, vec3 b)
+{
+    return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
 vec3 vec3_sum(vec3 a, vec3 b)
 {
     vec3 result;
@@ -75,6 +80,13 @@ vec3 vec3_reverse(vec3 v)
     result.y = -v.y;
     result.z = -v.z;
     return result;
+}
+
+vec3 vec3_reflect(vec3 v, vec3 n)
+{
+    f64 f = 2.0 * vec3_dot(v, n);
+    v = vec3_sub(v, vec3_mul_by_f64(n, f));
+    return v;
 }
 
 f64 point_to_line_distance(vec3 p, vec3 l_0, vec3 l_1)

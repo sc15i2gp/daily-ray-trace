@@ -50,6 +50,7 @@ typedef struct
     spectrum   emission_spd;
     spectrum   diffuse_spd;
     spectrum   glossy_spd;
+    spectrum   mirror_spd;
     u32        num_bdsfs;
     bdsf_func  bdsfs[16];
     dir_func   sample_direction;
