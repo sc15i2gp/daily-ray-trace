@@ -1,8 +1,8 @@
 Camera
-position 0.0, 0.0, 8.0
-up       0.0, 1.0, 0.0
-right    1.0, 0.0, 0.0
-forward  0.0, 0.0, -1.0
+position 0.0, 2.5, -1.5
+up       0.0, 0.0, 1.0
+right    -1.0, 0.0, 0.0
+forward  0.0, -1.0, 0.0
 fov      90.0
 fdepth   8.0
 flength  0.5
@@ -50,7 +50,7 @@ dir_func  cos_weighted_sample_hemisphere
 
 Material
 name mirror
-mirror rgb 0.813, 0.837, 0.888
+mirror constant 1.0
 bdsfs mirror_bdsf
 dir_func sample_specular_direction
 
