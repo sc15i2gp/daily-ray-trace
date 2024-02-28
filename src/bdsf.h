@@ -1,7 +1,7 @@
-typedef void (*bdsf_func)(spectrum, scene_point*, vec3, vec3);
+typedef void (*bdsf_func)(spectrum, scene_point*, vec3);
 typedef void (*dir_func)(vec3*, f64*, vec3, vec3);
 
-#define BDSF(bdsf) void bdsf(spectrum, scene_point*, vec3, vec3);
+#define BDSF(bdsf) void bdsf(spectrum, scene_point*, vec3);
 #define DIRF(dirf)
 #include "bdsf_list.h"
 #undef DIRF

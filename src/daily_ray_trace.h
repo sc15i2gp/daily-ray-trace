@@ -60,6 +60,8 @@ struct scene_point
 {
     vec3 position;
     vec3 normal;
+    vec3 out; //Points back towards camera along path
+    f64  on_dot; //Dot between normal and out
 
     object_material *material;
     object_geometry *surface;

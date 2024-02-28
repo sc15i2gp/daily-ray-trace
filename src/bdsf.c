@@ -1,11 +1,12 @@
-void bp_diffuse_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
+void bp_diffuse_bdsf(spectrum reflectance, scene_point *p, vec3 incoming)
 {
     spectral_mul_by_scalar(reflectance, p->material->diffuse_spd, 1.0/PI);
     spectral_mul_by_scalar(reflectance, reflectance, fabs(vec3_dot(p->normal, incoming)));
 }
 
-void bp_glossy_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
+void bp_glossy_bdsf(spectrum reflectance, scene_point *p, vec3 incoming)
 {
+    vec3 outgoing         = p->out;
     vec3 bisector         = vec3_normalise(vec3_sum(outgoing, incoming));
     f64  spec_coefficient = pow(f64_max(0.0, vec3_dot(p->normal, bisector)), p->material->shininess);
 
@@ -13,9 +14,9 @@ void bp_glossy_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 ou
     spectral_mul_by_scalar(reflectance, reflectance, fabs(vec3_dot(p->normal, incoming)));
 }
 
-void mirror_bdsf(spectrum reflectance, scene_point *p, vec3 incoming, vec3 outgoing)
+void mirror_bdsf(spectrum reflectance, scene_point *p, vec3 incoming)
 {
-    outgoing = vec3_reverse(outgoing);
+    vec3 outgoing = vec3_reverse(p->out);
     if(vec3_equal(incoming, vec3_reflect(outgoing, p->normal)))
     {
         copy_spectrum(reflectance, p->material->mirror_spd);

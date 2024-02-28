@@ -189,7 +189,7 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
 
 //Out = back towards camera
 //In  = towards light source/next intersection
-void bdsf(spectrum reflectance, scene_point *p, vec3 in, vec3 out)
+void bdsf(spectrum reflectance, scene_point *p, vec3 in)
 {
     spectrum bdsf_result = alloc_spd();
     zero_spectrum(reflectance);
@@ -198,7 +198,7 @@ void bdsf(spectrum reflectance, scene_point *p, vec3 in, vec3 out)
     for(u32 i = 0; i < mat->num_bdsfs; i += 1)
     {
         bdsf_func f = mat->bdsfs[i];
-        f(bdsf_result, p, in, out);
+        f(bdsf_result, p, in);
         spectral_sum(reflectance, bdsf_result, reflectance);
     }
     free_spd(bdsf_result);
@@ -244,7 +244,7 @@ u32 points_mutually_visible(vec3 p0, vec3 p1, scene_data *scene)
     return visible;
 }
 
-void direct_light_contribution(spectrum contribution, scene_point *intersection, scene_data *scene, vec3 ray_direction)
+void direct_light_contribution(spectrum contribution, scene_point *intersection, scene_data *scene)
 {
     spectrum reflectance = alloc_spd();
     zero_spectrum(reflectance);
@@ -292,15 +292,13 @@ void direct_light_contribution(spectrum contribution, scene_point *intersection,
             }
             if(points_mutually_visible(intersection->position, light_position, scene))
             {
-                vec3 outgoing = vec3_reverse(ray_direction);
                 vec3 incoming = vec3_normalise(vec3_sub(light_position, intersection->position));
 
-                bdsf(reflectance, intersection, incoming, outgoing);
+                bdsf(reflectance, intersection, incoming);
                 spectral_sum(contribution, contribution, reflectance);
                 spectral_mul_by_spectrum(contribution, contribution, light_material->emission_spd);
 
-                f64 d = vec3_dot(incoming, intersection->normal);
-                f64 c = fabs(d) * attenuation_factor * (1.0/light_pdf);
+                f64 c = attenuation_factor * (1.0/light_pdf);
                 spectral_mul_by_scalar(contribution, contribution, c);
             }
         }
@@ -355,6 +353,13 @@ void find_ray_intersection(scene_point *intersection, scene_data *scene, vec3 ra
                 break;
             }
         }
+        intersection->out = vec3_reverse(ray_direction);
+        intersection->on_dot = vec3_dot(intersection->normal, intersection->out);
+        if(intersection->on_dot < 0.0) 
+        {
+            intersection->normal = vec3_reverse(intersection->normal);
+            intersection->on_dot = vec3_dot(intersection->normal, intersection->out);
+        }
         intersection->material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
         intersection->surface = &scene->surfaces[intersection_index];
     }
@@ -364,6 +369,7 @@ void find_ray_intersection(scene_point *intersection, scene_data *scene, vec3 ra
     }
 }
 
+/*
 u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersection, scene_data *scene, vec3 ray_origin, vec3 ray_direction)
 {
     u32 ret;
@@ -388,6 +394,7 @@ u32 estimate_indirect_contribution(spectrum contribution, scene_point *intersect
     }
     return ret;
 }
+*/
 
 void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_direction, u32 max_depth)
 {
@@ -399,14 +406,13 @@ void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_directi
     zero_spectrum(reflectance);
     const_spectrum(throughput, 1.0);
 
-    vec3 out = ray_direction;
     vec3 in;
 
     scene_point intersection;
     memset(&intersection, 0, sizeof(scene_point));
     for(u32 depth = 0; depth < max_depth; depth += 1)
     {
-        find_ray_intersection(&intersection, scene, ray_origin, out);
+        find_ray_intersection(&intersection, scene, ray_origin, ray_direction);
 
         object_material *mat = intersection.material;
         if(mat->is_black_body && !mat->is_emissive) break;
@@ -418,20 +424,18 @@ void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_directi
         }
         else
         {
-            out = vec3_reverse(out);
-            direct_light_contribution(contribution, &intersection, scene, out);
+            direct_light_contribution(contribution, &intersection, scene);
             spectral_mul_by_spectrum(tmp_spectrum, throughput, contribution);
             spectral_sum(dst, dst, tmp_spectrum);
-            if(vec3_dot(out, intersection.normal) < 0.0) intersection.normal = vec3_reverse(intersection.normal);
 
             f64 dir_pdf;
-            mat->sample_direction(&in, &dir_pdf, intersection.normal, out);
+            mat->sample_direction(&in, &dir_pdf, intersection.normal, intersection.out);
 
-            bdsf(reflectance, &intersection, in, out);
+            bdsf(reflectance, &intersection, in);
             spectral_mul_by_scalar(reflectance, reflectance, dir_pdf);
             spectral_mul_by_spectrum(throughput, throughput, reflectance);
 
-            out = in;
+            ray_direction = in;
             ray_origin = intersection.position;
         }
     }
