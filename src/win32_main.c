@@ -32,9 +32,12 @@
 
 //TODO:
 //  - Materials
-//      - Mirror
 //      - Gold
 //      - Glass
+//  - Make camera input position, target point, up vector
+//      - No real need for orientation vectors, except to work out film plane dimensions
+//  - Move out and in vectors to scene_point
+//      - Compute dots and store them in scene_point too
 //  - Non-pinhole camera
 //  - Better memory management
 //      - Have platform track allocations and open files (and free on shutdown)
