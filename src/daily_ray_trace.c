@@ -19,9 +19,9 @@ void load_scene(const char *scene_path, camera_data *camera, scene_data *scene, 
 
 void init_camera(camera_data *camera, camera_input_data *input)
 {
-    camera->forward = input->forward;
-    camera->right   = input->right;
-    camera->up      = input->up;
+    camera->forward = vec3_normalise(input->forward);
+    camera->right   = vec3_normalise(input->right);
+    camera->up      = vec3_normalise(input->up);
 
     f64 aperture_distance     = (input->flength * input->fdepth) / (input->flength + input->fdepth);
     camera->aperture_position = vec3_sum(input->position, vec3_mul_by_f64(input->forward, aperture_distance));
@@ -427,9 +427,8 @@ void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_directi
             f64 dir_pdf;
             mat->sample_direction(&in, &dir_pdf, intersection.normal, out);
 
-            f64 throughput_coefficient = fabs(vec3_dot(intersection.normal, in)) * (1.0/dir_pdf);
             bdsf(reflectance, &intersection, in, out);
-            spectral_mul_by_scalar(reflectance, reflectance, throughput_coefficient);
+            spectral_mul_by_scalar(reflectance, reflectance, dir_pdf);
             spectral_mul_by_spectrum(throughput, throughput, reflectance);
 
             out = in;
