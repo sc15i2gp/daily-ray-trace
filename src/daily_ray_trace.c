@@ -115,20 +115,14 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
     load_csv_file_to_spectrum(rgb_cyan, "spectra\\cyan_rgb_to_spd.csv");
     load_csv_file_to_spectrum(rgb_magenta, "spectra\\magenta_rgb_to_spd.csv");
     load_csv_file_to_spectrum(rgb_yellow, "spectra\\yellow_rgb_to_spd.csv");
-    object_material *escape_material = &scene->scene_materials[0];
-    const char *escape_material_name = "escape";
-    u32 escape_material_name_length = strlen(escape_material_name);
-    memcpy(escape_material->name, escape_material_name, escape_material_name_length);
-    escape_material->is_black_body = 1;
-    escape_material->is_emissive   = 0;
     for(u32 i = 0; i < scene->num_scene_materials; i += 1)
     {
         material_input_data *input = &scene_input->scene_materials[i];
-        object_material     *dst   = &scene->scene_materials[i+1];
+        object_material     *dst   = &scene->scene_materials[i];
 
         u32 name_len = strlen(input->name);
         memcpy(dst->name, input->name, name_len);
-        dst->is_black_body    = input->is_black_body;
+        dst->is_black_body    = (input->is_escape_material) ? 1 : input->is_black_body;
         dst->is_emissive      = input->is_emissive;
         dst->shininess        = input->shininess;
 
@@ -143,6 +137,18 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
         init_spd(&dst->diffuse_spd, &input->diffuse_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
         init_spd(&dst->glossy_spd, &input->glossy_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
         init_spd(&dst->mirror_spd, &input->mirror_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+        init_spd(&dst->refract_spd, &input->refract_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+        init_spd(&dst->extinct_spd, &input->extinct_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+        if(input->is_escape_material) scene->escape_material = dst;
+        if(input->is_base_material)   scene->base_material   = dst;
+    }
+    if(!scene->escape_material)
+    {
+        //TODO
+    }
+    if(!scene->base_material)
+    {
+        //TODO
     }
     free_spd(white);
     free_spd(rgb_red);
@@ -194,7 +200,7 @@ void bdsf(spectrum reflectance, scene_point *p, vec3 in)
     spectrum bdsf_result = alloc_spd();
     zero_spectrum(reflectance);
     
-    object_material *mat = p->material;
+    object_material *mat = p->surface_material;
     for(u32 i = 0; i < mat->num_bdsfs; i += 1)
     {
         bdsf_func f = mat->bdsfs[i];
@@ -357,15 +363,30 @@ void find_ray_intersection(scene_point *intersection, scene_data *scene, vec3 ra
         intersection->on_dot = vec3_dot(intersection->normal, intersection->out);
         if(intersection->on_dot < 0.0) 
         {
+            intersection->transmit_material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
+            intersection->incident_material = scene->base_material;
             intersection->normal = vec3_reverse(intersection->normal);
             intersection->on_dot = vec3_dot(intersection->normal, intersection->out);
         }
-        intersection->material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
+        else
+        {
+            if(intersection_surface->type != GEO_TYPE_PLANE)
+            {
+                intersection->transmit_material = scene->base_material;
+                intersection->incident_material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
+            }
+            else
+            {
+                intersection->transmit_material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
+                intersection->incident_material = scene->base_material;
+            }
+        }
+        intersection->surface_material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
         intersection->surface = &scene->surfaces[intersection_index];
     }
     else
     {
-        intersection->material = &scene->scene_materials[0];
+        intersection->surface_material = scene->escape_material;
     }
 }
 
@@ -414,7 +435,7 @@ void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_directi
     {
         find_ray_intersection(&intersection, scene, ray_origin, ray_direction);
 
-        object_material *mat = intersection.material;
+        object_material *mat = intersection.surface_material;
         if(mat->is_black_body && !mat->is_emissive) break;
         else if(mat->is_black_body && mat->is_emissive)
         {

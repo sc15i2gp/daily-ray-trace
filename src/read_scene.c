@@ -457,6 +457,26 @@ void parse_material(scene_input_data *scene)
                 parse_dir_func(&dst_material->sample_direction_function);
                 break;
             }
+            case TOKEN_refract:
+            {
+                parse_spd_method(&dst_material->refract_input);
+                break;
+            }
+            case TOKEN_extinct:
+            {
+                parse_spd_method(&dst_material->extinct_input);
+                break;
+            }
+            case TOKEN_base_material:
+            {
+                dst_material->is_base_material = 1;
+                break;
+            }
+            case TOKEN_escape_material:
+            {
+                dst_material->is_escape_material = 1;
+                break;
+            }
             default:
             {
                 parse_error();

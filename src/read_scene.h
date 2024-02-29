@@ -41,6 +41,8 @@ typedef struct
 typedef struct
 {
     char name[32];
+    u32  is_base_material;
+    u32  is_escape_material;
     u32  is_black_body;
     u32  is_emissive;
     f64  shininess;
@@ -49,6 +51,8 @@ typedef struct
     spd_input_data diffuse_input;
     spd_input_data glossy_input;
     spd_input_data mirror_input;
+    spd_input_data refract_input;
+    spd_input_data extinct_input;
 
     u32 num_bdsfs;
     bdsf_func bdsfs[16];

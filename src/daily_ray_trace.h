@@ -51,6 +51,8 @@ typedef struct
     spectrum   diffuse_spd;
     spectrum   glossy_spd;
     spectrum   mirror_spd;
+    spectrum   refract_spd;
+    spectrum   extinct_spd;
     u32        num_bdsfs;
     bdsf_func  bdsfs[16];
     dir_func   sample_direction;
@@ -63,7 +65,9 @@ struct scene_point
     vec3 out; //Points back towards camera along path
     f64  on_dot; //Dot between normal and out
 
-    object_material *material;
+    object_material *surface_material;
+    object_material *incident_material;
+    object_material *transmit_material;
     object_geometry *surface;
 };
 
@@ -94,6 +98,8 @@ typedef struct
 
     u32 num_scene_materials;
     object_material *scene_materials;
+    object_material *base_material;
+    object_material *escape_material;
 } scene_data;
 
 typedef struct
