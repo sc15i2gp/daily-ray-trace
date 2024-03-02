@@ -766,6 +766,13 @@ u32 load_csv_file_to_spectrum(spectrum dst, const char *csv_path)
     printf("Number of samples read = %u\n", file_number_of_samples);
 
     //Lerp values and write them to spectrum
+    if(file_wavelengths[0] < 10.0) //If file wavelengths look like they're in um
+    {
+        for(u32 i = 0; i < file_number_of_samples; i += 1)
+        {
+            file_wavelengths[i] *= 1000.0;
+        }
+    }
     u32 file_wl_index = 0;
     for(u32 sample = 0; sample < number_of_spectrum_samples; sample += 1)
     {

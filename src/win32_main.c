@@ -31,13 +31,8 @@
 //  - Remove C std?
 
 //TODO:
-//  - Materials
-//      - Gold
-//      - Glass
 //  - Make camera input position, target point, up vector
 //      - No real need for orientation vectors, except to work out film plane dimensions
-//  - Move out and in vectors to scene_point
-//      - Compute dots and store them in scene_point too
 //  - Non-pinhole camera
 //  - Better memory management
 //      - Have platform track allocations and open files (and free on shutdown)
@@ -51,8 +46,17 @@
 //      - Separate tool spd->bmp (in case of crash or something) which can either be called in drt or
 //        invoked as a standalone program
 //      - Platform probably shouldn't have to know about filtering pixels or cmfs
+//  - Scene precomputation
+//      - Could remove need for complex decision logic for transmit and incident materials by doing it
+//        ahead of time
+//  - spd average, sum, max_value?
+//      - Could keep running values
 //  - Profiling
 //  - Tidy
+//      - stack alloc spd
+//          - Also remove dogshit linear search
+//      - Choosing transmission direction based on refract indices
+//          - RNG vs average vs specific wavelength
 //      - All file stuff needs reviewing...BADLY!!
 //      - Include reference white in spd file
 //      - Sort out normal issues
@@ -63,6 +67,9 @@
 //          - Surely the camera's film dimensions shouldn't be dictated by fov?
 //      - String type?
 //      - Fix matrix stuff, it must not be needed
+//      - Floating point stuff means sometimes rays get trapped in places they shouldn't
+//          - Changed the fudge factor to 0.0001
+//          - Maybe have a different scheme so this isn't necessary
 //      - Do general quality pass over code
 //        - Function prototypes and struct definitions in header files
 //        - Code order in files

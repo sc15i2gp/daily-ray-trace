@@ -89,6 +89,22 @@ vec3 vec3_reflect(vec3 v, vec3 n)
     return v;
 }
 
+vec3 vec3_transmit(vec3 v, vec3 n, f64 ir, f64 tr)
+{
+    f64  vn_dot  = vec3_dot(v, n);
+    f64  rel_ref = ir/tr;
+    
+    vec3 m = vec3_mul_by_f64(n, vn_dot);
+    v = vec3_sub(m, v);
+    
+    vec3 perpend = vec3_reverse(vec3_mul_by_f64(v, rel_ref));
+    f64  perpend_dot = -sqrt(1.0 - vec3_dot(perpend, perpend));
+    vec3 parallel = vec3_mul_by_f64(n, perpend_dot);
+
+    vec3 transmit = vec3_sum(perpend, parallel);
+    return transmit;
+}
+
 f64 point_to_line_distance(vec3 p, vec3 l_0, vec3 l_1)
 {
     vec3 normalised_l = vec3_normalise(vec3_sub(l_0, l_1));

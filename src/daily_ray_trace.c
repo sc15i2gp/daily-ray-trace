@@ -58,7 +58,7 @@ void init_spd(spectrum *dst, spd_input_data *input, spectrum white, spectrum rgb
             memcpy(csv_name, prefix, prefix_size);
             memcpy(csv_name + prefix_size, input->csv, strlen(input->csv));
             load_csv_file_to_spectrum(*dst, csv_name);
-            spectrum_normalise(*dst);
+            //spectrum_normalise(*dst); //TODO: Allow this normalise as an option
             break;
         }
         case SPD_METHOD_BLACKBODY:
@@ -198,6 +198,7 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
 void bdsf(spectrum reflectance, scene_point *p, vec3 in)
 {
     spectrum bdsf_result = alloc_spd();
+    zero_spectrum(bdsf_result);
     zero_spectrum(reflectance);
     
     object_material *mat = p->surface_material;
@@ -216,13 +217,14 @@ void bdsf(spectrum reflectance, scene_point *p, vec3 in)
 //  - Do the normal test for everything else
 //Maybe even don't call this function if the light source is on the other side of the object
 //Assumes p0 is from scene_point
+#define vis_fudge 0.0001
 u32 points_mutually_visible(vec3 p0, vec3 p1, scene_data *scene)
 {
     u32 visible = 1;
     vec3 ray_dir_full  = vec3_sub(p1, p0);
     vec3 ray_direction = vec3_normalise(ray_dir_full);
-    vec3 ray_origin    = vec3_sum(p0, vec3_mul_by_f64(ray_direction, 0.001));
-    f64 vis_dist = vec3_length(vec3_sub(p1, ray_origin)) - 0.001;
+    vec3 ray_origin    = vec3_sum(p0, vec3_mul_by_f64(ray_direction, vis_fudge));
+    f64 vis_dist = vec3_length(vec3_sub(p1, ray_origin)) - vis_fudge;
     f64 dist     = INFINITY;
     for(u32 i = 0; i < scene->num_surfaces; i += 1)
     {
@@ -317,7 +319,7 @@ void find_ray_intersection(scene_point *intersection, scene_data *scene, vec3 ra
     f64 min_dist = INFINITY;
     object_geometry *intersection_surface = NULL;
     u32 intersection_index = -1;
-    ray_origin = vec3_sum(ray_origin, vec3_mul_by_f64(ray_direction, 0.001));
+    ray_origin = vec3_sum(ray_origin, vec3_mul_by_f64(ray_direction, vis_fudge));
     for(u32 i = 0; i < scene->num_surfaces; i += 1)
     {
         f64 dist = INFINITY;
@@ -361,25 +363,17 @@ void find_ray_intersection(scene_point *intersection, scene_data *scene, vec3 ra
         }
         intersection->out = vec3_reverse(ray_direction);
         intersection->on_dot = vec3_dot(intersection->normal, intersection->out);
+        intersection->transmit_material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
+        intersection->incident_material = scene->base_material;
         if(intersection->on_dot < 0.0) 
-        {
-            intersection->transmit_material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
-            intersection->incident_material = scene->base_material;
-            intersection->normal = vec3_reverse(intersection->normal);
-            intersection->on_dot = vec3_dot(intersection->normal, intersection->out);
-        }
-        else
         {
             if(intersection_surface->type != GEO_TYPE_PLANE)
             {
                 intersection->transmit_material = scene->base_material;
                 intersection->incident_material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
             }
-            else
-            {
-                intersection->transmit_material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
-                intersection->incident_material = scene->base_material;
-            }
+            intersection->normal = vec3_reverse(intersection->normal);
+            intersection->on_dot = vec3_dot(intersection->normal, intersection->out);
         }
         intersection->surface_material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];
         intersection->surface = &scene->surfaces[intersection_index];
@@ -450,7 +444,7 @@ void cast_ray(spectrum dst, scene_data *scene, vec3 ray_origin, vec3 ray_directi
             spectral_sum(dst, dst, tmp_spectrum);
 
             f64 dir_pdf;
-            mat->sample_direction(&in, &dir_pdf, intersection.normal, intersection.out);
+            mat->sample_direction(&in, &dir_pdf, &intersection);
 
             bdsf(reflectance, &intersection, in);
             spectral_mul_by_scalar(reflectance, reflectance, dir_pdf);
