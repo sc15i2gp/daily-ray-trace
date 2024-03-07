@@ -125,6 +125,7 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
         dst->is_black_body    = (input->is_escape_material) ? 1 : input->is_black_body;
         dst->is_emissive      = input->is_emissive;
         dst->shininess        = input->shininess;
+        dst->roughness        = input->roughness;
 
         dst->sample_direction = input->sample_direction_function;
         dst->num_bdsfs        = input->num_bdsfs;

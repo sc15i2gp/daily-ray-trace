@@ -447,6 +447,11 @@ void parse_material(scene_input_data *scene)
                 parse_float(&dst_material->shininess);
                 break;
             }
+            case TOKEN_roughness:
+            {
+                parse_float(&dst_material->roughness);
+                break;
+            }
             case TOKEN_bdsfs:
             {
                 parse_bdsfs(&dst_material->num_bdsfs, dst_material->bdsfs);

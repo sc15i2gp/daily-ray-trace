@@ -31,9 +31,24 @@
 //  - Remove C std?
 
 //TODO:
-//  - Make camera input position, target point, up vector
-//      - No real need for orientation vectors, except to work out film plane dimensions
-//  - Non-pinhole camera
+//  - Solidify reflection model for bdsfs to prevent confusion and unnecessary vector reversals
+//      - An interaction event where reflectance or transmittance needs to be calculated consists of:
+//          - A surface with an associated material which separates 2 media
+//          - An incident material which is the material light travels through before interacting with the surface and after if the light is reflected
+//          - A transmission material which is the material light travels through after transmitting through the surface (if at all)
+//          - A vector called "out" which points towards the intersection surface (at the intersection position)
+//          - A vector called "in" which is the result of the interaction
+//          - A normal vector which points into the incident material (so has a negative dot with "out")
+//      - Sampling directions needs a considered model
+//          - A surface with an associated material
+//          - A vector called "out" which points towards the surface
+//          - A normal vector which has a negative dot product with "out"
+//          - A vector result called "in"
+//  - Camera stuff
+//      - Make camera input position, target point, up vector
+//          - No real need for orientation vectors, except to work out film plane dimensions
+//      - Non-pinhole camera
+//      - Different film sampling scheme
 //  - Better memory management
 //      - Have platform track allocations and open files (and free on shutdown)
 //      - Memory arena(s)
@@ -52,7 +67,10 @@
 //  - spd average, sum, max_value?
 //      - Could keep running values
 //  - Profiling
+//  - Stress test
+//      - Different resolutions, number of spectrum samples etc.
 //  - Tidy
+//      - Fix transmission wavelength
 //      - stack alloc spd
 //          - Also remove dogshit linear search
 //      - Choosing transmission direction based on refract indices

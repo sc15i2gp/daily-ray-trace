@@ -47,6 +47,7 @@ typedef struct
     u32        is_black_body;
     u32        is_emissive;
     f64        shininess;
+    f64        roughness;
     spectrum   emission_spd;
     spectrum   diffuse_spd;
     spectrum   glossy_spd;

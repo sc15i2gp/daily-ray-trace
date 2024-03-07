@@ -1,4 +1,46 @@
 //UTIL FUNCTIONS
+
+f64 ggx(vec3 sn, vec3 mn, f64 r)
+{
+    f64 g;
+    f64 sn_mn_dot = vec3_dot(sn, mn);
+    f64 r_2 = r * r;
+    if(sn_mn_dot <= 0.0)
+    {
+        g = 0.0;
+    }
+    else
+    {
+        f64 sn_mn_dot_2 = sn_mn_dot * sn_mn_dot;
+        f64 sn_mn_dot_4 = sn_mn_dot_2 * sn_mn_dot_2;
+        f64 sn_mn_tan_sq = (1.0/sn_mn_dot_2) - 1.0;
+        g = r_2 / (PI * sn_mn_dot_4 * (r_2 + sn_mn_tan_sq) * (r_2 + sn_mn_tan_sq));
+    }
+    return g;
+}
+
+f64 ggx_att(vec3 v, vec3 sn, vec3 mn, f64 r)
+{
+    f64 att;
+    f64 g = ggx(sn, mn, r);
+    f64 v_mn_dot = vec3_dot(v, mn);
+    f64 v_sn_dot = vec3_dot(v, sn);
+    f64 dot_quot = fabs(v_mn_dot / v_sn_dot);
+    f64 r_2 = r * r;
+
+    if(dot_quot <= 0.0)
+    {
+        att = 0.0;
+    }
+    else
+    {
+        f64 vn_tan_sq = (1.0/(v_sn_dot*v_sn_dot)) - 1.0;
+        att = 2.0 / (1.0 + sqrt(1.0 + r_2 * vn_tan_sq));
+    }
+
+    return g * att;
+}
+
 void fs_dielectric_reflectance(spectrum reflectance, spectrum ir, spectrum tr, f64 inc_cos)
 {
     f64 inc_sin_sq = 1.0 - inc_cos * inc_cos;
@@ -32,6 +74,31 @@ void fs_dielectric_transmittance(spectrum transmittance, spectrum ir, spectrum t
         transmittance.samples[i] = 1.0 - transmittance.samples[i];
     }
 }
+
+void fs_conductor_reflectance(spectrum reflectance, spectrum ir, spectrum tr, spectrum te, f64 inc_cos)
+{
+    f64 inc_cos_sq = inc_cos * inc_cos;
+    f64 inc_sin_sq = 1.0 - inc_cos_sq;
+
+    for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
+    {
+        f64 relative_refract = tr.samples[i] / ir.samples[i];
+        f64 relative_extinct = te.samples[i] / ir.samples[i];
+        f64 relative_refract_sq = relative_refract * relative_refract;
+        f64 relative_extinct_sq = relative_extinct * relative_extinct;
+        f64 r = relative_refract_sq - relative_extinct_sq - inc_sin_sq;
+        f64 apb_sq = sqrt(r * r + 4.0 * relative_refract_sq * relative_extinct_sq);
+        f64 a = sqrt(0.5 * (apb_sq + r));
+        f64 s = apb_sq + inc_cos_sq;
+        f64 t = 2.0 * a * inc_cos;
+        f64 u = inc_cos_sq * apb_sq + inc_sin_sq * inc_sin_sq;
+        f64 v = t * inc_sin_sq;
+        f64 parallel_reflectance = (s - t) / (s + t);
+        f64 perpend_reflectance  = parallel_reflectance * (u - v) / (u + v);
+
+        reflectance.samples[i] = 0.5 * (parallel_reflectance + perpend_reflectance);
+    }
+} 
 
 //BDSF FUNCTIONS
 
@@ -74,28 +141,7 @@ void fs_conductor_bdsf(spectrum reflectance, scene_point *p, vec3 incoming)
         spectrum transmit_extinct = p->transmit_material->extinct_spd;
 
         f64 on_dot = p->on_dot;
-        f64 in_dot = vec3_dot(p->normal, incoming);
-        f64 on_dot_sq = on_dot * on_dot;
-        f64 on_sin_sq = 1.0 - on_dot_sq;
-
-        for(u32 i = 0; i < number_of_spectrum_samples; i += 1)
-        {
-            f64 relative_refract = transmit_refract.samples[i] / incident_refract.samples[i];
-            f64 relative_extinct = transmit_extinct.samples[i] / incident_refract.samples[i];
-            f64 relative_refract_sq = relative_refract * relative_refract;
-            f64 relative_extinct_sq = relative_extinct * relative_extinct;
-            f64 r = relative_refract_sq - relative_extinct_sq - on_sin_sq;
-            f64 apb_sq = sqrt(r * r + 4.0 * relative_refract_sq * relative_extinct_sq);
-            f64 a = sqrt(0.5 * (apb_sq + r));
-            f64 s = apb_sq + on_dot_sq;
-            f64 t = 2.0 * a * on_dot;
-            f64 u = on_dot_sq * apb_sq + on_sin_sq * on_sin_sq;
-            f64 v = t * on_sin_sq;
-            f64 parallel_reflectance = (s - t) / (s + t);
-            f64 perpend_reflectance  = parallel_reflectance * (u - v) / (u + v);
-
-            reflectance.samples[i] = 0.5 * (parallel_reflectance + perpend_reflectance);
-        }
+        fs_conductor_reflectance(reflectance, incident_refract, transmit_refract, transmit_extinct, on_dot);
     }
 }
 
@@ -124,6 +170,20 @@ void fs_dielectric_transmittance_bdsf(spectrum transmittance, scene_point *p, ve
     {
         fs_dielectric_transmittance(transmittance, ir_spd, tr_spd, p->on_dot);
     }
+}
+
+void ct_conductor_bdsf(spectrum reflectance, scene_point *p, vec3 incoming)
+{
+    vec3 micro_normal = vec3_normalise(vec3_sum(p->out, incoming));
+    f64 in_dot = fabs(vec3_dot(p->normal, incoming));
+    f64 mn_dot = fabs(vec3_dot(p->normal, micro_normal));
+
+    spectrum incident_refract = p->incident_material->refract_spd;
+    spectrum transmit_refract = p->transmit_material->refract_spd;
+    spectrum transmit_extinct = p->transmit_material->extinct_spd;
+    fs_conductor_reflectance(reflectance, incident_refract, transmit_refract, transmit_extinct, mn_dot);
+    f64 reflectance_coefficient = ggx_att(p->out, p->normal, micro_normal, p->surface_material->roughness) * (1.0/(4.0*p->on_dot));
+    spectral_mul_by_scalar(reflectance, reflectance, reflectance_coefficient);
 }
 
 //DIRECTION SAMPLING FUNCTIONS
@@ -197,4 +257,37 @@ void sample_reflect_or_transmit_direction(vec3 *v, f64 *pdf, scene_point *p)
         *pdf = 1.0/(1.0 - rd);
     }
     free_spd(reflectance);
+}
+
+void sample_ct_direction(vec3 *v, f64 *pdf, scene_point *p)
+{
+    do
+    {
+        f64 f = rng();
+        f64 g = rng();
+
+        f64 phi_mn = 2.0 * PI * g;
+        f64 tan_mn = (p->surface_material->roughness * sqrt(f)) / sqrt(1.0 - f);
+        f64 cos_mn = 1.0 / sqrt(1.0 + tan_mn*tan_mn);
+        f64 sin_mn = sqrt(1.0 - cos_mn * cos_mn);
+
+        vec3 i = {0.0, 0.0, 1.0};
+        vec3 micro_normal = {sin_mn * cos(phi_mn), sin_mn * sin(phi_mn), cos_mn};
+        mat3x3 r = find_rotation_between_vectors(i, p->normal);
+        micro_normal = mat3x3_vec3_mul(r, micro_normal);
+
+        f64 sn_mn_dot = vec3_dot(p->normal, micro_normal);
+        if(sn_mn_dot < 0.0)
+        {
+            micro_normal = vec3_reverse(micro_normal);
+            sn_mn_dot = -sn_mn_dot;
+        }
+        f64 o_mn_dot = vec3_dot(p->out, micro_normal);
+
+        vec3 w = vec3_reverse(p->out);
+        *v = vec3_reflect(w, micro_normal);
+        f64 d = ggx(p->normal, micro_normal, p->surface_material->roughness) * sn_mn_dot;
+        *pdf = ((4.0 * o_mn_dot)/d);
+    }
+    while (vec3_dot(*v, p->normal) < 0.0);
 }

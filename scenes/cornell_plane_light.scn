@@ -67,8 +67,9 @@ Material
 name gold
 refract csv au_spec_n.csv
 extinct csv au_spec_k.csv
-bdsfs fs_conductor_bdsf
-dir_func sample_specular_direction
+roughness 0.344
+bdsfs ct_conductor_bdsf
+dir_func sample_ct_direction
 
 Material
 name dielectric
@@ -126,9 +127,9 @@ material white_plastic
 Surface
 name ball
 type sphere
-position -1.5, -1.8, 2.0
-radius   1.0
-material dielectric
+position -2.0, -2.0, -0.5
+radius   0.75
+material gold
 
 Surface
 name mirror_plane
