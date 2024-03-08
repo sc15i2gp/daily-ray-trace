@@ -293,3 +293,21 @@ mat3x3 find_rotation_between_vectors(vec3 v, vec3 w)
     }
     return r;
 }
+
+mat3x3 rotation_about_axis(vec3 axis, f64 angle_rad)
+{
+    f64 cos_th = cos(angle_rad);
+    f64 sin_th = sin(angle_rad);
+    mat3x3 r;
+    r.columns[0].x = cos_th+(axis.x*axis.x)*(1-cos_th);
+    r.columns[0].y = axis.y*axis.x*(1-cos_th)+axis.z*sin_th;
+    r.columns[0].z = axis.z*axis.z*(1-cos_th)-axis.y*sin_th;
+    r.columns[1].x = axis.x*axis.y*(1-cos_th)-axis.z*sin_th;
+    r.columns[1].y = cos_th+(axis.y*axis.y)*(1-cos_th);
+    r.columns[1].z = axis.z*axis.y*(1-cos_th)+axis.x*sin_th;
+    r.columns[2].x = axis.x*axis.z*(1-cos_th)+axis.y*sin_th;
+    r.columns[2].y = axis.y*axis.z*(1-cos_th)-axis.x*sin_th;
+    r.columns[2].z = cos_th+axis.z*axis.z*(1-cos_th);
+
+    return r;
+}

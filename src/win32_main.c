@@ -31,24 +31,12 @@
 //  - Remove C std?
 
 //TODO:
-//  - Solidify reflection model for bdsfs to prevent confusion and unnecessary vector reversals
-//      - An interaction event where reflectance or transmittance needs to be calculated consists of:
-//          - A surface with an associated material which separates 2 media
-//          - An incident material which is the material light travels through before interacting with the surface and after if the light is reflected
-//          - A transmission material which is the material light travels through after transmitting through the surface (if at all)
-//          - A vector called "out" which points towards the intersection surface (at the intersection position)
-//          - A vector called "in" which is the result of the interaction
-//          - A normal vector which points into the incident material (so has a negative dot with "out")
-//      - Sampling directions needs a considered model
-//          - A surface with an associated material
-//          - A vector called "out" which points towards the surface
-//          - A normal vector which has a negative dot product with "out"
-//          - A vector result called "in"
 //  - Camera stuff
-//      - Make camera input position, target point, up vector
+//      - Make camera input position, target point, roll
 //          - No real need for orientation vectors, except to work out film plane dimensions
 //      - Non-pinhole camera
 //      - Different film sampling scheme
+//      - Surely the camera's film dimensions shouldn't be dictated by fov?
 //  - Better memory management
 //      - Have platform track allocations and open files (and free on shutdown)
 //      - Memory arena(s)
@@ -60,17 +48,19 @@
 //  - spd to bmp
 //      - Separate tool spd->bmp (in case of crash or something) which can either be called in drt or
 //        invoked as a standalone program
-//      - Platform probably shouldn't have to know about filtering pixels or cmfs
-//  - Scene precomputation
-//      - Could remove need for complex decision logic for transmit and incident materials by doing it
-//        ahead of time
 //  - spd average, sum, max_value?
-//      - Could keep running values
+//      - Could keep running values at end of spectra
 //  - Profiling
 //  - Stress test
 //      - Different resolutions, number of spectrum samples etc.
+//      - Make sure drt can properly handle concave shapes
 //  - Tidy
+//      - Platform probably shouldn't have to know about filtering pixels or cmfs
+//      - Have config_args as a parameter for render_image
+//          - Move some stuff like load_scene, init_spd_table to render_image
 //      - Fix transmission wavelength
+//          - Store transmitted wavelength in scene_point
+//          - Randomly choose a wavelength for transmit direction sampling?
 //      - stack alloc spd
 //          - Also remove dogshit linear search
 //      - Choosing transmission direction based on refract indices
@@ -81,13 +71,8 @@
 //          - Either come up with consistent scheme (possibly on alg rewrite)
 //          - or make functions that don't care which way normals are
 //          - e.g. plane normals, mirror reflect functions
-//      - Sort out camera
-//          - Surely the camera's film dimensions shouldn't be dictated by fov?
 //      - String type?
 //      - Fix matrix stuff, it must not be needed
-//      - Floating point stuff means sometimes rays get trapped in places they shouldn't
-//          - Changed the fudge factor to 0.0001
-//          - Maybe have a different scheme so this isn't necessary
 //      - Do general quality pass over code
 //        - Function prototypes and struct definitions in header files
 //        - Code order in files
@@ -124,6 +109,23 @@
 //  - Input arguments
 //  - Parallelism
 //  - Non-blackbody emissive sources
+//  - Solidify reflection model for bdsfs to prevent confusion and unnecessary vector reversals
+//      - An interaction event where reflectance or transmittance needs to be calculated consists of:
+//          - A surface with an associated material which separates 2 media
+//          - An incident material which is the material light travels through before interacting with the surface and after if the light is reflected
+//          - A transmission material which is the material light travels through after transmitting through the surface (if at all)
+//          - A vector called "out" which points towards the intersection surface (at the intersection position)
+//              - A positive dot product between "out" and the surface normal
+//          - A vector called "in" which is the result of the interaction
+//          - A normal vector which points into the incident material (so has a negative dot with "out")
+//      - Sampling directions needs a considered model
+//          - A surface with an associated material
+//          - A vector called "out" which points towards the surface
+//          - A normal vector which has a negative dot product with "out"
+//          - A vector result called "in"
+//      - Floating point stuff means sometimes rays get trapped in places they shouldn't
+//          - Changed the fudge factor to 0.0001
+//          - Maybe have a different scheme so this isn't necessary
 //  - Splitting
 //      - Shadow rays/multiple direct light sampling
 //      - Multiple estimate_indirect_contributions per path point

@@ -1,8 +1,7 @@
 Camera
 position 0.0, 0.0, 8.0
-up       0.0, 1.0, 0.0
-right    1.0, 0.0, 0.0
-forward  0.0, 0.0, -1.0
+target   0.0, 0.0, 0.0
+roll     0.0
 fov      90.0
 fdepth   8.0
 flength  0.5
@@ -67,7 +66,7 @@ Material
 name gold
 refract csv au_spec_n.csv
 extinct csv au_spec_k.csv
-roughness 0.344
+roughness 0.1
 bdsfs ct_conductor_bdsf
 dir_func sample_ct_direction
 
@@ -125,11 +124,18 @@ pointv -3.0, 3.0, -3.0
 material white_plastic
 
 Surface
-name ball
+name gold_ball
 type sphere
-position -2.0, -2.0, -0.5
+position 2.0, -2.0, -0.5
 radius   0.75
 material gold
+
+Surface
+name glass_ball
+type sphere
+position -1.5, -1.8, 2.0
+radius   1.0
+material dielectric
 
 Surface
 name mirror_plane
@@ -137,7 +143,7 @@ type plane
 position -1.0, 1.0, -2.4
 pointv 1.0, 1.0, -2.4
 pointu -1.0, -1.0, -2.9
-material teal_plastic
+material mirror
 
 Surface
 name light_source

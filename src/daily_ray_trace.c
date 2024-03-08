@@ -19,20 +19,25 @@ void load_scene(const char *scene_path, camera_data *camera, scene_data *scene, 
 
 void init_camera(camera_data *camera, camera_input_data *input)
 {
-    camera->forward = vec3_normalise(input->forward);
-    camera->right   = vec3_normalise(input->right);
-    camera->up      = vec3_normalise(input->up);
+    vec3 ref_forward = {0.0, 0.0, -1.0};
+    vec3 ref_up      = {0.0, 1.0, 0.0};
+    camera->forward = vec3_normalise(vec3_sub(input->target, input->position));
+    mat3x3 or = find_rotation_between_vectors(ref_forward, camera->forward);
+    f64 roll_rad = input->roll * (PI/180.0);
+    mat3x3 rr = rotation_about_axis(camera->forward, roll_rad);
+    camera->up = mat3x3_vec3_mul(rr, mat3x3_vec3_mul(or, ref_up));
+    camera->right = vec3_normalise(vec3_cross(camera->forward, camera->up));
 
     f64 aperture_distance     = (input->flength * input->fdepth) / (input->flength + input->fdepth);
-    camera->aperture_position = vec3_sum(input->position, vec3_mul_by_f64(input->forward, aperture_distance));
+    camera->aperture_position = vec3_sum(input->position, vec3_mul_by_f64(camera->forward, aperture_distance));
     camera->aperture_radius   = input->aperture;
 
     f64  fov_rad             = input->fov * (PI/180.0);
     f64  aspect_ratio        = (f64)input->width_px / (f64)input->height_px;
     f64  film_width          = 2.0 * aperture_distance * tan(fov_rad/2.0);
     f64  film_height         = film_width / aspect_ratio;
-    vec3 film_right          = vec3_mul_by_f64(input->right, 0.5 * film_width);
-    vec3 film_top            = vec3_mul_by_f64(input->up,    0.5 * film_height);
+    vec3 film_right          = vec3_mul_by_f64(camera->right, 0.5 * film_width);
+    vec3 film_top            = vec3_mul_by_f64(camera->up,    0.5 * film_height);
     camera->film_bottom_left = vec3_sub(vec3_sub(input->position, film_right), film_top);
 
     camera->pixel_width  = film_width  / (f64)input->width_px;
@@ -274,7 +279,7 @@ void direct_light_contribution(spectrum contribution, scene_point *intersection,
                     light_position = light_surface->position;
                     f64 dist = vec3_length(vec3_sub(light_position, intersection->position));
                     light_pdf = 1.0;
-                    attenuation_factor = 1.0 / (4.0 * PI * dist * dist);
+                    attenuation_factor = (4.0 * PI * dist * dist);
                     break;
                 }
                 case GEO_TYPE_SPHERE:
@@ -285,7 +290,7 @@ void direct_light_contribution(spectrum contribution, scene_point *intersection,
                     f64 t = 2.0 * PI * v;
                     vec3 sphere_point = {r * cos(t), r * sin(t), u};
                     light_position = vec3_sum(light_surface->position, vec3_mul_by_f64(sphere_point, light_surface->radius));
-                    light_pdf = 1.0 / (4.0 * PI * light_surface->radius * light_surface->radius);
+                    light_pdf = (4.0 * PI * light_surface->radius * light_surface->radius);
                     break;
                 }
                 case GEO_TYPE_PLANE:
@@ -295,7 +300,7 @@ void direct_light_contribution(spectrum contribution, scene_point *intersection,
                     vec3 u_pos = vec3_mul_by_f64(light_surface->u, u);
                     vec3 v_pos = vec3_mul_by_f64(light_surface->v, v);
                     light_position = vec3_sum(vec3_sum(light_surface->position, u_pos), v_pos);
-                    light_pdf = 1.0/vec3_length(vec3_cross(light_surface->u, light_surface->v));
+                    light_pdf = vec3_length(vec3_cross(light_surface->u, light_surface->v));
                     break;
                 }
             }
@@ -307,7 +312,7 @@ void direct_light_contribution(spectrum contribution, scene_point *intersection,
                 spectral_sum(contribution, contribution, reflectance);
                 spectral_mul_by_spectrum(contribution, contribution, light_material->emission_spd);
 
-                f64 c = attenuation_factor * (1.0/light_pdf);
+                f64 c = attenuation_factor * (light_pdf);
                 spectral_mul_by_scalar(contribution, contribution, c);
             }
         }

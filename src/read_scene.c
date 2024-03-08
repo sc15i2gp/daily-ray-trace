@@ -355,19 +355,14 @@ void parse_camera(camera_input_data *camera)
                 parse_vec3(&camera->position);
                 break;
             }
-            case TOKEN_up:
+            case TOKEN_target:
             {
-                parse_vec3(&camera->up);
+                parse_vec3(&camera->target);
                 break;
             }
-            case TOKEN_right:
+            case TOKEN_roll:
             {
-                parse_vec3(&camera->right);
-                break;
-            }
-            case TOKEN_forward:
-            {
-                parse_vec3(&camera->forward);
+                parse_float(&camera->roll);
                 break;
             }
             case TOKEN_fov:

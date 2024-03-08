@@ -1,9 +1,8 @@
 typedef struct
 {
+    vec3 target;
     vec3 position;
-    vec3 up;
-    vec3 right;
-    vec3 forward;
+    f64  roll;
     f64  fov;
     f64  fdepth;
     f64  flength;
