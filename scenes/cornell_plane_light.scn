@@ -3,9 +3,9 @@ position 0.0, 0.0, 8.0
 target   0.0, 0.0, 0.0
 roll     0.0
 fov      90.0
-fdepth   8.0
-flength  0.5
-aperture 0.0
+fdepth   6.0
+flength  0.3
+aperture 0.05
 
 Material
 name        vacuum

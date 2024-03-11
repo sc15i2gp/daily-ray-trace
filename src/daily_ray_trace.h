@@ -110,6 +110,8 @@ typedef struct
     vec3 up;
     vec3 aperture_position;
     f64  aperture_radius;
+    f64  focal_depth;
+    f64  focal_length;
     vec3 film_bottom_left;
     f64  pixel_width;
     f64  pixel_height;

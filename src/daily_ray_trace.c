@@ -28,6 +28,9 @@ void init_camera(camera_data *camera, camera_input_data *input)
     camera->up = mat3x3_vec3_mul(rr, mat3x3_vec3_mul(or, ref_up));
     camera->right = vec3_normalise(vec3_cross(camera->forward, camera->up));
 
+    camera->focal_depth = input->fdepth;
+    camera->focal_length = input->flength;
+
     f64 aperture_distance     = (input->flength * input->fdepth) / (input->flength + input->fdepth);
     camera->aperture_position = vec3_sum(input->position, vec3_mul_by_f64(camera->forward, aperture_distance));
     camera->aperture_radius   = input->aperture;
@@ -530,13 +533,6 @@ void print_scene(scene_data *scene)
     }
 }
 
-//TODO: Make work with non-pinhole camera
-vec3 sample_camera(camera_data *camera)
-{
-    vec3 p = camera->aperture_position;
-    return p;
-}
-
 //Data to output to file(s):
 //  - Pixel spectra: sum(filter * weight * incident radiance)
 //  - Variance spectra
@@ -548,8 +544,8 @@ void sample_scene(spectrum contribution, f64 *filter, u32 x, u32 y, scene_data *
 
     //Sample point on film plane
     //vec3 sampled_pixel_point = camera->film_bottom_left + film_x * camera->right + film_y * camera->up;
-    f64 p_sample_x = 0.5; //TODO: Replace this with some scheme (e.g. completely random, stratified etc.)
-    f64 p_sample_y = 0.5;
+    f64 p_sample_x = rng(); //TODO: Replace this with some scheme (e.g. completely random, stratified etc.)
+    f64 p_sample_y = rng(); //formerly 0.5
     f64 film_x     = ((f64)x + p_sample_x) * camera->pixel_width;
     f64 film_y     = ((f64)y + p_sample_y) * camera->pixel_height;
 
@@ -559,9 +555,27 @@ void sample_scene(spectrum contribution, f64 *filter, u32 x, u32 y, scene_data *
     vec3 sampled_pixel_point        = vec3_sum(sampled_pixel_point_bl,   camera->film_bottom_left);
 
     //Sample camera lens
-    vec3 sampled_camera_point = sample_camera(camera);
-    vec3 ray_origin           = sampled_pixel_point;
-    vec3 ray_direction        = vec3_normalise(vec3_sub(sampled_camera_point, ray_origin));
+    vec3 ray_origin;
+    vec3 ray_direction;
+    if(camera->aperture_radius > 0.0)
+    {
+        vec3 i = {0.0, 0.0, 1.0};
+        vec3 focus_dir = vec3_normalise(vec3_sub(camera->aperture_position, sampled_pixel_point));
+        focus_dir = vec3_mul_by_f64(focus_dir, camera->focal_depth/vec3_dot(focus_dir, camera->forward));
+        vec3 focus_point = vec3_sum(sampled_pixel_point, focus_dir);
+        mat3x3 r = find_rotation_between_vectors(i, camera->forward);
+        f64 f = camera->aperture_radius;
+        vec3 sampled_disc_point = vec3_mul_by_f64(uniform_sample_disc(), f);
+        vec3 lens_point = mat3x3_vec3_mul(r, sampled_disc_point);
+        ray_origin = vec3_sum(camera->aperture_position, lens_point);
+        ray_direction = vec3_normalise(vec3_sub(focus_point, ray_origin));
+    }
+    else
+    {
+        vec3 sampled_lens_point = camera->aperture_position;
+        ray_origin = sampled_pixel_point;
+        ray_direction = vec3_normalise(vec3_sub(sampled_lens_point, ray_origin));
+    }
     
     //Only one dst pixel for now (EDIT: What does this comment mean?)
     cast_ray(contribution, scene, ray_origin, ray_direction, max_cast_depth);

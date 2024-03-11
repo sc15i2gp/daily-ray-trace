@@ -32,8 +32,6 @@
 
 //TODO:
 //  - Camera stuff
-//      - Make camera input position, target point, roll
-//          - No real need for orientation vectors, except to work out film plane dimensions
 //      - Non-pinhole camera
 //      - Different film sampling scheme
 //      - Surely the camera's film dimensions shouldn't be dictated by fov?
