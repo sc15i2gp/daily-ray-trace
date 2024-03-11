@@ -31,10 +31,6 @@
 //  - Remove C std?
 
 //TODO:
-//  - Camera stuff
-//      - Non-pinhole camera
-//      - Different film sampling scheme
-//      - Surely the camera's film dimensions shouldn't be dictated by fov?
 //  - Better memory management
 //      - Have platform track allocations and open files (and free on shutdown)
 //      - Memory arena(s)
@@ -87,6 +83,11 @@
 //  - Do general performance pass over code
 //  - Output rendered scene info to files
 //      - e.g. light colours/spectra, material colours etc.
+//  - Camera stuff
+//      - Surely the camera's film dimensions shouldn't be dictated by fov?
+//      - No it shouldn't, fov is dictated by the parameters of the camera, it isn't one itself
+//      - Maybe have plane size as a camera property
+//      - This will probably end up being part of sorting out units due to physical sizes of camera parts
 //  - Better RNG
 //      - Alternative methods
 //      - Consider generating RNG up front
@@ -156,17 +157,9 @@ int main(int argc, char **argv)
     print_config_arguments(&args);
     printf("\n");
 
-    u32 spd_table_capacity = 32; //Should this be in config?
-    init_spd_table(spd_table_capacity, args.min_wl, args.max_wl, args.wl_interval);
-
-    camera_data camera;
-    scene_data  scene;
-    load_scene(args.input_scene, &camera, &scene, args.output_width, args.output_height);
-    print_camera(&camera);
-    print_scene(&scene);
-
     printf("Starting render...\n");
-    render_image(args.output_spd, args.average_spd, args.variance_spd, args.output_width, args.output_height, &scene, &camera, args.num_pixel_samples);
+    //args.pixel_scheme = FILM_SAMPLE_RANDOM;
+    render_image(&args);
     printf("Render complete.\n");
 
     printf("Converting...\n");

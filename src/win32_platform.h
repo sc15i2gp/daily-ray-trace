@@ -33,25 +33,6 @@ typedef struct
     f64 wavelength_interval;
 } spd_file_header;
 
-typedef struct
-{
-    u32  num_pixel_samples;
-    u32  output_width;
-    u32  output_height;
-    f64  min_wl;
-    f64  max_wl;
-    f64  wl_interval;
-    char input_scene[64];
-    char output_spd[64];
-    char average_spd[64];
-    char variance_spd[64];
-    char output_bmp[64];
-    char average_bmp[64];
-    char variance_bmp[64];
-} config_arguments;
-
-void print_config_arguments(config_arguments *config);
-
 void *alloc(u32);
 void unalloc(void *, u32 size);
 void *alloc_pages(u32);

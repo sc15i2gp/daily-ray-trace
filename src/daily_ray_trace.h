@@ -16,6 +16,35 @@ typedef enum
 typedef struct scene_point scene_point;
 
 #include "types.h"
+
+typedef enum
+{
+    FILM_SAMPLE_NONE,
+    FILM_SAMPLE_CENTER,
+    FILM_SAMPLE_RANDOM,
+    FILM_SAMPLE_COUNT
+} film_sample_scheme;
+
+typedef struct
+{
+    u32  num_pixel_samples;
+    u32  output_width;
+    u32  output_height;
+    f64  min_wl;
+    f64  max_wl;
+    f64  wl_interval;
+    char input_scene[64];
+    char output_spd[64];
+    char average_spd[64];
+    char variance_spd[64];
+    char output_bmp[64];
+    char average_bmp[64];
+    char variance_bmp[64];
+    film_sample_scheme pixel_scheme;
+} config_arguments;
+
+void print_config_arguments(config_arguments *config);
+
 #include "utils.h"
 #include "spectrum.h"
 #include "geometry.h"
@@ -122,6 +151,6 @@ void init_scene(scene_data *scene, scene_input_data *scene_input);
 void init_camera(camera_data *, camera_input_data *);
 void print_camera(camera_data *);
 void print_scene(scene_data *);
-void render_image(const char *output_path, const char *output_avg_path, const char *output_var_path, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples);
+void render_image(config_arguments *config);
 
 #include "daily_ray_trace.c"

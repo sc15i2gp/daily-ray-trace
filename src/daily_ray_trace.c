@@ -538,16 +538,36 @@ void print_scene(scene_data *scene)
 //  - Variance spectra
 //  - Filter sums
 
-void sample_scene(spectrum contribution, f64 *filter, u32 x, u32 y, scene_data *scene, camera_data *camera, u32 max_cast_depth)
+vec3 sample_pixel_point(film_sample_scheme sample_scheme)
+{
+    vec3 p = {0.0, 0.0, 0.0};
+    switch(sample_scheme)
+    {
+        case FILM_SAMPLE_CENTER:
+        {
+            p.x = 0.5;
+            p.y = 0.5;
+            break;
+        }
+        case FILM_SAMPLE_RANDOM:
+        {
+            p.x = rng();
+            p.y = rng();
+            break;
+        }
+    }
+    return p;
+}
+
+void sample_scene(spectrum contribution, f64 *filter, u32 x, u32 y, scene_data *scene, camera_data *camera, u32 max_cast_depth, film_sample_scheme pixel_scheme)
 {
     zero_spectrum(contribution);
 
     //Sample point on film plane
     //vec3 sampled_pixel_point = camera->film_bottom_left + film_x * camera->right + film_y * camera->up;
-    f64 p_sample_x = rng(); //TODO: Replace this with some scheme (e.g. completely random, stratified etc.)
-    f64 p_sample_y = rng(); //formerly 0.5
-    f64 film_x     = ((f64)x + p_sample_x) * camera->pixel_width;
-    f64 film_y     = ((f64)y + p_sample_y) * camera->pixel_height;
+    vec3 p_sample = sample_pixel_point(pixel_scheme);
+    f64 film_x     = ((f64)x + p_sample.x) * camera->pixel_width;
+    f64 film_y     = ((f64)y + p_sample.y) * camera->pixel_height;
 
     vec3 sampled_pixel_point_bottom = vec3_mul_by_f64(camera->up,    film_y);
     vec3 sampled_pixel_point_left   = vec3_mul_by_f64(camera->right, film_x);
@@ -603,11 +623,26 @@ void sample_scene(spectrum contribution, f64 *filter, u32 x, u32 y, scene_data *
 //              - (Sample scene)
 //          - write file
 
-void render_image(const char *output_spd_path, const char *output_avg_path, const char *output_var_path, u32 dst_width, u32 dst_height, scene_data *scene, camera_data *camera, u32 samples_per_pixel)
+void render_image(config_arguments *config)
 {
+    const char *output_spd_path = config->output_spd;
+    const char *output_avg_path = config->average_spd;
+    const char *output_var_path = config->variance_spd;
+    u32 dst_width         = config->output_width;
+    u32 dst_height        = config->output_height;
+    u32 samples_per_pixel = config->num_pixel_samples;
     file_handle output_spd_file = open_file(output_spd_path, ACCESS_READWRITE, FILE_NEW);
     file_handle output_var_file = open_file(output_var_path, ACCESS_READWRITE, FILE_NEW);
     file_handle output_avg_file = open_file(output_avg_path, ACCESS_READWRITE, FILE_NEW);
+
+    u32 spd_table_capacity = 32; //Should this be in config?
+    init_spd_table(spd_table_capacity, config->min_wl, config->max_wl, config->wl_interval);
+
+    camera_data camera;
+    scene_data  scene;
+    load_scene(config->input_scene, &camera, &scene, dst_width, dst_height);
+    print_camera(&camera);
+    print_scene(&scene);
 
     spd_file_header header;
     memset(&header, 0, sizeof(header));
@@ -661,7 +696,7 @@ void render_image(const char *output_spd_path, const char *output_avg_path, cons
                 dst_pixel_avg.samples = dst_avg;
                 dst_pixel_var.samples = dst_var;
 
-                sample_scene(contribution, filter, x, y, scene, camera, max_cast_depth);
+                sample_scene(contribution, filter, x, y, &scene, &camera, max_cast_depth, config->pixel_scheme);
 
                 //Accumulate contribution and filter values
                 spectral_sum(dst_pixel_spd, dst_pixel_spd, contribution);

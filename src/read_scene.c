@@ -677,6 +677,29 @@ void parse_config(char *config_contents, u32 config_contents_size, config_argume
                 parse_word(config->variance_bmp);
                 break;
             }
+            case TOKEN_pixel_scheme:
+            {
+                t = next_token();
+                switch(t->type)
+                {
+                    case TOKEN_pixel_random:
+                    {
+                        config->pixel_scheme = FILM_SAMPLE_RANDOM;
+                        break;
+                    }
+                    case TOKEN_pixel_center:
+                    {
+                        config->pixel_scheme = FILM_SAMPLE_CENTER;
+                        break;
+                    }
+                    default:
+                    {
+                        parse_error();
+                        break;
+                    }
+                }
+                break;
+            }
             default:
             {
                 parse_error();
