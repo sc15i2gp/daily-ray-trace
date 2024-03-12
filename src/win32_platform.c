@@ -152,16 +152,6 @@ rgb_u8 rgb_f64_to_rgb_u8(rgb_f64 in_rgb)
 //Also reference white is guessed.
 void spd_file_to_bmp(const char *spd_path, const char *bmp_path)
 { 
-    spectrum ref_white = alloc_spd();
-    spectrum cmf_x     = alloc_spd();
-    spectrum cmf_y     = alloc_spd();
-    spectrum cmf_z     = alloc_spd();
-
-    const_spectrum(ref_white, 1.0);
-    load_csv_file_to_spectrum(cmf_x, "spectra\\cmf_x.csv");
-    load_csv_file_to_spectrum(cmf_y, "spectra\\cmf_y.csv");
-    load_csv_file_to_spectrum(cmf_z, "spectra\\cmf_z.csv");
-
     spd_file_header header;
     file_handle spd_file = open_file(spd_path, ACCESS_READ, FILE_EXISTS);
     read_file(spd_file, sizeof(header), &header);
@@ -169,7 +159,6 @@ void spd_file_to_bmp(const char *spd_path, const char *bmp_path)
     u32 num_pixels = header.width_in_pixels * header.height_in_pixels;
     u32 pixels_size_rgb_u8 = num_pixels * sizeof(rgb_u8);
     rgb_u8 *pixels_rgb_u8 = alloc(pixels_size_rgb_u8);
-    spectrum pixel_spd = alloc_spd();
     u32 pixel_size = (header.has_filter_values) ? spectrum_size + sizeof(f64) : spectrum_size;
     f64 *pixel_buffer = alloc(pixel_size);
     for(u32 pixel = 0; pixel < num_pixels; pixel += 1)
@@ -182,12 +171,11 @@ void spd_file_to_bmp(const char *spd_path, const char *bmp_path)
             f64 pixel_filter = pixel_buffer[number_of_spectrum_samples];
             spectral_div_by_scalar(pixel_spd, pixel_spd, pixel_filter);
         }
-        rgb_f64 pixel_f64 = spectrum_to_rgb_f64(pixel_spd, cmf_x, cmf_y, cmf_z, ref_white);
+        rgb_f64 pixel_f64 = spectrum_to_rgb_f64(pixel_spd);
         pixels_rgb_u8[pixel] = rgb_f64_to_rgb_u8(pixel_f64);
     }
 
     write_pixels_to_bmp(pixels_rgb_u8, header.width_in_pixels, header.height_in_pixels, bmp_path);
-    free_spd(pixel_spd);
     unalloc(pixel_buffer, 0);
     unalloc(pixels_rgb_u8, 0);
 }

@@ -47,14 +47,14 @@ void init_camera(camera_data *camera, camera_input_data *input)
     camera->pixel_height = film_height / (f64)input->height_px;
 }
 
-void init_spd(spectrum *dst, spd_input_data *input, spectrum white, spectrum rgb_red, spectrum rgb_green, spectrum rgb_blue, spectrum rgb_cyan, spectrum rgb_magenta, spectrum rgb_yellow)
+void init_spd(spectrum *dst, spd_input_data *input)
 {
     *dst = alloc_spd();
     switch(input->method)
     {
         case SPD_METHOD_RGB:
         {
-            rgb_f64_to_spectrum(input->rgb, *dst, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+            rgb_f64_to_spectrum(input->rgb, *dst);
             break;
         }
         case SPD_METHOD_CSV:
@@ -109,20 +109,6 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
     scene->surface_material_indices = (u32*)(surfaces_buffer + surfaces_size);
     scene->scene_materials = (object_material*)materials_buffer;
 
-    spectrum white       = alloc_spd();
-    spectrum rgb_red     = alloc_spd();
-    spectrum rgb_green   = alloc_spd();
-    spectrum rgb_blue    = alloc_spd();
-    spectrum rgb_cyan    = alloc_spd();
-    spectrum rgb_magenta = alloc_spd();
-    spectrum rgb_yellow  = alloc_spd();
-    const_spectrum(white, 1.0); //TODO: Parameterise
-    load_csv_file_to_spectrum(rgb_red, "spectra\\red_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(rgb_green, "spectra\\green_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(rgb_blue, "spectra\\blue_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(rgb_cyan, "spectra\\cyan_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(rgb_magenta, "spectra\\magenta_rgb_to_spd.csv");
-    load_csv_file_to_spectrum(rgb_yellow, "spectra\\yellow_rgb_to_spd.csv");
     for(u32 i = 0; i < scene->num_scene_materials; i += 1)
     {
         material_input_data *input = &scene_input->scene_materials[i];
@@ -142,12 +128,12 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
             dst->bdsfs[j] = input->bdsfs[j];
         }
 
-        init_spd(&dst->emission_spd, &input->emission_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
-        init_spd(&dst->diffuse_spd, &input->diffuse_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
-        init_spd(&dst->glossy_spd, &input->glossy_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
-        init_spd(&dst->mirror_spd, &input->mirror_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
-        init_spd(&dst->refract_spd, &input->refract_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
-        init_spd(&dst->extinct_spd, &input->extinct_input, white, rgb_red, rgb_green, rgb_blue, rgb_cyan, rgb_magenta, rgb_yellow);
+        init_spd(&dst->emission_spd, &input->emission_input); 
+        init_spd(&dst->diffuse_spd, &input->diffuse_input);
+        init_spd(&dst->glossy_spd, &input->glossy_input);
+        init_spd(&dst->mirror_spd, &input->mirror_input);
+        init_spd(&dst->refract_spd, &input->refract_input);
+        init_spd(&dst->extinct_spd, &input->extinct_input);
         if(input->is_escape_material) scene->escape_material = dst;
         if(input->is_base_material)   scene->base_material   = dst;
     }
@@ -159,13 +145,6 @@ void init_scene(scene_data* scene, scene_input_data *scene_input)
     {
         //TODO
     }
-    free_spd(white);
-    free_spd(rgb_red);
-    free_spd(rgb_green);
-    free_spd(rgb_blue);
-    free_spd(rgb_cyan);
-    free_spd(rgb_magenta);
-    free_spd(rgb_yellow);
 
     for(u32 i = 0; i < scene->num_surfaces; i += 1)
     {
@@ -635,8 +614,19 @@ void render_image(config_arguments *config)
     file_handle output_var_file = open_file(output_var_path, ACCESS_READWRITE, FILE_NEW);
     file_handle output_avg_file = open_file(output_avg_path, ACCESS_READWRITE, FILE_NEW);
 
+    spd_tables_csvs spd_csvs;
+    spd_csvs.white       = "spectra\\white_rgb_to_spd.csv";
+    spd_csvs.cmf_x       = "spectra\\cmf_x.csv";
+    spd_csvs.cmf_y       = "spectra\\cmf_y.csv";
+    spd_csvs.cmf_z       = "spectra\\cmf_z.csv";
+    spd_csvs.rgb_red     = "spectra\\red_rgb_to_spd.csv";
+    spd_csvs.rgb_green   = "spectra\\green_rgb_to_spd.csv";
+    spd_csvs.rgb_blue    = "spectra\\blue_rgb_to_spd.csv";
+    spd_csvs.rgb_cyan    = "spectra\\cyan_rgb_to_spd.csv";
+    spd_csvs.rgb_magenta = "spectra\\magenta_rgb_to_spd.csv";
+    spd_csvs.rgb_yellow  = "spectra\\yellow_rgb_to_spd.csv";
     u32 spd_table_capacity = 32; //Should this be in config?
-    init_spd_table(spd_table_capacity, config->min_wl, config->max_wl, config->wl_interval);
+    init_spd_tables(spd_csvs, spd_table_capacity, config->min_wl, config->max_wl, config->wl_interval);
 
     camera_data camera;
     scene_data  scene;

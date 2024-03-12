@@ -31,23 +31,15 @@
 //  - Remove C std?
 
 //TODO:
+//  - Codify spd table entries
+//      - cmfs: used in spd to bmp
+//      - rgb to spds: rgb to spectrum
+//      - white/ref white: both spd to bmp and rgb to spectrum
+//      - stack alloc spds
 //  - Better memory management
 //      - Have platform track allocations and open files (and free on shutdown)
 //      - Memory arena(s)
 //      - Remove fixed length arrays in scene structs
-//  - Codify spd table entries
-//      - cmfs
-//      - rgb to spds
-//      - white/ref white
-//  - spd to bmp
-//      - Separate tool spd->bmp (in case of crash or something) which can either be called in drt or
-//        invoked as a standalone program
-//  - spd average, sum, max_value?
-//      - Could keep running values at end of spectra
-//  - Profiling
-//  - Stress test
-//      - Different resolutions, number of spectrum samples etc.
-//      - Make sure drt can properly handle concave shapes
 //  - Tidy
 //      - Platform probably shouldn't have to know about filtering pixels or cmfs
 //      - Have config_args as a parameter for render_image
@@ -80,6 +72,10 @@
 //      - RNG
 //          - Quality tests
 //      - Camera
+//  - Profiling
+//  - Stress test
+//      - Different resolutions, number of spectrum samples etc.
+//      - Make sure drt can properly handle concave shapes
 //  - Do general performance pass over code
 //  - Output rendered scene info to files
 //      - e.g. light colours/spectra, material colours etc.
