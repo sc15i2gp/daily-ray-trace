@@ -40,6 +40,16 @@ typedef struct
     char output_bmp[64];
     char average_bmp[64];
     char variance_bmp[64];
+    char white_spd[64];
+    char cmf_x[64];
+    char cmf_y[64];
+    char cmf_z[64];
+    char red_spd[64];
+    char green_spd[64];
+    char blue_spd[64];
+    char cyan_spd[64];
+    char magenta_spd[64];
+    char yellow_spd[64];
     film_sample_scheme pixel_scheme;
 } config_arguments;
 

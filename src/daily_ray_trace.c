@@ -615,16 +615,16 @@ void render_image(config_arguments *config)
     file_handle output_avg_file = open_file(output_avg_path, ACCESS_READWRITE, FILE_NEW);
 
     spd_tables_csvs spd_csvs;
-    spd_csvs.white       = "spectra\\white_rgb_to_spd.csv";
-    spd_csvs.cmf_x       = "spectra\\cmf_x.csv";
-    spd_csvs.cmf_y       = "spectra\\cmf_y.csv";
-    spd_csvs.cmf_z       = "spectra\\cmf_z.csv";
-    spd_csvs.rgb_red     = "spectra\\red_rgb_to_spd.csv";
-    spd_csvs.rgb_green   = "spectra\\green_rgb_to_spd.csv";
-    spd_csvs.rgb_blue    = "spectra\\blue_rgb_to_spd.csv";
-    spd_csvs.rgb_cyan    = "spectra\\cyan_rgb_to_spd.csv";
-    spd_csvs.rgb_magenta = "spectra\\magenta_rgb_to_spd.csv";
-    spd_csvs.rgb_yellow  = "spectra\\yellow_rgb_to_spd.csv";
+    spd_csvs.white       = config->white_spd;
+    spd_csvs.cmf_x       = config->cmf_x;
+    spd_csvs.cmf_y       = config->cmf_y;
+    spd_csvs.cmf_z       = config->cmf_z;
+    spd_csvs.rgb_red     = config->red_spd;
+    spd_csvs.rgb_green   = config->green_spd;
+    spd_csvs.rgb_blue    = config->blue_spd;
+    spd_csvs.rgb_cyan    = config->cyan_spd;
+    spd_csvs.rgb_magenta = config->magenta_spd;
+    spd_csvs.rgb_yellow  = config->yellow_spd;
     u32 spd_table_capacity = 32; //Should this be in config?
     init_spd_tables(spd_csvs, spd_table_capacity, config->min_wl, config->max_wl, config->wl_interval);
 

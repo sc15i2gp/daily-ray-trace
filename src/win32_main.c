@@ -31,28 +31,18 @@
 //  - Remove C std?
 
 //TODO:
-//  - Codify spd table entries
-//      - cmfs: used in spd to bmp
-//      - rgb to spds: rgb to spectrum
-//      - white/ref white: both spd to bmp and rgb to spectrum
-//      - stack alloc spds
 //  - Better memory management
 //      - Have platform track allocations and open files (and free on shutdown)
 //      - Memory arena(s)
 //      - Remove fixed length arrays in scene structs
 //  - Tidy
 //      - Platform probably shouldn't have to know about filtering pixels or cmfs
-//      - Have config_args as a parameter for render_image
-//          - Move some stuff like load_scene, init_spd_table to render_image
 //      - Fix transmission wavelength
 //          - Store transmitted wavelength in scene_point
 //          - Randomly choose a wavelength for transmit direction sampling?
-//      - stack alloc spd
-//          - Also remove dogshit linear search
 //      - Choosing transmission direction based on refract indices
 //          - RNG vs average vs specific wavelength
 //      - All file stuff needs reviewing...BADLY!!
-//      - Include reference white in spd file
 //      - Sort out normal issues
 //          - Either come up with consistent scheme (possibly on alg rewrite)
 //          - or make functions that don't care which way normals are

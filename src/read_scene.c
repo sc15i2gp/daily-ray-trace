@@ -700,6 +700,56 @@ void parse_config(char *config_contents, u32 config_contents_size, config_argume
                 }
                 break;
             }
+            case TOKEN_white_spd:
+            {
+                parse_word(config->white_spd);
+                break;
+            }
+            case TOKEN_cmf_x:
+            {
+                parse_word(config->cmf_x);
+                break;
+            }
+            case TOKEN_cmf_y:
+            {
+                parse_word(config->cmf_y);
+                break;
+            }
+            case TOKEN_cmf_z:
+            {
+                parse_word(config->cmf_z);
+                break;
+            }
+            case TOKEN_red_spd:
+            {
+                parse_word(config->red_spd);
+                break;
+            }
+            case TOKEN_green_spd:
+            {
+                parse_word(config->green_spd);
+                break;
+            }
+            case TOKEN_blue_spd:
+            {
+                parse_word(config->blue_spd);
+                break;
+            }
+            case TOKEN_cyan_spd:
+            {
+                parse_word(config->cyan_spd);
+                break;
+            }
+            case TOKEN_magenta_spd:
+            {
+                parse_word(config->magenta_spd);
+                break;
+            }
+            case TOKEN_yellow_spd:
+            {
+                parse_word(config->yellow_spd);
+                break;
+            }
             default:
             {
                 parse_error();
