@@ -690,6 +690,13 @@ void render_image(config_arguments *config)
     f64 *dst_vars   = alloc(spd_var_data_size);
     printf("Size = %u\n", spd_pixel_data_size);
 
+    f64 max_sample_time = 0;
+    f64 min_sample_time = DBL_MAX;
+    f64 avg_sample_time = 0;
+
+    timer render_timer;
+    timer sample_timer;
+
     f64 *contribution_buffer = alloc(spd_pixel_size);
     spectrum contribution;
     contribution.samples = contribution_buffer;
@@ -697,11 +704,14 @@ void render_image(config_arguments *config)
     spectrum tmp_0_spd = alloc_spd();
     spectrum tmp_1_spd = alloc_spd();
     const u32 max_cast_depth = 4;
+
+    start_timer(&render_timer);
     for(u32 sample = 0; sample < samples_per_pixel; sample += 1)
     {
         printf("Sample %u / %u\n", sample+1, samples_per_pixel);
         //Filter final contribution and write to dst
         //pixel value = sum(filter * weight * radiance)/sum(filter)
+        start_timer(&sample_timer);
         for(u32 y = 0; y < dst_height; y += 1)
         {
             for(u32 x = 0; x < dst_width; x += 1)
@@ -732,7 +742,17 @@ void render_image(config_arguments *config)
                 spectral_sum(dst_pixel_var, dst_pixel_var, tmp_0_spd);
             }
         }
+        stop_timer(&sample_timer);
+        f64 sample_time = time_elapsed_in_ms(&sample_timer);
+        if(sample_time < min_sample_time) min_sample_time = sample_time;
+        if(sample_time > max_sample_time) max_sample_time = sample_time;
+        avg_sample_time += (sample_time  - avg_sample_time)/(((f64)sample)+1.0);
     }
+    stop_timer(&render_timer);
+    printf("Min sample time: %fms\n", min_sample_time);
+    printf("Max sample time: %fms\n", max_sample_time);
+    printf("Avg sample time: %fms\n", avg_sample_time);
+    printf("Total render time: %fms\n", time_elapsed_in_ms(&render_timer));
 
     u32 dst_pixel_size = spectrum_size + sizeof(f64);
     for(u32 pixel = 0; pixel < num_pixels; pixel += 1)

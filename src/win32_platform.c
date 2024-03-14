@@ -176,3 +176,20 @@ void print_config_arguments(config_arguments *config)
     printf("Average bmp path:    %s\n", config->average_bmp);
     printf("Variance bmp path:   %s\n", config->variance_bmp);
 }
+
+void start_timer(timer *t)
+{
+    QueryPerformanceCounter(&t->start);
+}
+
+void stop_timer(timer *t)
+{
+    QueryPerformanceCounter(&t->stop);
+}
+
+f64 time_elapsed_in_ms(timer *t)
+{
+    f64 elapsed = (f64)(t->stop.QuadPart - t->start.QuadPart);
+    elapsed = (elapsed / pc_frequency) * 1000.0;
+    return elapsed;
+}

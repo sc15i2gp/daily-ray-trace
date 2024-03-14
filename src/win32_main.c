@@ -31,13 +31,12 @@
 //  - Remove C std?
 
 //TODO:
-//  - Profiling
-//      - Simple timer for scene sampling
 //  - Better memory management
 //      - Have platform track allocations and open files (and free on shutdown)
 //      - Memory arena(s)
 //      - Remove fixed length arrays in scene structs
 //      - String type?
+//      - Startup and shutdown methods?
 //  - Tidy
 //      - Fix transmission wavelength
 //          - Store transmitted wavelength in scene_point
@@ -130,6 +129,10 @@ void spd_file_to_bmp(const char *spd_path, const char *bmp_path)
 
 int main(int argc, char **argv)
 {
+    LARGE_INTEGER pc;
+    QueryPerformanceFrequency(&pc);
+    pc_frequency = (f64)(pc.QuadPart);
+
     const char *config_path = "config.cfg";
     file_handle config_file = open_file(config_path, ACCESS_READ, FILE_EXISTS);
     u32 config_file_size = get_file_size(config_file);

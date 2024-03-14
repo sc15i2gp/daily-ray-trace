@@ -22,6 +22,18 @@ typedef enum
     FILE_EXISTS
 } file_open_type;
 
+typedef struct
+{
+    LARGE_INTEGER start;
+    LARGE_INTEGER stop;
+} timer;
+
+f64 pc_frequency;
+
+void start_timer(timer*);
+void stop_timer(timer*);
+f64  time_elapsed_in_ms(timer*);
+
 void *alloc(u32);
 void unalloc(void *, u32 size);
 void *alloc_pages(u32);
