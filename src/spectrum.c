@@ -147,6 +147,20 @@ void free_spd(spectrum spd)
     spd_stack.next -= number_of_spectrum_samples;
 }
 
+f64 value_at_wl(spectrum spd, f64 wl)
+{
+    u32 i_0 = (u32)((wl - smallest_wavelength) / sample_interval);
+    u32 i_1 = i_0 + 1;
+
+    f64 w_0 = smallest_wavelength + i_0*sample_interval;
+    f64 w_1 = smallest_wavelength + i_1*sample_interval;
+    f64 s_0 = spd.samples[i_0];
+    f64 s_1 = spd.samples[i_1];
+    
+    f64 v = lerp(wl, w_0, w_1, s_0, s_1);
+    return v;
+}
+
 void zero_spectrum(spectrum dst)
 {
     for(u32 i = 0; i < number_of_spectrum_samples; i += 1)

@@ -71,6 +71,7 @@ rgb_f64 spectrum_to_xyz(spectrum spd);
 rgb_f64 spectrum_to_rgb_f64(spectrum spd);
 void rgb_f64_to_spectrum(rgb_f64 rgb, spectrum dst);
 
+f64  value_at_wl(spectrum, f64);
 void zero_spectrum(spectrum dst);
 void const_spectrum(spectrum dst, f64 f);
 void copy_spectrum(spectrum dst, spectrum src);

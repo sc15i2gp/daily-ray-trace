@@ -26,7 +26,6 @@
 //          - spectrum -> rgb
 //  - Stop being ignorant about line-shape intersection methods and float precision
 //  - Xorshift rng
-//  - Textures
 //  - Participating media
 //  - Remove C std?
 
@@ -37,38 +36,30 @@
 //      - Remove fixed length arrays in scene structs
 //      - String type?
 //      - Startup and shutdown methods?
-//  - Tidy
-//      - Fix transmission wavelength
-//          - Store transmitted wavelength in scene_point
-//          - Randomly choose a wavelength for transmit direction sampling?
-//      - Choosing transmission direction based on refract indices
-//          - RNG vs average vs specific wavelength
+//  - Logging
+//      - API
+//      - How much to log?
+//  - Textured models
+//      - Textures
+//      - Models
+//  - Quality pass
 //      - All file stuff needs reviewing...BADLY!!
-//      - Fix matrix stuff, it must not be needed
-//      - Do general quality pass over code
-//        - Function prototypes and struct definitions in header files
-//        - Code order in files
-//        - Review file include structure
-//        - Make naming consistent/good
-//              - spectrum is the type, spd should be the name
-//              - Add __ for global variables
+//      - Function prototypes and struct definitions in header files
+//      - Code order in files
+//      - Review file include structure
+//      - Make naming consistent/good
+//          - spectrum is the type, spd should be the name
+//          - Add __ for global variables
+//      - Performance pass
+//      - Error handling
+//  - Linux
 //  - Test
 //      - Try to aggressively test as much code as possible
-//      - RNG
-//          - Quality tests
-//      - Camera
-//  - Stress test
-//      - Different resolutions, number of spectrum samples etc.
-//      - Make sure drt can properly handle concave shapes
-//  - Do general performance pass over code
-//      - Parallelism
+//      - Stress test
+//          - Different resolutions, number of spectrum samples etc.
+//          - Make sure drt can properly handle concave shapes
 //  - Output rendered scene info to files
 //      - e.g. light colours/spectra, material colours etc.
-//  - Camera stuff
-//      - Surely the camera's film dimensions shouldn't be dictated by fov?
-//      - No it shouldn't, fov is dictated by the parameters of the camera, it isn't one itself
-//      - Maybe have plane size as a camera property
-//      - This will probably end up being part of sorting out units due to physical sizes of camera parts
 //  - Better RNG
 //      - Alternative methods
 //      - Consider generating RNG up front
@@ -78,14 +69,16 @@
 //      - Also consider attenuation and what exactly surface + emissive spds mean
 //      - Actually, generally bone up on physics
 //      - Maths too: Surface vs sphere integrals for light transport
+//      - Fix matrix stuff, it must not be needed
+//          - Or maybe partition parts of the program into local spaces e.g. camera space, surface space
+//      - Camera stuff
+//          - Surely the camera's film dimensions shouldn't be dictated by fov?
+//          - No it shouldn't, fov is dictated by the parameters of the camera, it isn't one itself
+//          - Maybe have plane size as a camera property
+//          - This will probably end up being part of sorting out units due to physical sizes of camera parts
 //  - Visualisation/comparison methods for material parameters
 //      - e.g. what effect does raising/lowering shininess within a range do for glossiness
 //      - Maybe have specific output directory for a given scene
-//  - Logging
-//      - API
-//      - How much to log?
-//  - Error handling
-//  - Linux
 //  - Non-blackbody emissive sources
 //  - Solidify reflection model for bdsfs to prevent confusion and unnecessary vector reversals
 //      - An interaction event where reflectance or transmittance needs to be calculated consists of:

@@ -378,6 +378,7 @@ void find_ray_intersection(scene_point *intersection, scene_data *scene, vec3 ra
                 break;
             }
         }
+        intersection->trans_wl = 630.0;
         intersection->out = vec3_reverse(ray_direction);
         intersection->on_dot = vec3_dot(intersection->normal, intersection->out);
         intersection->transmit_material = &scene->scene_materials[scene->surface_material_indices[intersection_index]];

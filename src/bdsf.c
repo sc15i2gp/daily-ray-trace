@@ -158,14 +158,13 @@ void fs_dielectric_reflectance_bdsf(spectrum reflectance, scene_point *p, vec3 i
     }
 }
 
-#define TMP_TRANSMIT_WL 50
 void fs_dielectric_transmittance_bdsf(spectrum transmittance, scene_point *p, vec3 incoming)
 {
     vec3 outgoing = vec3_reverse(p->out);
     spectrum ir_spd = p->incident_material->refract_spd;
     spectrum tr_spd = p->transmit_material->refract_spd;
-    f64 ir = ir_spd.samples[TMP_TRANSMIT_WL];
-    f64 tr = tr_spd.samples[TMP_TRANSMIT_WL];
+    f64 ir = value_at_wl(ir_spd, p->trans_wl);
+    f64 tr = value_at_wl(tr_spd, p->trans_wl);
     if(vec3_equal(incoming, vec3_transmit(outgoing, p->normal, ir, tr)))
     {
         fs_dielectric_transmittance(transmittance, ir_spd, tr_spd, p->on_dot);
@@ -226,8 +225,8 @@ void sample_transmit_direction(vec3 *v, f64 *pdf, scene_point *p)
     spectrum ir_spd = p->incident_material->refract_spd;
     spectrum tr_spd = p->transmit_material->refract_spd;
 
-    f64 ir = ir_spd.samples[TMP_TRANSMIT_WL];
-    f64 tr = tr_spd.samples[TMP_TRANSMIT_WL];
+    f64 ir = value_at_wl(ir_spd, p->trans_wl);
+    f64 tr = value_at_wl(tr_spd, p->trans_wl);
     *v   = vec3_transmit(vec3_reverse(p->out), p->normal, ir, tr);
     *pdf = 1.0;
 
@@ -240,9 +239,9 @@ void sample_reflect_or_transmit_direction(vec3 *v, f64 *pdf, scene_point *p)
     spectrum ir_spd = p->incident_material->refract_spd;
     spectrum tr_spd = p->transmit_material->refract_spd;
     fs_dielectric_reflectance(reflectance, ir_spd, tr_spd, p->on_dot);
-    f64 rd = reflectance.samples[TMP_TRANSMIT_WL];
-    f64 ir = ir_spd.samples[TMP_TRANSMIT_WL];
-    f64 tr = tr_spd.samples[TMP_TRANSMIT_WL];
+    f64 rd = value_at_wl(reflectance, p->trans_wl);
+    f64 ir = value_at_wl(ir_spd, p->trans_wl);
+    f64 tr = value_at_wl(tr_spd, p->trans_wl);
 
     f64 f = rng();
     vec3 w = vec3_reverse(p->out);

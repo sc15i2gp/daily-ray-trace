@@ -115,6 +115,7 @@ struct scene_point
     vec3 normal;
     vec3 out; //Points back towards camera along path
     f64  on_dot; //Dot between normal and out
+    f64  trans_wl;
 
     object_material *surface_material;
     object_material *incident_material;
