@@ -31,29 +31,25 @@
 //  - Remove C std?
 
 //TODO:
+//  - Profiling
+//      - Simple timer for scene sampling
 //  - Better memory management
 //      - Have platform track allocations and open files (and free on shutdown)
 //      - Memory arena(s)
 //      - Remove fixed length arrays in scene structs
+//      - String type?
 //  - Tidy
-//      - Platform probably shouldn't have to know about filtering pixels or cmfs
 //      - Fix transmission wavelength
 //          - Store transmitted wavelength in scene_point
 //          - Randomly choose a wavelength for transmit direction sampling?
 //      - Choosing transmission direction based on refract indices
 //          - RNG vs average vs specific wavelength
 //      - All file stuff needs reviewing...BADLY!!
-//      - Sort out normal issues
-//          - Either come up with consistent scheme (possibly on alg rewrite)
-//          - or make functions that don't care which way normals are
-//          - e.g. plane normals, mirror reflect functions
-//      - String type?
 //      - Fix matrix stuff, it must not be needed
 //      - Do general quality pass over code
 //        - Function prototypes and struct definitions in header files
 //        - Code order in files
 //        - Review file include structure
-//        - Reading scene files code (e.g. is_word_char vs is_letter_char || '_')
 //        - Make naming consistent/good
 //              - spectrum is the type, spd should be the name
 //              - Add __ for global variables
@@ -62,11 +58,11 @@
 //      - RNG
 //          - Quality tests
 //      - Camera
-//  - Profiling
 //  - Stress test
 //      - Different resolutions, number of spectrum samples etc.
 //      - Make sure drt can properly handle concave shapes
 //  - Do general performance pass over code
+//      - Parallelism
 //  - Output rendered scene info to files
 //      - e.g. light colours/spectra, material colours etc.
 //  - Camera stuff
@@ -89,10 +85,8 @@
 //  - Logging
 //      - API
 //      - How much to log?
-//      - Metal
 //  - Error handling
-//  - Input arguments
-//  - Parallelism
+//  - Linux
 //  - Non-blackbody emissive sources
 //  - Solidify reflection model for bdsfs to prevent confusion and unnecessary vector reversals
 //      - An interaction event where reflectance or transmittance needs to be calculated consists of:
@@ -125,6 +119,14 @@
 //  - <speed target>
 //  - <variance + statistics targets>
 //  - <quality target?>
+
+void spd_file_to_bmp(const char *spd_path, const char *bmp_path)
+{
+    u32 width, height;
+    rgb_f64 *pixels = spd_file_to_rgb_f64_pixels(spd_path, &width, &height);
+    write_rgb_f64_pixels_to_bmp(pixels, width, height, bmp_path);
+    unalloc(pixels, 0);
+}
 
 int main(int argc, char **argv)
 {

@@ -146,38 +146,18 @@ rgb_u8 rgb_f64_to_rgb_u8(rgb_f64 in_rgb)
     return out_rgb;
 }
 
-//Assumes init_spd_table has been called, so alloc_spd should pass
-//and it doesn't matter (right now) what the header thinks the number
-//of spectrum samples is.
-//Also reference white is guessed.
-void spd_file_to_bmp(const char *spd_path, const char *bmp_path)
-{ 
-    spd_file_header header;
-    file_handle spd_file = open_file(spd_path, ACCESS_READ, FILE_EXISTS);
-    read_file(spd_file, sizeof(header), &header);
+void write_rgb_f64_pixels_to_bmp(rgb_f64 *f64_pixels, u32 width, u32 height, const char *bmp_path)
+{
+    u32 num_pixels = width * height;
+    u32 u8_pixels_size = num_pixels * sizeof(rgb_u8);
+    rgb_u8 *u8_pixels = alloc(u8_pixels_size);
 
-    u32 num_pixels = header.width_in_pixels * header.height_in_pixels;
-    u32 pixels_size_rgb_u8 = num_pixels * sizeof(rgb_u8);
-    rgb_u8 *pixels_rgb_u8 = alloc(pixels_size_rgb_u8);
-    u32 pixel_size = (header.has_filter_values) ? spectrum_size + sizeof(f64) : spectrum_size;
-    f64 *pixel_buffer = alloc(pixel_size);
     for(u32 pixel = 0; pixel < num_pixels; pixel += 1)
     {
-        read_file(spd_file, pixel_size, pixel_buffer);
-        spectrum pixel_spd;
-        pixel_spd.samples = pixel_buffer;
-        if(header.has_filter_values)
-        {
-            f64 pixel_filter = pixel_buffer[number_of_spectrum_samples];
-            spectral_div_by_scalar(pixel_spd, pixel_spd, pixel_filter);
-        }
-        rgb_f64 pixel_f64 = spectrum_to_rgb_f64(pixel_spd);
-        pixels_rgb_u8[pixel] = rgb_f64_to_rgb_u8(pixel_f64);
+        u8_pixels[pixel] = rgb_f64_to_rgb_u8(f64_pixels[pixel]);
     }
 
-    write_pixels_to_bmp(pixels_rgb_u8, header.width_in_pixels, header.height_in_pixels, bmp_path);
-    unalloc(pixel_buffer, 0);
-    unalloc(pixels_rgb_u8, 0);
+    write_pixels_to_bmp(u8_pixels, width, height, bmp_path);
 }
 
 void print_config_arguments(config_arguments *config)

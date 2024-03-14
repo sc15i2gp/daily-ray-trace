@@ -1,3 +1,32 @@
+rgb_f64* spd_file_to_rgb_f64_pixels(const char *spd_path, u32 *width, u32 *height)
+{
+    spd_file_header header;
+    file_handle spd_file = open_file(spd_path, ACCESS_READ, FILE_EXISTS);
+    read_file(spd_file, sizeof(header), &header);
+
+    *width = header.width_in_pixels;
+    *height = header.height_in_pixels;
+    u32 num_pixels = header.width_in_pixels * header.height_in_pixels;
+    u32 pixels_size = num_pixels * sizeof(rgb_f64);
+    rgb_f64 *pixels = alloc(pixels_size);
+    u32 spd_pixel_size = (header.has_filter_values) ? spectrum_size + sizeof(f64) : spectrum_size;
+
+    spectrum spd_pixel = alloc_spd();
+    for(u32 pixel = 0; pixel < num_pixels; pixel += 1)
+    {
+        read_file(spd_file, spd_pixel_size, spd_pixel.samples);
+        if(header.has_filter_values)
+        {
+            f64 pixel_filter = spd_pixel.samples[number_of_spectrum_samples];
+            spectral_div_by_scalar(spd_pixel, spd_pixel, pixel_filter);
+        }
+        pixels[pixel] = spectrum_to_rgb_f64(spd_pixel);
+    }
+
+    free_spd(spd_pixel);
+    return pixels;
+}
+
 void load_scene(const char *scene_path, camera_data *camera, scene_data *scene, u32 width_px, u32 height_px)
 {
     file_handle scene_file_handle = open_file(scene_path, ACCESS_READ, FILE_EXISTS);

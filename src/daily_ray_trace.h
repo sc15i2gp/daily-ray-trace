@@ -55,6 +55,17 @@ typedef struct
 
 void print_config_arguments(config_arguments *config);
 
+typedef struct
+{
+    u32 id;
+    u32 width_in_pixels;
+    u32 height_in_pixels;
+    u32 number_of_wavelengths;
+    u32 has_filter_values;
+    f64 min_wavelength;
+    f64 wavelength_interval;
+} spd_file_header;
+
 #include "utils.h"
 #include "spectrum.h"
 #include "geometry.h"

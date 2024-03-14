@@ -22,17 +22,6 @@ typedef enum
     FILE_EXISTS
 } file_open_type;
 
-typedef struct
-{
-    u32 id;
-    u32 width_in_pixels;
-    u32 height_in_pixels;
-    u32 number_of_wavelengths;
-    u32 has_filter_values;
-    f64 min_wavelength;
-    f64 wavelength_interval;
-} spd_file_header;
-
 void *alloc(u32);
 void unalloc(void *, u32 size);
 void *alloc_pages(u32);
@@ -46,4 +35,4 @@ void set_file_pointer(file_handle file, u32 loc);
 
 u32 write_bmp_to_file(windows_bmp*, const char*);
 u32 write_pixels_to_bmp(rgb_u8*, u32, u32, const char*);
-void spd_file_to_bmp(const char *spd_path, const char *bmp_path);
+void write_rgb_f64_pixels_to_bmp(rgb_f64*, u32, u32, const char *);
