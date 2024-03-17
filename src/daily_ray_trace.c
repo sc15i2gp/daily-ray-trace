@@ -704,7 +704,7 @@ void render_image(config_arguments *config)
     f64 *filter = &contribution_buffer[number_of_spectrum_samples];
     spectrum tmp_0_spd = alloc_spd();
     spectrum tmp_1_spd = alloc_spd();
-    const u32 max_cast_depth = 4;
+    u32 max_cast_depth = config->max_cast_depth;
 
     start_timer(&render_timer);
     for(u32 sample = 0; sample < samples_per_pixel; sample += 1)

@@ -617,6 +617,11 @@ void parse_config(char *config_contents, u32 config_contents_size, config_argume
                 parse_uint(&config->num_pixel_samples);
                 break;
             }
+            case TOKEN_max_cast_depth:
+            {
+                parse_uint(&config->max_cast_depth);
+                break;
+            }
             case TOKEN_output_width:
             {
                 parse_uint(&config->output_width);

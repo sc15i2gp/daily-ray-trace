@@ -28,6 +28,7 @@ typedef enum
 typedef struct
 {
     u32  num_pixel_samples;
+    u32  max_cast_depth;
     u32  output_width;
     u32  output_height;
     f64  min_wl;
